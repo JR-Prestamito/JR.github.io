@@ -118,11 +118,34 @@ const METODOS = ["Francés (cuota fija)","Alemán (cuota decreciente)","Tasa pla
 const PERIODOS = ["Semanal","Quincenal","Mensual"];
 const DIAS_PERIODO = { Semanal:7, Quincenal:15, Mensual:30 };
 
+// Cada instalación guarda sus datos por separado según la RUTA donde vive (no solo el
+// dominio). Esto es clave si alojas dos negocios distintos bajo el mismo dominio, por
+// ejemplo tuusuario.github.io/negocio1/ y tuusuario.github.io/negocio2/ — sin esto, el
+// navegador los trataría como un solo "cajón" de datos compartido y uno pisaría al otro.
+const JR_NS = (function(){
+  try{ return location.pathname.replace(/\/+$/,"") || "/"; }catch(e){ return "/"; }
+})();
+function jrKey(base){ return base + "::" + JR_NS; }
+(function jrMigrarClavesViejas(){
+  // Migración de una sola vez: si esta ruta todavía no tiene datos propios pero existen
+  // datos guardados con el nombre viejo (de antes de separar por ruta), los copia una
+  // vez para que nadie pierda lo que ya tenía cargado.
+  try{
+    ["jr_clientes","jr_prestamos","jr_config"].forEach(function(base){
+      const claveNueva = jrKey(base);
+      if(localStorage.getItem(claveNueva) === null){
+        const viejo = localStorage.getItem(base);
+        if(viejo !== null) localStorage.setItem(claveNueva, viejo);
+      }
+    });
+  }catch(e){}
+})();
+
 let state = {
   tab: "inicio",
-  clientes: JSON.parse(localStorage.getItem("jr_clientes") || "[]"),
-  prestamos: JSON.parse(localStorage.getItem("jr_prestamos") || "[]"),
-  config: JSON.parse(localStorage.getItem("jr_config") || '{"tasaMoraDiaria":0}'),
+  clientes: JSON.parse(localStorage.getItem(jrKey("jr_clientes")) || "[]"),
+  prestamos: JSON.parse(localStorage.getItem(jrKey("jr_prestamos")) || "[]"),
+  config: JSON.parse(localStorage.getItem(jrKey("jr_config")) || '{"tasaMoraDiaria":0}'),
   vista: "lista",
   seleccionId: null,
   showFormCliente: false,
@@ -131,9 +154,9 @@ let state = {
 
 let _autoSyncTimer = null;
 function save(opts){
-  localStorage.setItem("jr_clientes", JSON.stringify(state.clientes));
-  localStorage.setItem("jr_prestamos", JSON.stringify(state.prestamos));
-  localStorage.setItem("jr_config", JSON.stringify(state.config));
+  localStorage.setItem(jrKey("jr_clientes"), JSON.stringify(state.clientes));
+  localStorage.setItem(jrKey("jr_prestamos"), JSON.stringify(state.prestamos));
+  localStorage.setItem(jrKey("jr_config"), JSON.stringify(state.config));
   const sinAutoSync = opts && opts.sinAutoSync;
   if(!sinAutoSync && state.config.syncUrl && state.config.syncKey && state.config.autoSync !== false){
     clearTimeout(_autoSyncTimer);
@@ -391,7 +414,7 @@ const ICONS = {
   settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
 };
 
-let desbloqueado = sessionStorage.getItem("jr_desbloqueado") === "1";
+let desbloqueado = sessionStorage.getItem(jrKey("jr_desbloqueado")) === "1";
 
 // Detección de huella/Face ID (WebAuthn). Solo funciona si la app se sirve desde una
 // dirección https:// (o localhost) — un archivo abierto directamente (file://) no cumple
@@ -468,7 +491,7 @@ async function usarHuella(){
     });
     if(resultado){
       desbloqueado = true;
-      sessionStorage.setItem("jr_desbloqueado", "1");
+      sessionStorage.setItem(jrKey("jr_desbloqueado"), "1");
       state._errorClave = false;
       render();
     }
@@ -501,7 +524,7 @@ function verificarClaveInicio(){
   const val = (inp ? inp.value : "").trim();
   if(val !== "" && val === String(state.config.pin||"")){
     desbloqueado = true;
-    sessionStorage.setItem("jr_desbloqueado", "1");
+    sessionStorage.setItem(jrKey("jr_desbloqueado"), "1");
     state._errorClave = false;
   } else {
     state._errorClave = true;
