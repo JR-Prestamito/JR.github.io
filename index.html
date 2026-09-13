@@ -1707,6 +1707,16 @@ function viewDetallePrestamo(){
       <td style="padding:4px 6px;white-space:nowrap;">${estadoCelda}</td>
     </tr>`;
   }).join("");
+  const totalCuota = r.tabla.reduce((s,f)=>s+(Number(f.cuota)||0),0);
+  const totalInteres = r.tabla.reduce((s,f)=>s+(Number(f.interes)||0),0);
+  const totalAbono = r.tabla.reduce((s,f)=>s+(Number(f.abono)||0),0);
+  const filaTotales = `<tr style="border-top:2px solid #d8d3c8;background:#F5F3EE;font-weight:700;">
+    <td colspan="3" style="padding:5px 6px;">Total</td>
+    <td style="padding:5px 6px;text-align:right">${money(totalCuota)}</td>
+    <td style="padding:5px 6px;text-align:right">${money(totalInteres)}</td>
+    <td style="padding:5px 6px;text-align:right">${money(totalAbono)}</td>
+    <td></td><td></td>
+  </tr>`;
 
   const tasaMora = Number(state.config.tasaMoraDiaria)||0;
   const diasAtr = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
@@ -1753,7 +1763,7 @@ function viewDetallePrestamo(){
     </div>
     <div id="tabla-imprimible">
       <h2 class="solo-imprimir">${nombreApp().toUpperCase()}</h2>
-      <p class="hint solo-imprimir" style="margin:0 0 10px;">${p.codigo} · ${cli?cli.nombre:"—"} · Capital ${money(p.capital)} · Tasa ${p.tasa}% · ${p.metodo}</p>
+      <p class="hint solo-imprimir" style="margin:0 0 10px;">${p.codigo} · ${cli?cli.nombre:"—"} · Capital ${money(p.capital)} · Tasa ${p.tasa}% · ${p.periodo} · ${p.metodo}</p>
       <div style="border:1px solid #e5e1d8;border-radius:16px;overflow:hidden;margin-bottom:16px;">
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
         <table style="min-width:520px;font-size:11px;">
@@ -1763,7 +1773,7 @@ function viewDetallePrestamo(){
             <th style="padding:5px 6px;text-align:right">Interés</th><th style="padding:5px 6px;text-align:right">Abono</th>
             <th style="padding:5px 6px;text-align:right">Pendiente</th><th style="padding:5px 6px;text-align:left;">Estado</th>
           </tr></thead>
-          <tbody>${filasHtml}</tbody>
+          <tbody>${filasHtml}${filaTotales}</tbody>
         </table>
         </div>
       </div>
@@ -1816,17 +1826,22 @@ function generarAmortizacionPDF(p, cli, r){
   doc.setFontSize(14);
   doc.text(nombreApp(), 14, 16);
   doc.setFontSize(9);
-  doc.text(`${p.codigo}  ·  ${cli?cli.nombre:"—"}  ·  Capital ${money(p.capital)}  ·  Tasa ${p.tasa}%  ·  ${p.metodo}`, 14, 23);
+  doc.text(`${p.codigo}  ·  ${cli?cli.nombre:"—"}  ·  Capital ${money(p.capital)}  ·  Tasa ${p.tasa}%  ·  ${p.periodo}  ·  ${p.metodo}`, 14, 23);
   const filas = r.tabla.map((f,i)=>{
     const estado = i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente");
     return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), money(f.abono), money(f.saldo), estado];
   });
+  const totalCuota = r.tabla.reduce((s,f)=>s+(Number(f.cuota)||0),0);
+  const totalInteres = r.tabla.reduce((s,f)=>s+(Number(f.interes)||0),0);
+  const totalAbono = r.tabla.reduce((s,f)=>s+(Number(f.abono)||0),0);
   doc.autoTable({
     startY: 28,
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
     body: filas,
+    foot: [["Total","","",money(totalCuota),money(totalInteres),money(totalAbono),"",""]],
     styles: { fontSize: 8, cellPadding: 2 },
-    headStyles: { fillColor: [27,42,74] }
+    headStyles: { fillColor: [27,42,74] },
+    footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" }
   });
   return doc;
 }
