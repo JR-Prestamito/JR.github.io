@@ -107,13 +107,105 @@
     #reporte-imprimible th, #reporte-imprimible td{padding:4px 5px!important;}
     .solo-imprimir{display:block;}
   }
+  .jr-modal-overlay{position:fixed;inset:0;background:rgba(20,20,25,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:9999;animation:jrFadeIn .15s ease-out;}
+  @keyframes jrFadeIn{from{opacity:0}to{opacity:1}}
+  .jr-modal-card{background:#fff;border-radius:18px;padding:22px 20px;max-width:340px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3);}
+  .jr-modal-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-bottom:12px;}
+  .jr-modal-title{font-weight:700;font-size:16px;color:var(--navy);margin:0 0 6px;}
+  .jr-modal-msg{font-size:14px;color:#333;line-height:1.5;margin:0 0 18px;white-space:pre-line;}
+  .jr-modal-card .flexrow .btn{flex:1;}
 </style>
 </head>
 <body>
 <div id="app"></div>
+<div id="jr-modal-root"></div>
 
 <script>
 const NAVY = "#1B2A4A", GOLD = "#C9973E";
+
+// ── Ventanas propias (reemplazan alert()/confirm() nativos) ──────────────────
+// Los cuadros nativos del navegador siempre muestran el dominio del sitio
+// ("jr-prestamito.github.io dice...") — es una medida de seguridad del navegador,
+// no algo que el sitio pueda quitar. Esta es la alternativa: una ventana con el
+// diseño de la app, sin mencionar ningún dominio. Como no es bloqueante como el
+// alert()/confirm() nativo, recibe una función de respuesta (callback) en vez de
+// devolver el valor directamente.
+let _jrModalOnOk = null, _jrModalOnCancel = null;
+function jrEscapeHtml(s){
+  return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function jrCerrarModal(){
+  const root = document.getElementById("jr-modal-root");
+  if(root) root.innerHTML = "";
+  _jrModalOnOk = null; _jrModalOnCancel = null;
+}
+function jrModalOk(){
+  const cb = _jrModalOnOk;
+  jrCerrarModal();
+  if(cb) cb();
+}
+function jrModalCancel(){
+  const cb = _jrModalOnCancel;
+  jrCerrarModal();
+  if(cb) cb();
+}
+function mostrarAlerta(mensaje, cb){
+  _jrModalOnOk = cb || null;
+  _jrModalOnCancel = null;
+  const root = document.getElementById("jr-modal-root");
+  if(!root){ if(cb) cb(); return; }
+  root.innerHTML = `
+    <div class="jr-modal-overlay">
+      <div class="jr-modal-card">
+        <p class="jr-modal-msg">${jrEscapeHtml(mensaje)}</p>
+        <button class="btn btn-gold" style="width:100%;" onclick="jrModalOk()">Entendido</button>
+      </div>
+    </div>`;
+  const btn = root.querySelector("button");
+  if(btn) btn.focus();
+}
+function mostrarConfirmacion(mensaje, cb, opciones){
+  opciones = opciones || {};
+  _jrModalOnOk = function(){ if(cb) cb(true); };
+  _jrModalOnCancel = function(){ if(cb) cb(false); };
+  const root = document.getElementById("jr-modal-root");
+  if(!root){ if(cb) cb(false); return; }
+  const textoAceptar = opciones.textoAceptar || "Aceptar";
+  const textoCancelar = opciones.textoCancelar || "Cancelar";
+  const peligro = !!opciones.peligro;
+  root.innerHTML = `
+    <div class="jr-modal-overlay">
+      <div class="jr-modal-card">
+        <p class="jr-modal-msg">${jrEscapeHtml(mensaje)}</p>
+        <div class="flexrow">
+          <button class="btn btn-outline" onclick="jrModalCancel()">${jrEscapeHtml(textoCancelar)}</button>
+          <button class="${peligro?"btn btn-danger":"btn btn-gold"}" onclick="jrModalOk()">${jrEscapeHtml(textoAceptar)}</button>
+        </div>
+      </div>
+    </div>`;
+}
+function mostrarPrompt(mensaje, cb, opciones){
+  opciones = opciones || {};
+  const root = document.getElementById("jr-modal-root");
+  if(!root){ if(cb) cb(null); return; }
+  _jrModalOnOk = function(){
+    const el = document.getElementById("jr-modal-input");
+    if(cb) cb(el ? el.value : "");
+  };
+  _jrModalOnCancel = function(){ if(cb) cb(null); };
+  root.innerHTML = `
+    <div class="jr-modal-overlay">
+      <div class="jr-modal-card">
+        <p class="jr-modal-msg">${jrEscapeHtml(mensaje)}</p>
+        <input id="jr-modal-input" type="${opciones.tipo||"text"}" value="${jrEscapeHtml(opciones.valorInicial||"")}" style="width:100%;padding:10px;border-radius:10px;border:1px solid #d8d3c8;margin-bottom:14px;font-size:15px;box-sizing:border-box;" onkeydown="if(event.key==='Enter'){ event.preventDefault(); jrModalOk(); }">
+        <div class="flexrow">
+          <button class="btn btn-outline" onclick="jrModalCancel()">${jrEscapeHtml(opciones.textoCancelar||"Cancelar")}</button>
+          <button class="btn btn-gold" onclick="jrModalOk()">${jrEscapeHtml(opciones.textoAceptar||"Aceptar")}</button>
+        </div>
+      </div>
+    </div>`;
+  setTimeout(function(){ const el=document.getElementById("jr-modal-input"); if(el) el.focus(); }, 30);
+}
 const METODOS = ["Francés (cuota fija)","Alemán (cuota decreciente)","Tasa plana (interés fijo)","Capital al final (bullet)","Sistema Americano (puro)","Indefinido (solo interés)"];
 const PERIODOS = ["Semanal","Quincenal","Mensual"];
 const DIAS_PERIODO = { Semanal:7, Quincenal:15, Mensual:30 };
@@ -443,11 +535,11 @@ function base64AUint8(b64){
 }
 async function activarHuella(){
   if(!(window.PublicKeyCredential && window.__huellaSoportada)){
-    alert("La huella / Face ID no está disponible en este navegador o en este formato de archivo. Para poder usarla, la app necesita abrirse desde una dirección https:// (no como archivo local descargado).");
+    mostrarAlerta("La huella / Face ID no está disponible en este navegador o en este formato de archivo. Para poder usarla, la app necesita abrirse desde una dirección https:// (no como archivo local descargado).");
     return;
   }
   if(!state.config.pin){
-    alert("Primero pon una clave de inicio. La huella se usa como atajo para no escribirla, pero la clave sigue siendo el respaldo.");
+    mostrarAlerta("Primero pon una clave de inicio. La huella se usa como atajo para no escribirla, pero la clave sigue siendo el respaldo.");
     return;
   }
   try{
@@ -467,9 +559,9 @@ async function activarHuella(){
     if(!cred) throw new Error("sin credencial");
     state.config.huellaCredId = arrayBufferABase64(cred.rawId);
     save(); render();
-    alert("Listo. Ya puedes desbloquear con tu huella o Face ID — la clave sigue funcionando también, por si acaso.");
+    mostrarAlerta("Listo. Ya puedes desbloquear con tu huella o Face ID — la clave sigue funcionando también, por si acaso.");
   }catch(err){
-    alert("No se pudo activar. Puede que este celular no tenga huella o Face ID configurados, o que se haya cancelado el permiso.");
+    mostrarAlerta("No se pudo activar. Puede que este celular no tenga huella o Face ID configurados, o que se haya cancelado el permiso.");
   }
 }
 function desactivarHuella(){
@@ -538,45 +630,63 @@ function verOcultarClaveSync(){
 }
 function generarClaveSync(){
   const habiaAntes = !!(state.config.syncKey||"").trim();
-  const ok = confirm(
-    habiaAntes
-      ? "Ya tienes una clave de sincronización configurada. Generar una nueva va a REEMPLAZARLA, y la nube dejará de funcionar hasta que pegues esta nueva clave también en el script de Google (Apps Script). ¿Seguro que quieres generar una nueva?"
-      : "Esto va a generar una clave nueva para conectar con la nube. Tendrás que copiarla y pegarla también en el script de Google Sheets. ¿Continuar?"
-  );
-  if(!ok) return;
-  const nueva = generarClaveSegura(12);
-  state.config.syncKey = nueva;
-  save({sinAutoSync:true});
-  render();
-  mostrarClaveGenerada("Clave de sincronización generada", nueva, "Cópiala y pégala también en la misma casilla del script de Google Sheets — debe ser idéntica en ambos lados para que la nube funcione. Si no la pegas ahí también, la nube dejará de aceptar tus subidas y descargas.");
+  const mensaje = habiaAntes
+    ? "Ya tienes una clave de sincronización configurada. Generar una nueva va a REEMPLAZARLA, y la nube dejará de funcionar hasta que pegues esta nueva clave también en el script de Google (Apps Script). ¿Seguro que quieres generar una nueva?"
+    : "Esto va a generar una clave nueva para conectar con la nube. Tendrás que copiarla y pegarla también en el script de Google Sheets. ¿Continuar?";
+  mostrarConfirmacion(mensaje, function(ok){
+    if(!ok) return;
+    const nueva = generarClaveSegura(12);
+    state.config.syncKey = nueva;
+    save({sinAutoSync:true});
+    render();
+    mostrarClaveGenerada("Clave de sincronización generada", nueva, "Cópiala y pégala también en la misma casilla del script de Google Sheets — debe ser idéntica en ambos lados para que la nube funcione. Si no la pegas ahí también, la nube dejará de aceptar tus subidas y descargas.");
+  });
 }
 function configurarClaveInicio(){
   const actual = state.config.pin;
-  if(actual){
-    const quitar = confirm("Ya tienes una clave configurada. Presiona Aceptar para QUITARLA, o Cancelar para cambiarla por una nueva.");
-    if(quitar){
-      state.config.pin = "";
-      save(); render();
-      alert("Se quitó la clave de inicio. La app ya no pedirá clave al abrir.");
-      return;
-    }
+  function pedirGenerarONo(){
+    mostrarConfirmacion(
+      "¿Quieres que te generemos una clave segura automáticamente? (recomendado)",
+      function(generarla){
+        if(generarla){
+          const nueva = generarClaveSegura(8);
+          state.config.pin = nueva;
+          save(); render();
+          mostrarClaveGenerada("Clave de inicio configurada", nueva, "Apúntala en un lugar seguro — la app te la pedirá cada vez que la abras y no queda guardada en ningún otro lado.");
+          return;
+        }
+        mostrarPrompt("Escribe la nueva clave (números o letras, mínimo 4 caracteres):", function(nueva){
+          if(nueva===null) return;
+          if(nueva.trim().length<4){ mostrarAlerta("La clave debe tener al menos 4 caracteres."); return; }
+          mostrarPrompt("Escribe la clave otra vez para confirmar:", function(confirmacion){
+            if(confirmacion===null) return;
+            if(confirmacion!==nueva){ mostrarAlerta("Las claves no coinciden. Intenta de nuevo."); return; }
+            state.config.pin = nueva.trim();
+            save(); render();
+            mostrarAlerta("Clave de inicio configurada. La próxima vez que abras la app, te la pedirá.");
+          }, {tipo:"password", textoAceptar:"Confirmar"});
+        }, {tipo:"password", textoAceptar:"Siguiente"});
+      },
+      { textoAceptar: "Generarla automático", textoCancelar: "Prefiero escribirla" }
+    );
   }
-  const generarla = confirm("¿Quieres que te generemos una clave segura automáticamente (recomendado)?\n\nAceptar = te la generamos nosotros.\nCancelar = prefiero escribir la mía.");
-  if(generarla){
-    const nueva = generarClaveSegura(8);
-    state.config.pin = nueva;
-    save(); render();
-    mostrarClaveGenerada("Clave de inicio configurada", nueva, "Apúntala en un lugar seguro — la app te la pedirá cada vez que la abras y no queda guardada en ningún otro lado.");
+  if(actual){
+    mostrarConfirmacion(
+      "Ya tienes una clave configurada. ¿Qué quieres hacer?",
+      function(quitar){
+        if(quitar){
+          state.config.pin = "";
+          save(); render();
+          mostrarAlerta("Se quitó la clave de inicio. La app ya no pedirá clave al abrir.");
+          return;
+        }
+        pedirGenerarONo();
+      },
+      { textoAceptar: "Quitarla", textoCancelar: "Cambiarla" }
+    );
     return;
   }
-  const nueva = prompt("Escribe la nueva clave (números o letras, mínimo 4 caracteres):");
-  if(nueva===null) return;
-  if(nueva.trim().length<4){ alert("La clave debe tener al menos 4 caracteres."); return; }
-  const confirmacion = prompt("Escribe la clave otra vez para confirmar:");
-  if(confirmacion!==nueva){ alert("Las claves no coinciden. Intenta de nuevo."); return; }
-  state.config.pin = nueva.trim();
-  save(); render();
-  alert("Clave de inicio configurada. La próxima vez que abras la app, te la pedirá.");
+  pedirGenerarONo();
 }
 
 function render(){
@@ -670,12 +780,18 @@ function exportarDatos(){
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
-async function generarCopiaProtegida(){
-  if(!confirm("¿Estás seguro de crear una copia protegida para compartir? Se generará un archivo nuevo, vacío (sin tus clientes ni préstamos), protegido con una clave.")){
-    return;
-  }
+function generarCopiaProtegida(){
+  mostrarConfirmacion(
+    "¿Estás seguro de crear una copia protegida para compartir? Se generará un archivo nuevo, vacío (sin tus clientes ni préstamos), protegido con una clave.",
+    function(ok){
+      if(!ok) return;
+      _generarCopiaProtegidaInterna();
+    }
+  );
+}
+async function _generarCopiaProtegidaInterna(){
   if(!(window.crypto && window.crypto.subtle)){
-    alert("Este navegador no permite generar una protección segura (SubtleCrypto no disponible). Ábrelo con una versión reciente de Chrome, Safari o Firefox e inténtalo de nuevo.");
+    mostrarAlerta("Este navegador no permite generar una protección segura (SubtleCrypto no disponible). Ábrelo con una versión reciente de Chrome, Safari o Firefox e inténtalo de nuevo.");
     return;
   }
   // La clave ya NO se le pide inventar al usuario (para evitar claves débiles tipo "1234").
@@ -800,24 +916,25 @@ function importarDatos(event){
   reader.onload = function(e){
     let datos;
     try { datos = JSON.parse(e.target.result); }
-    catch(err){ alert("Ese archivo no es un respaldo válido."); return; }
+    catch(err){ mostrarAlerta("Ese archivo no es un respaldo válido."); return; }
     if(!datos || !Array.isArray(datos.clientes) || !Array.isArray(datos.prestamos)){
-      alert("Ese archivo no tiene el formato esperado.");
+      mostrarAlerta("Ese archivo no tiene el formato esperado.");
       return;
     }
-    const ok = confirm("Esto va a REEMPLAZAR todos los clientes y préstamos que tienes ahora en este celular por los del archivo. ¿Continuar?");
-    if(!ok) return;
-    state.clientes = datos.clientes;
-    state.prestamos = datos.prestamos;
-    if(datos.config){
-      // Se combinan con lo que ya había en este celular en vez de reemplazar todo:
-      // así, si restauras un respaldo viejo (de antes de poner tu clave, huella,
-      // nombre del negocio, etc.), esos ajustes de seguridad no se borran solos.
-      state.config = Object.assign({}, state.config, datos.config);
-    }
-    save();
-    render();
-    alert("Respaldo restaurado correctamente.");
+    mostrarConfirmacion("Esto va a REEMPLAZAR todos los clientes y préstamos que tienes ahora en este celular por los del archivo. ¿Continuar?", function(ok){
+      if(!ok) return;
+      state.clientes = datos.clientes;
+      state.prestamos = datos.prestamos;
+      if(datos.config){
+        // Se combinan con lo que ya había en este celular en vez de reemplazar todo:
+        // así, si restauras un respaldo viejo (de antes de poner tu clave, huella,
+        // nombre del negocio, etc.), esos ajustes de seguridad no se borran solos.
+        state.config = Object.assign({}, state.config, datos.config);
+      }
+      save();
+      render();
+      mostrarAlerta("Respaldo restaurado correctamente.");
+    });
   };
   reader.readAsText(file);
   event.target.value = "";
@@ -828,7 +945,7 @@ function cargarSheetJS(cb){
   const s = document.createElement("script");
   s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
   s.onload = cb;
-  s.onerror = function(){ state.excelBusy = false; render(); alert("No se pudo cargar el generador de Excel. Revisa tu conexión a internet e intenta de nuevo."); };
+  s.onerror = function(){ state.excelBusy = false; render(); mostrarAlerta("No se pudo cargar el generador de Excel. Revisa tu conexión a internet e intenta de nuevo."); };
   document.head.appendChild(s);
 }
 function exportarExcel(){
@@ -870,7 +987,7 @@ function exportarExcel(){
       const fecha = new Date().toISOString().slice(0,10);
       XLSX.writeFile(wb, `jr-prestamito-reporte-${fecha}.xlsx`);
     } catch(err){
-      alert("Ocurrió un error generando el Excel. Intenta de nuevo.");
+      mostrarAlerta("Ocurrió un error generando el Excel. Intenta de nuevo.");
     }
     state.excelBusy = false; render();
   });
@@ -916,7 +1033,7 @@ function compartirReportePDF(){
       const blob = doc.output("blob");
       compartirOdescargarPDF(blob, `reporte-jr-prestamito.pdf`, `Reporte general`);
     }catch(err){
-      alert("Ocurrió un error generando el PDF. Intenta de nuevo.");
+      mostrarAlerta("Ocurrió un error generando el PDF. Intenta de nuevo.");
     }
   });
 }
@@ -928,10 +1045,10 @@ function imprimirPDFDoc(doc){
     const url = doc.output("bloburl");
     const w = window.open(url, "_blank");
     if(!w){
-      alert("El navegador bloqueó la ventana del PDF. Permite ventanas emergentes para poder imprimir, o usa el botón de Enviar y luego imprime desde ahí.");
+      mostrarAlerta("El navegador bloqueó la ventana del PDF. Permite ventanas emergentes para poder imprimir, o usa el botón de Enviar y luego imprime desde ahí.");
     }
   }catch(err){
-    alert("Ocurrió un error generando el PDF para imprimir. Intenta de nuevo.");
+    mostrarAlerta("Ocurrió un error generando el PDF para imprimir. Intenta de nuevo.");
   }
 }
 function imprimirReportePDF(){
@@ -1056,7 +1173,7 @@ function viewEstadoResultados(){
 async function subirNube(silencioso){
   const url = (state.config.syncUrl||"").trim();
   const key = (state.config.syncKey||"").trim();
-  if(!url || !key){ if(!silencioso) alert("Primero ingresa la URL y la clave de la aplicación web (ver instrucciones)."); return; }
+  if(!url || !key){ if(!silencioso) mostrarAlerta("Primero ingresa la URL y la clave de la aplicación web (ver instrucciones)."); return; }
   if(state.syncBusy) return;
   state.syncBusy = "push"; if(!silencioso) render();
   try{
@@ -1070,23 +1187,27 @@ async function subirNube(silencioso){
     if(data.ok){
       state.config.ultimaSubida = new Date().toISOString();
       save({ sinAutoSync:true });
-      if(!silencioso) alert("Datos subidos correctamente a la nube.");
+      if(!silencioso) mostrarAlerta("Datos subidos correctamente a la nube.");
     } else {
-      if(!silencioso) alert("Error al subir: " + (data.error || "desconocido"));
+      if(!silencioso) mostrarAlerta("Error al subir: " + (data.error || "desconocido"));
     }
   } catch(err){
-    if(!silencioso) alert("No se pudo conectar con la nube. Revisa la URL, la clave y tu conexión a internet.");
+    if(!silencioso) mostrarAlerta("No se pudo conectar con la nube. Revisa la URL, la clave y tu conexión a internet.");
   }
   state.syncBusy = null; render();
 }
 
-async function descargarNube(){
+function descargarNube(){
   const url = (state.config.syncUrl||"").trim();
   const key = (state.config.syncKey||"").trim();
-  if(!url || !key){ alert("Primero ingresa la URL y la clave de la aplicación web (ver instrucciones)."); return; }
+  if(!url || !key){ mostrarAlerta("Primero ingresa la URL y la clave de la aplicación web (ver instrucciones)."); return; }
   if(state.syncBusy) return;
-  const ok = confirm("Esto va a REEMPLAZAR los clientes y préstamos de este celular con los que están guardados en la nube. ¿Continuar?");
-  if(!ok) return;
+  mostrarConfirmacion("Esto va a REEMPLAZAR los clientes y préstamos de este celular con los que están guardados en la nube. ¿Continuar?", function(ok){
+    if(!ok) return;
+    _descargarNubeInterna(url, key);
+  });
+}
+async function _descargarNubeInterna(url, key){
   state.syncBusy = "pull"; render();
   try{
     const sep = url.includes("?") ? "&" : "?";
@@ -1100,14 +1221,14 @@ async function descargarNube(){
       }
       state.config.ultimaDescarga = new Date().toISOString();
       save({sinAutoSync:true});
-      alert("Datos descargados correctamente.");
+      mostrarAlerta("Datos descargados correctamente.");
     } else if(data.ok && !data.datos){
-      alert("La nube todavía no tiene datos guardados. Primero sube los datos desde algún celular.");
+      mostrarAlerta("La nube todavía no tiene datos guardados. Primero sube los datos desde algún celular.");
     } else {
-      alert("Error al descargar: " + (data.error || "desconocido"));
+      mostrarAlerta("Error al descargar: " + (data.error || "desconocido"));
     }
   } catch(err){
-    alert("No se pudo conectar con la nube. Revisa la URL, la clave y tu conexión a internet.");
+    mostrarAlerta("No se pudo conectar con la nube. Revisa la URL, la clave y tu conexión a internet.");
   }
   state.syncBusy = null; render();
 }
@@ -1206,7 +1327,7 @@ function viewAjustes(){
     <p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p>
     <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="5" placeholder="${PLANTILLA_RECORDATORIO_DEFECTO}" oninput="state.config.mensajeRecordatorio=this.value; save(); render();">${state.config.mensajeRecordatorio||""}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:new Date().toISOString().slice(0,10)}, 3)}</p>
-    <button class="btn btn-outline" onclick="if(confirm('¿Volver al mensaje original?')){ state.config.mensajeRecordatorio=''; save(); render(); }">Restablecer mensaje original</button>
+    <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajeRecordatorio=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
@@ -1214,7 +1335,7 @@ function viewAjustes(){
     <p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b>.</p>
     <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="5" placeholder="${PLANTILLA_PENDIENTE_DEFECTO}" oninput="state.config.mensajePendiente=this.value; save(); render();">${state.config.mensajePendiente||""}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:new Date().toISOString().slice(0,10)})}</p>
-    <button class="btn btn-outline" onclick="if(confirm('¿Volver al mensaje original?')){ state.config.mensajePendiente=''; save(); render(); }">Restablecer mensaje original</button>
+    <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajePendiente=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
@@ -1341,22 +1462,22 @@ function abrirFormCliente(id){
 
 function guardarCliente(){
   const nombre = document.getElementById("f_nombre").value.trim();
-  if(!nombre){ alert("El nombre es obligatorio."); return; }
+  if(!nombre){ mostrarAlerta("El nombre es obligatorio."); return; }
 
   let cedula = soloDigitos(document.getElementById("f_cedula").value);
   let celular = soloDigitos(document.getElementById("f_celular").value);
 
   if(cedula && cedula.length !== 13){
-    alert("La cédula debe tener exactamente 13 dígitos (formato hondureño). Puedes dejarla vacía si no la tienes a mano.");
+    mostrarAlerta("La cédula debe tener exactamente 13 dígitos (formato hondureño). Puedes dejarla vacía si no la tienes a mano.");
     return;
   }
   if(celular && celular.length !== 8){
-    alert("El celular debe tener 8 dígitos (formato hondureño), sin incluir el 504.");
+    mostrarAlerta("El celular debe tener 8 dígitos (formato hondureño), sin incluir el 504.");
     return;
   }
   if(cedula){
     const dup = state.clientes.find(c => c.id !== state.clienteEditId && soloDigitos(c.cedula) === cedula);
-    if(dup){ alert(`Esa cédula ya está registrada a nombre de ${dup.nombre}.`); return; }
+    if(dup){ mostrarAlerta(`Esa cédula ya está registrada a nombre de ${dup.nombre}.`); return; }
     cedula = cedula.replace(/(\d{4})(\d{4})(\d{5})/, "$1-$2-$3");
   }
   if(celular) celular = celular.replace(/(\d{4})(\d{4})/, "$1-$2");
@@ -1388,9 +1509,11 @@ function eliminarCliente(id){
       `Si lo eliminas, esos préstamos quedarán sin cliente asignado, pero NO se borran automáticamente.\n\n`+
       `¿Seguro que quieres eliminar a "${c.nombre}"? Esta acción no se puede deshacer.`;
   }
-  if(!confirm(msg)) return;
-  state.clientes = state.clientes.filter(x=>x.id!==id);
-  save(); render();
+  mostrarConfirmacion(msg, function(ok){
+    if(!ok) return;
+    state.clientes = state.clientes.filter(x=>x.id!==id);
+    save(); render();
+  }, { textoAceptar:"Eliminar", peligro:true });
 }
 
 function viewPrestamos(){
@@ -1687,24 +1810,25 @@ function guardarRefinanciamiento(){
   const nuevoCapital = Math.max(0, capitalPendiente - enganche + adicional);
   if(nuevoCapital<=0) return;
 
-  const ok = confirm(`Vas a refinanciar ${origen.codigo}:\nCapital pendiente: ${money(capitalPendiente)}\nEnganche/abono: ${money(enganche)}\nMonto adicional entregado: ${money(adicional)}\nNuevo capital: ${money(nuevoCapital)}\n\n¿Confirmas?`);
-  if(!ok) return;
+  mostrarConfirmacion(`Vas a refinanciar ${origen.codigo}:\nCapital pendiente: ${money(capitalPendiente)}\nEnganche/abono: ${money(enganche)}\nMonto adicional entregado: ${money(adicional)}\nNuevo capital: ${money(nuevoCapital)}\n\n¿Confirmas?`, function(ok){
+    if(!ok) return;
 
-  origen.refinanciado = true;
-  origen.fechaRefinanciado = f.fechaInicio;
+    origen.refinanciado = true;
+    origen.fechaRefinanciado = f.fechaInicio;
 
-  const codigo = nextCode("P", state.prestamos);
-  const nuevo = {
-    id: uid(), codigo, clienteId: origen.clienteId, capital: nuevoCapital, tasa: f.tasa,
-    periodo: f.periodo, metodo: f.metodo, fechaInicio: f.fechaInicio,
-    cuotas: esIndef?0:Number(f.cuotas), pagos: [],
-    refinanciaDe: origen.id, engancheAlRefinanciar: enganche, adicionalAlRefinanciar: adicional
-  };
-  state.prestamos.push(nuevo);
-  window._rf = null;
-  state.seleccionId = nuevo.id;
-  state.vista = "detalle";
-  save(); render();
+    const codigo = nextCode("P", state.prestamos);
+    const nuevo = {
+      id: uid(), codigo, clienteId: origen.clienteId, capital: nuevoCapital, tasa: f.tasa,
+      periodo: f.periodo, metodo: f.metodo, fechaInicio: f.fechaInicio,
+      cuotas: esIndef?0:Number(f.cuotas), pagos: [],
+      refinanciaDe: origen.id, engancheAlRefinanciar: enganche, adicionalAlRefinanciar: adicional
+    };
+    state.prestamos.push(nuevo);
+    window._rf = null;
+    state.seleccionId = nuevo.id;
+    state.vista = "detalle";
+    save(); render();
+  }, { textoAceptar:"Confirmar" });
 }
 
 function viewDetallePrestamo(){
@@ -1817,7 +1941,7 @@ function cargarScript(src, cb){
   const s = document.createElement("script");
   s.src = src;
   s.onload = cb;
-  s.onerror = function(){ alert("No se pudo cargar un componente necesario para generar el PDF. Revisa tu conexión a internet e intenta de nuevo."); };
+  s.onerror = function(){ mostrarAlerta("No se pudo cargar un componente necesario para generar el PDF. Revisa tu conexión a internet e intenta de nuevo."); };
   document.head.appendChild(s);
 }
 function cargarPDFLibs(cb){
@@ -1879,7 +2003,7 @@ function compartirAmortizacionPDF(prestamoId){
       const blob = doc.output("blob");
       compartirOdescargarPDF(blob, `amortizacion-${p.codigo}.pdf`, `Tabla de amortización ${p.codigo}`);
     }catch(err){
-      alert("Ocurrió un error generando el PDF. Intenta de nuevo.");
+      mostrarAlerta("Ocurrió un error generando el PDF. Intenta de nuevo.");
     }
   });
 }
@@ -1956,7 +2080,7 @@ function compartirReciboPDF(){
       const blob = doc.output("blob");
       compartirOdescargarPDF(blob, `recibo-R-${numRecibo}.pdf`, `Recibo de pago R-${numRecibo}`);
     }catch(err){
-      alert("Ocurrió un error generando el PDF. Intenta de nuevo.");
+      mostrarAlerta("Ocurrió un error generando el PDF. Intenta de nuevo.");
     }
   });
 }
@@ -2006,23 +2130,24 @@ function registrarPago(id){
   const total = monto + mora;
   let msgConfirm = `¿Registrar este pago?\n\nMonto: ${money(monto)}`;
   if(mora>0) msgConfirm += `\nMora: ${money(mora)}\nTotal: ${money(total)}`;
-  if(!confirm(msgConfirm)) return;
-
-  p.pagos = p.pagos || [];
-  p.pagos.push({ id:uid(), fecha:new Date().toISOString().slice(0,10), monto, mora });
-  save(); render();
-  const r2 = resumen(p);
-  let msg = `✅ Pago registrado: ${money(total)}`;
-  if(mora>0) msg += ` (incluye mora de ${money(mora)})`;
-  msg += ".\n\n";
-  if(r2.estado==="Pagado"){
-    msg += "¡Este préstamo quedó completamente pagado! 🎉";
-  } else {
-    msg += `Saldo pendiente: ${money(r2.saldoPendiente)}.`;
-    if(r2.abonadoEnCuotaActual>0) msg += `\nLlevas abonado ${money(r2.abonadoEnCuotaActual)} de la próxima cuota (falta ${money(r2.faltaEnCuotaActual)}).`;
-    if(r2.proximaFecha) msg += `\nPróxima cuota: ${fmtDate(r2.proximaFecha)}.`;
-  }
-  alert(msg);
+  mostrarConfirmacion(msgConfirm, function(ok){
+    if(!ok) return;
+    p.pagos = p.pagos || [];
+    p.pagos.push({ id:uid(), fecha:new Date().toISOString().slice(0,10), monto, mora });
+    save(); render();
+    const r2 = resumen(p);
+    let msg = `✅ Pago registrado: ${money(total)}`;
+    if(mora>0) msg += ` (incluye mora de ${money(mora)})`;
+    msg += ".\n\n";
+    if(r2.estado==="Pagado"){
+      msg += "¡Este préstamo quedó completamente pagado! 🎉";
+    } else {
+      msg += `Saldo pendiente: ${money(r2.saldoPendiente)}.`;
+      if(r2.abonadoEnCuotaActual>0) msg += `\nLlevas abonado ${money(r2.abonadoEnCuotaActual)} de la próxima cuota (falta ${money(r2.faltaEnCuotaActual)}).`;
+      if(r2.proximaFecha) msg += `\nPróxima cuota: ${fmtDate(r2.proximaFecha)}.`;
+    }
+    mostrarAlerta(msg);
+  }, { textoAceptar:"Registrar" });
 }
 function liquidarAnticipado(id){
   const p = state.prestamos.find(x=>x.id===id);
@@ -2035,19 +2160,22 @@ function liquidarAnticipado(id){
   const capitalPendiente = Number(p.capital)||0;
   const interes = Math.round(capitalPendiente*tasaDiaria*diasReales*100)/100;
   const total = capitalPendiente + interes;
-  const ok = confirm(
+  mostrarConfirmacion(
     `Liquidación anticipada al ${fmtDate(fechaLiq)}:\n` +
     `Días reales transcurridos: ${diasReales}\n` +
     `Interés prorateado: ${money(interes)}\n` +
     `Capital pendiente: ${money(capitalPendiente)}\n` +
     `Total a pagar: ${money(total)}\n\n` +
-    `¿Registrar este pago y cerrar el préstamo?`
+    `¿Registrar este pago y cerrar el préstamo?`,
+    function(ok){
+      if(!ok) return;
+      p.pagos = p.pagos || [];
+      p.pagos.push({ id:uid(), fecha:fechaLiq, monto:total, mora:0, liquidacion:true });
+      p.liquidadoAnticipado = true;
+      save(); render();
+    },
+    { textoAceptar:"Registrar y cerrar" }
   );
-  if(!ok) return;
-  p.pagos = p.pagos || [];
-  p.pagos.push({ id:uid(), fecha:fechaLiq, monto:total, mora:0, liquidacion:true });
-  p.liquidadoAnticipado = true;
-  save(); render();
 }
 function eliminarPrestamo(id){
   const p = state.prestamos.find(x=>x.id===id);
@@ -2059,10 +2187,12 @@ function eliminarPrestamo(id){
     msg = `El préstamo ${p.codigo}${cli?" de "+cli.nombre:""} tiene ${numPagos} pago(s) registrado(s). Si lo eliminas, se pierde también ese historial de pagos.\n\n`+
       `¿Seguro que quieres eliminarlo? Esta acción no se puede deshacer.`;
   }
-  if(!confirm(msg)) return;
-  state.prestamos = state.prestamos.filter(x=>x.id!==id);
-  state.vista = "lista";
-  save(); render();
+  mostrarConfirmacion(msg, function(ok){
+    if(!ok) return;
+    state.prestamos = state.prestamos.filter(x=>x.id!==id);
+    state.vista = "lista";
+    save(); render();
+  }, { textoAceptar:"Eliminar", peligro:true });
 }
 
 function viewPagos(){
@@ -2100,12 +2230,14 @@ function eliminarPago(prestamoId, pagoId){
   const cli = state.clientes.find(c=>c.id===p.clienteId);
   const msg = `¿Eliminar el pago de ${money(total)} del ${fmtDate(pg.fecha)} (${p.codigo}${cli?" · "+cli.nombre:""})?\n\n`+
     `El préstamo recalculará sus cuotas pendientes sin este pago. Esta acción no se puede deshacer.`;
-  if(!confirm(msg)) return;
-  if(pg.liquidacion) p.liquidadoAnticipado = false;
-  pagos.splice(idx,1);
-  p.pagos = pagos;
-  if(state.vista==="recibo") state.vista = "lista";
-  save(); render();
+  mostrarConfirmacion(msg, function(ok){
+    if(!ok) return;
+    if(pg.liquidacion) p.liquidadoAnticipado = false;
+    pagos.splice(idx,1);
+    p.pagos = pagos;
+    if(state.vista==="recibo") state.vista = "lista";
+    save(); render();
+  }, { textoAceptar:"Eliminar", peligro:true });
 }
 function verRecibo(prestamoId, pagoId){
   state.tab = "pagos";
