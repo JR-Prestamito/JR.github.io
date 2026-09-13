@@ -1246,8 +1246,8 @@ function viewInicio(){
     if(r.estado==="Activo"){ activos++; if(r.proximaFecha && diasAtraso(r.proximaFecha)>0) vencidos++; }
   });
   let prox = state.prestamos.map(p=>({p, r:resumen(p)}))
-    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha)
-    .sort((a,b)=> new Date(a.r.proximaFecha) - new Date(b.r.proximaFecha)).slice(0,4);
+    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasParaVencer(x.r.proximaFecha)<=1)
+    .sort((a,b)=> new Date(a.r.proximaFecha) - new Date(b.r.proximaFecha));
 
   let html = `<div class="grid2">
     <div class="card" style="background:#EEF1F6;"><p class="lbl">Capital prestado</p><p class="val" style="color:${NAVY}">${money(prestado)}</p></div>
@@ -1259,7 +1259,7 @@ function viewInicio(){
   <div class="row-card"><div class="flex-gap">${ICONS.users.replace("currentColor",NAVY)}<span>${state.clientes.length} registrados</span></div></div>
   <p class="section-title" style="margin-top:16px;">Próximos a vencer</p>`;
 
-  if(prox.length===0) html += `<p class="empty">Todavía no tienes préstamos registrados.</p>`;
+  if(prox.length===0) html += `<p class="empty">${state.prestamos.length===0 ? "Todavía no tienes préstamos registrados." : "No tienes cuotas vencidas ni por vencer mañana. 🎉"}</p>`;
   prox.forEach(({p,r})=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
     const atraso = diasAtraso(r.proximaFecha);
