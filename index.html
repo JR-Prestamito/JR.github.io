@@ -77,23 +77,30 @@
   #recibo-imprimible h2{font-size:16px;margin:0 0 2px;color:var(--navy);}
   #recibo-imprimible .rline{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px dashed #eee;}
   #recibo-imprimible .rtotal{font-size:17px;font-weight:700;color:var(--navy);}
+  .marca-agua{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:64px;font-weight:800;color:var(--navy);opacity:0.06;pointer-events:none;white-space:nowrap;z-index:0;}
+  #recibo-imprimible > *:not(.marca-agua){position:relative;z-index:1;}
   #reporte-imprimible{background:#fff;border:1px solid #e5e1d8;border-radius:16px;padding:20px;}
   #reporte-imprimible h2{font-size:16px;margin:0 0 2px;color:var(--navy);}
   #tabla-imprimible{background:#fff;border:1px solid #e5e1d8;border-radius:16px;padding:20px;}
   #tabla-imprimible h2{font-size:16px;margin:0 0 2px;color:var(--navy);}
   .solo-imprimir{display:none;}
+  @page{ size: A4; margin: 14mm; }
+  @page recibo{ size: 80mm 170mm; margin: 6mm; }
   @media print{
+    #app{ max-width:none!important; margin:0!important; padding:0!important; background:#fff!important; min-height:0!important; }
+    .content{ padding:0!important; }
     body *{visibility:hidden;}
     #recibo-imprimible, #recibo-imprimible *,
     #reporte-imprimible, #reporte-imprimible *,
     #tabla-imprimible, #tabla-imprimible *{visibility:visible;}
     #recibo-imprimible, #reporte-imprimible, #tabla-imprimible{position:absolute;top:0;left:0;width:100%;border:none;}
+    #recibo-imprimible{ page: recibo; position:absolute!important; left:0!important; right:0!important; width:100%!important; max-width:300px!important; margin:0 auto!important; }
     #tabla-imprimible table{min-width:0!important;width:100%!important;font-size:9px!important;}
     #tabla-imprimible th, #tabla-imprimible td{padding:4px 5px!important;}
-    #recibo-imprimible{padding:10px!important;}
-    #recibo-imprimible h2{font-size:14px!important;}
-    #recibo-imprimible .rline{font-size:11px!important;padding:4px 0!important;}
-    #recibo-imprimible .rtotal{font-size:14px!important;}
+    #recibo-imprimible{padding:0!important;}
+    #recibo-imprimible h2{font-size:14px!important;text-align:center;}
+    #recibo-imprimible .rline{font-size:9.5px!important;padding:3px 0!important;}
+    #recibo-imprimible .rtotal{font-size:12px!important;}
     #reporte-imprimible{padding:10px!important;}
     #reporte-imprimible h2{font-size:14px!important;}
     #reporte-imprimible table{font-size:9px!important;}
@@ -223,6 +230,7 @@ function nextCode(prefix, list){
   return prefix + "-" + String(next).padStart(4,"0");
 }
 function money(n){
+  n = Number(n);
   n = Number.isFinite(n) ? n : 0;
   return "L " + n.toLocaleString("es-HN", {minimumFractionDigits:2, maximumFractionDigits:2});
 }
@@ -254,6 +262,10 @@ function round2(n){ return Math.round((n + Number.EPSILON) * 100) / 100; }
 function generarTabla(p){
   const capital = Number(p.capital)||0, tasa = (Number(p.tasa)||0)/100, n = Number(p.cuotas)||0;
   const dias = DIAS_PERIODO[p.periodo] || 30;
+  // Configurable en Ajustes: si se cuenta el día de inicio del préstamo como "día 1" del
+  // plazo (resta 1 día a cada fecha de cuota) o si se usa el estándar de la banca formal
+  // (no se cuenta, la primera cuota cae exactamente "dias" después del inicio).
+  const offsetDia1 = (state.config.contarDiaInicio !== false) ? 1 : 0;
   const filas = [];
   if(p.metodo === METODOS[0]){ // Francés (cuota fija)
     const cuotaFija = n===0 ? 0 : (tasa===0 ? capital/n : (capital*tasa)/(1-Math.pow(1+tasa,-n)));
@@ -265,7 +277,7 @@ function generarTabla(p){
       const abono = (i===n) ? saldo : round2(cuotaRed - interes);
       const cuota = round2(interes + abono);
       const nuevoSaldo = round2(Math.max(0, saldo - abono));
-      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i), saldoInicial, cuota, interes, abono, saldo: nuevoSaldo});
+      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i - offsetDia1), saldoInicial, cuota, interes, abono, saldo: nuevoSaldo});
       saldo = nuevoSaldo;
     }
   } else if(p.metodo === METODOS[1]){ // Alemán (cuota decreciente): abono fijo, interés sobre saldo
@@ -277,7 +289,7 @@ function generarTabla(p){
       const abono = (i===n) ? saldo : abonoFijo;
       const cuota = round2(interes + abono);
       const nuevoSaldo = round2(Math.max(0, saldo - abono));
-      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i), saldoInicial, cuota, interes, abono, saldo: nuevoSaldo});
+      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i - offsetDia1), saldoInicial, cuota, interes, abono, saldo: nuevoSaldo});
       saldo = nuevoSaldo;
     }
   } else if(p.metodo === METODOS[2]){ // Tasa plana (interés fijo): interés siempre sobre el capital original
@@ -289,7 +301,7 @@ function generarTabla(p){
       const abono = (i===n) ? saldo : abonoFijo;
       const cuota = round2(interesFijo + abono);
       const nuevoSaldo = round2(Math.max(0, saldo - abono));
-      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i), saldoInicial, cuota, interes:interesFijo, abono, saldo: nuevoSaldo});
+      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i - offsetDia1), saldoInicial, cuota, interes:interesFijo, abono, saldo: nuevoSaldo});
       saldo = nuevoSaldo;
     }
   } else if(p.metodo === METODOS[3]){ // Capital al final (bullet): solo interés cada período, capital al final
@@ -297,7 +309,7 @@ function generarTabla(p){
     for(let i=1;i<=n;i++){
       const esUltima = i===n, abono = esUltima?capital:0;
       const cuota = round2(interesFijo + abono);
-      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i), saldoInicial:capital, cuota, interes:interesFijo, abono, saldo: esUltima?0:capital});
+      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i - offsetDia1), saldoInicial:capital, cuota, interes:interesFijo, abono, saldo: esUltima?0:capital});
     }
   } else if(p.metodo === METODOS[4]){ // Sistema Americano (puro): nada hasta el final, ahí capital + todo el interés junto
     for(let i=1;i<=n;i++){
@@ -305,13 +317,13 @@ function generarTabla(p){
       const interes = esUltima ? round2(capital*tasa*n) : 0;
       const abono = esUltima ? capital : 0;
       const cuota = round2(interes + abono);
-      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i), saldoInicial:capital, cuota, interes, abono, saldo: esUltima?0:capital});
+      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i - offsetDia1), saldoInicial:capital, cuota, interes, abono, saldo: esUltima?0:capital});
     }
   } else if(p.metodo === METODOS[5]){ // Indefinido (solo interés)
     const interesFijo = round2(capital*tasa);
     const hechas = (p.pagos||[]).length, total = Math.max(hechas+4,6);
     for(let i=1;i<=total;i++){
-      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i), saldoInicial:capital, cuota:interesFijo, interes:interesFijo, abono:0, saldo:capital});
+      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i - offsetDia1), saldoInicial:capital, cuota:interesFijo, interes:interesFijo, abono:0, saldo:capital});
     }
   }
   return filas;
@@ -469,7 +481,7 @@ function renderBloqueo(){
   document.title = nombreApp();
   const error = state._errorClave;
   document.getElementById("app").innerHTML = `
-    <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;background:${NAVY};">
+    <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:56px 24px 24px;background:${NAVY};">
       <div style="width:64px;height:64px;border-radius:16px;background:${GOLD};display:flex;align-items:center;justify-content:center;font-weight:700;color:${NAVY};font-size:24px;margin-bottom:16px;">${siglasApp()}</div>
       <p style="color:#fff;font-size:16px;font-weight:600;margin:0 0 4px;">${nombreApp()}</p>
       <p style="color:rgba(255,255,255,.6);font-size:13px;margin:0 0 20px;">Ingresa tu clave para continuar</p>
@@ -845,6 +857,66 @@ function abrirReportePDF(){
   state.vista = "reportePDF";
   render();
 }
+function generarReportePDF(){
+  let prestado=0, cobrado=0;
+  state.prestamos.forEach(p=>{
+    prestado += Number(p.capital)||0;
+    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
+  });
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14);
+  doc.text(nombreApp(), 14, 16);
+  doc.setFontSize(9);
+  doc.text(`Reporte general  ·  ${fmtDate(new Date().toISOString().slice(0,10))}`, 14, 23);
+  doc.text(`Capital prestado ${money(prestado)}   ·   Total cobrado ${money(cobrado)}   ·   Clientes ${state.clientes.length}   ·   Préstamos ${state.prestamos.length}`, 14, 29);
+  const filas = state.prestamos.map(p=>{
+    const cli = state.clientes.find(c=>c.id===p.clienteId);
+    const r = resumen(p);
+    const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
+    const estado = atraso>0 ? "Vencido" : r.estado;
+    return [p.codigo, cli?cli.nombre:"—", money(p.capital), estado, money(r.saldoPendiente), r.proximaFecha?fmtDateCompacto(r.proximaFecha):"—"];
+  });
+  doc.autoTable({
+    startY: 34,
+    head: [["Código","Cliente","Capital","Estado","Saldo","Próx. fecha"]],
+    body: filas.length ? filas : [["—","Sin préstamos registrados.","","","",""]],
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [27,42,74] }
+  });
+  return doc;
+}
+function compartirReportePDF(){
+  cargarPDFLibs(function(){
+    try{
+      const doc = generarReportePDF();
+      const blob = doc.output("blob");
+      compartirOdescargarPDF(blob, `reporte-jr-prestamito.pdf`, `Reporte general`);
+    }catch(err){
+      alert("Ocurrió un error generando el PDF. Intenta de nuevo.");
+    }
+  });
+}
+function imprimirPDFDoc(doc){
+  // Abre exactamente el mismo PDF que se usa para "Enviar" y dispara la impresión sobre
+  // ese mismo archivo, para que imprimir y enviar salgan siempre idénticos en tamaño/formato.
+  try{
+    doc.autoPrint();
+    const url = doc.output("bloburl");
+    const w = window.open(url, "_blank");
+    if(!w){
+      alert("El navegador bloqueó la ventana del PDF. Permite ventanas emergentes para poder imprimir, o usa el botón de Enviar y luego imprime desde ahí.");
+    }
+  }catch(err){
+    alert("Ocurrió un error generando el PDF para imprimir. Intenta de nuevo.");
+  }
+}
+function imprimirReportePDF(){
+  cargarPDFLibs(function(){
+    const doc = generarReportePDF();
+    imprimirPDFDoc(doc);
+  });
+}
 function viewReportePDF(){
   let prestado=0, cobrado=0;
   state.prestamos.forEach(p=>{
@@ -886,8 +958,9 @@ function viewReportePDF(){
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="window.print()">Generar PDF (imprimir)</button>
-    </div>`;
+      <button class="btn btn-gold" onclick="imprimirReportePDF()">Imprimir</button>
+    </div>
+    <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirReportePDF()">Compartir en PDF</button>`;
 }
 function desglosePagado(p){
   // Reparte lo realmente cobrado en un préstamo entre interés y capital,
@@ -1093,11 +1166,43 @@ function viewAjustes(){
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Recibo</p>
+    <p class="hint" style="margin:0 0 10px;">El recibo lleva una marca de agua de fondo con las iniciales de tu negocio (${siglasApp()}) para que no se pueda falsificar fácilmente. Por defecto, el recibo sale <b>sin firma</b> cuando lo envías por WhatsApp/PDF y <b>con línea de firma</b> cuando lo imprimes en papel — puedes forzar una sola opción para ambos casos aquí:</p>
+    <label style="margin-bottom:0;"><span>Al final del recibo</span>
+      <select id="f_reciboFirma" onchange="state.config.reciboFirma=this.value; save(); render();">
+        <option value="automatico" ${(!state.config.reciboFirma||state.config.reciboFirma==="automatico")?"selected":""}>Automático: sin firma al enviar, con firma al imprimir</option>
+        <option value="sinfirma" ${state.config.reciboFirma==="sinfirma"?"selected":""}>Siempre nota: "Recibo válido sin firma"</option>
+        <option value="firma" ${state.config.reciboFirma==="firma"?"selected":""}>Siempre línea para firma de quien recibe el pago</option>
+        <option value="ninguno" ${state.config.reciboFirma==="ninguno"?"selected":""}>Ninguno, en ambos casos</option>
+      </select>
+    </label>
+  </div>`}
+  ${window.__esCopiaCompartida ? "" : `
+  <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de recordatorio (WhatsApp / SMS)</p>
     <p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p>
     <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="5" placeholder="${PLANTILLA_RECORDATORIO_DEFECTO}" oninput="state.config.mensajeRecordatorio=this.value; save(); render();">${state.config.mensajeRecordatorio||""}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:new Date().toISOString().slice(0,10)}, 3)}</p>
     <button class="btn btn-outline" onclick="if(confirm('¿Volver al mensaje original?')){ state.config.mensajeRecordatorio=''; save(); render(); }">Restablecer mensaje original</button>
+  </div>`}
+  ${window.__esCopiaCompartida ? "" : `
+  <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Mensaje de pendiente de cobro (1 día antes)</p>
+    <p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b>.</p>
+    <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="5" placeholder="${PLANTILLA_PENDIENTE_DEFECTO}" oninput="state.config.mensajePendiente=this.value; save(); render();">${state.config.mensajePendiente||""}</textarea></label>
+    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:new Date().toISOString().slice(0,10)})}</p>
+    <button class="btn btn-outline" onclick="if(confirm('¿Volver al mensaje original?')){ state.config.mensajePendiente=''; save(); render(); }">Restablecer mensaje original</button>
+  </div>`}
+  ${window.__esCopiaCompartida ? "" : `
+  <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Cómo contar los días del plazo</p>
+    <p class="hint" style="margin:0 0 10px;">Ejemplo con préstamo semanal iniciado un miércoles: con "Contar desde el día 1" la primera cuota cae el próximo martes (7 días contando el miércoles como día 1). Con "Estándar" cae el miércoles siguiente (7 días completos después, sin contar el día del préstamo).</p>
+    <label style="margin-bottom:0;"><span>Fechas de cuota</span>
+      <select id="f_contarDiaInicio" onchange="state.config.contarDiaInicio=(this.value==='si'); save(); render();">
+        <option value="si" ${(state.config.contarDiaInicio!==false)?"selected":""}>Contar desde el día 1 (el día del préstamo ya cuenta)</option>
+        <option value="no" ${(state.config.contarDiaInicio===false)?"selected":""}>Estándar bancario (el día del préstamo no cuenta)</option>
+      </select>
+    </label>
   </div>`}
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Seguridad</p>
@@ -1291,6 +1396,23 @@ function volverLista(){ state.vista="lista"; render(); }
 function verCartera(){ state.tab="prestamos"; state.vista="cartera"; render(); }
 
 const PLANTILLA_RECORDATORIO_DEFECTO = "Hola {nombre}, su préstamo {codigo} tiene una cuota de {cuota} vencida desde el {fecha} ({dias} de atraso). Le agradecemos ponerse al día lo antes posible. Cualquier duda, con gusto le atendemos. ¡Gracias!";
+const PLANTILLA_PENDIENTE_DEFECTO = "Hola {nombre}, le recordamos que su préstamo {codigo} tiene una cuota de {cuota} pendiente de cobro, con fecha {fecha}. Cualquier duda, con gusto le atendemos. ¡Gracias!";
+function diasParaVencer(fecha){
+  if(!fecha) return null;
+  const hoy = new Date().toISOString().slice(0,10);
+  return Math.round((new Date(fecha) - new Date(hoy))/86400000);
+}
+function mensajePendiente(p, cli, r){
+  const cuota = money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota);
+  const nombre = cli ? cli.nombre.split(" ")[0] : "";
+  const plantilla = (state.config.mensajePendiente || "").trim() || PLANTILLA_PENDIENTE_DEFECTO;
+  return plantilla
+    .replace(/\{nombre\}/g, nombre)
+    .replace(/\{codigo\}/g, p.codigo)
+    .replace(/\{cuota\}/g, cuota)
+    .replace(/\{fecha\}/g, fmtDate(r.proximaFecha))
+    .replace(/\{negocio\}/g, nombreApp());
+}
 function mensajeRecordatorio(p, cli, r, atraso){
   const cuota = money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota);
   const nombre = cli ? cli.nombre.split(" ")[0] : "";
@@ -1316,13 +1438,44 @@ function linkSms(cli, mensaje){
   return `sms:+504${digitos}?&body=${encodeURIComponent(mensaje)}`;
 }
 function viewCartera(){
+  const pendientes = state.prestamos.map(p=>({p, r:resumen(p)}))
+    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasParaVencer(x.r.proximaFecha)===1);
+
   const vencidos = state.prestamos.map(p=>({p, r:resumen(p)}))
     .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasAtraso(x.r.proximaFecha)>0)
     .map(x=>({...x, atraso: diasAtraso(x.r.proximaFecha)}))
     .sort((a,b)=> b.atraso - a.atraso);
 
+  if(vencidos.length===0 && pendientes.length===0){
+    return `<p class="empty">No tienes cuotas vencidas ni pendientes de cobro para mañana. 🎉</p>`;
+  }
+
+  let html = "";
+
+  if(pendientes.length>0){
+    html += `<p class="cartera-grupo" style="color:${NAVY};">Pendientes de cobro · vencen mañana (${pendientes.length})</p>`;
+    pendientes.forEach(({p, r})=>{
+      const cli = state.clientes.find(c=>c.id===p.clienteId);
+      const mensaje = mensajePendiente(p, cli, r);
+      const wa = linkWhatsapp(cli, mensaje);
+      const sms = linkSms(cli, mensaje);
+      html += `<div class="row-card" style="display:block;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;cursor:pointer;" onclick="verDetalle('${p.id}')">
+          <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
+          <p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p>
+          <p style="font-size:13px;margin:4px 0 0;color:${NAVY}">${money(r.cuotaActual?r.cuotaActual.cuota:r.cuota)}</p></div>
+          <span class="badge" style="background:#EEF1F6;color:${NAVY};">Mañana</span>
+        </div>
+        ${(wa||sms) ? `<div class="flexrow" style="margin-top:10px;">
+          ${wa?`<a class="btn btn-outline" style="text-decoration:none;text-align:center;" href="${wa}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Recordar por WhatsApp</a>`:""}
+          ${sms?`<a class="btn btn-outline" style="text-decoration:none;text-align:center;" href="${sms}" onclick="event.stopPropagation()">Recordar por SMS</a>`:""}
+        </div>` : `<p class="hint" style="margin-top:8px;">Este cliente no tiene celular registrado — agrégalo en su ficha para poder enviarle recordatorio.</p>`}
+      </div>`;
+    });
+  }
+
   if(vencidos.length===0){
-    return `<p class="empty">No tienes cuotas vencidas en este momento. 🎉</p>`;
+    return html;
   }
 
   const grupos = [
@@ -1332,7 +1485,7 @@ function viewCartera(){
     { label:"Más de 60 días", min:61, max:Infinity }
   ];
 
-  let html = `<p class="hint" style="margin-bottom:12px;">${vencidos.length} préstamo(s) con cuotas vencidas, agrupados por días de atraso.</p>`;
+  html += `<p class="hint" style="margin:16px 0 12px;">${vencidos.length} préstamo(s) con cuotas vencidas, agrupados por días de atraso.</p>`;
 
   grupos.forEach(g=>{
     const enGrupo = vencidos.filter(x=> x.atraso>=g.min && x.atraso<=g.max);
@@ -1657,6 +1810,26 @@ async function compartirOdescargarPDF(blob, nombreArchivo, tituloCompartir){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 4000);
 }
+function generarAmortizacionPDF(p, cli, r){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14);
+  doc.text(nombreApp(), 14, 16);
+  doc.setFontSize(9);
+  doc.text(`${p.codigo}  ·  ${cli?cli.nombre:"—"}  ·  Capital ${money(p.capital)}  ·  Tasa ${p.tasa}%  ·  ${p.metodo}`, 14, 23);
+  const filas = r.tabla.map((f,i)=>{
+    const estado = i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente");
+    return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), money(f.abono), money(f.saldo), estado];
+  });
+  doc.autoTable({
+    startY: 28,
+    head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
+    body: filas,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [27,42,74] }
+  });
+  return doc;
+}
 function compartirAmortizacionPDF(prestamoId){
   const p = state.prestamos.find(x=>x.id===prestamoId);
   if(!p) return;
@@ -1664,29 +1837,69 @@ function compartirAmortizacionPDF(prestamoId){
   const r = resumen(p);
   cargarPDFLibs(function(){
     try{
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      doc.setFontSize(14);
-      doc.text(nombreApp(), 14, 16);
-      doc.setFontSize(9);
-      doc.text(`${p.codigo}  ·  ${cli?cli.nombre:"—"}  ·  Capital ${money(p.capital)}  ·  Tasa ${p.tasa}%  ·  ${p.metodo}`, 14, 23);
-      const filas = r.tabla.map((f,i)=>{
-        const estado = i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente");
-        return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), money(f.abono), money(f.saldo), estado];
-      });
-      doc.autoTable({
-        startY: 28,
-        head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
-        body: filas,
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [27,42,74] }
-      });
+      const doc = generarAmortizacionPDF(p, cli, r);
       const blob = doc.output("blob");
       compartirOdescargarPDF(blob, `amortizacion-${p.codigo}.pdf`, `Tabla de amortización ${p.codigo}`);
     }catch(err){
       alert("Ocurrió un error generando el PDF. Intenta de nuevo.");
     }
   });
+}
+function dibujarMarcaAgua(doc, texto, w, h){
+  // Marca de agua tenue de fondo (iniciales del negocio), en diagonal. Si el navegador no
+  // soporta la API de transparencia de jsPDF, simplemente se omite sin romper el recibo.
+  try{
+    doc.saveGraphicsState();
+    doc.setGState(new doc.GState({opacity:0.07}));
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(60);
+    doc.setTextColor(27,42,74);
+    doc.text(texto, w/2, h/2, {align:"center", angle:45});
+    doc.restoreGraphicsState();
+    doc.setFont("helvetica","normal");
+    doc.setTextColor(20);
+  }catch(err){ /* sin marca de agua si el navegador no soporta GState */ }
+}
+function generarReciboPDF(p, cli, pg, r, numRecibo, contexto){
+  const { jsPDF } = window.jspdf; // tamaño angosto de recibo/ticket (80mm), no una hoja completa
+  const doc = new jsPDF({unit:"mm", format:[80,170]});
+  dibujarMarcaAgua(doc, siglasApp(), 80, 170);
+  const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0);
+  const concepto = pg.liquidacion ? "Liquidación anticipada" : (pg.mora>0 ? "Cuota + mora por atraso" : "Abono / cuota");
+  const cx = 40, xL = 6, xR = 74;
+  let y = 10;
+  doc.setFontSize(12); doc.text(nombreApp().toUpperCase(), cx, y, {align:"center"}); y += 6;
+  doc.setFontSize(8); doc.setTextColor(120); doc.text("Recibo de pago", cx, y, {align:"center"}); doc.setTextColor(20); y += 5;
+  doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 6;
+  doc.setFontSize(9);
+  const linea = (label, valor) => { doc.text(label, xL, y); doc.text(String(valor), xR, y, {align:"right"}); y += 6; };
+  linea("No. recibo", "R-"+numRecibo);
+  linea("Fecha", fmtDate(pg.fecha));
+  linea("Cliente", cli?cli.nombre:"—");
+  if(cli && cli.cedula) linea("Cédula", cli.cedula);
+  linea("Préstamo", p.codigo);
+  linea("Método", p.metodo);
+  linea("Concepto", concepto);
+  if(pg.mora>0){ linea("Cuota / abono", money(pg.monto)); linea("Mora", money(pg.mora)); }
+  y += 1; doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 7;
+  doc.setFontSize(11); linea("Total pagado", money(totalPago));
+  doc.setFontSize(8); linea("Saldo pendiente", money(r.saldoPendiente));
+  y += 6; doc.setFontSize(8); doc.text("Gracias por su pago.", cx, y, {align:"center"});
+  const modoFirma = state.config.reciboFirma || "automatico";
+  const usarFirma = modoFirma==="firma" || (modoFirma==="automatico" && contexto==="imprimir");
+  const usarSinFirma = modoFirma==="sinfirma" || (modoFirma==="automatico" && contexto!=="imprimir");
+  if(usarFirma){
+    y += 14;
+    doc.setDrawColor(120); doc.line(xL+6, y, xR-6, y);
+    y += 4; doc.setFontSize(7.5); doc.setTextColor(110);
+    doc.text("Firma de quien recibe el pago", cx, y, {align:"center"});
+    doc.setTextColor(20);
+  } else if(usarSinFirma){
+    y += 9; doc.setFontSize(7.5); doc.setTextColor(110);
+    doc.text("Recibo válido sin firma.", cx, y, {align:"center"});
+    doc.setTextColor(20);
+  }
+  return doc;
 }
 function compartirReciboPDF(){
   const sel = state.reciboSel || {};
@@ -1698,32 +1911,10 @@ function compartirReciboPDF(){
   const pg = idx>=0 ? pagos[idx] : pagos[pagos.length-1];
   if(!pg) return;
   const numRecibo = pg.id ? pg.id.slice(-6).toUpperCase() : String(idx+1).padStart(4,"0");
-  const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0);
   const r = resumen(p);
-  const concepto = pg.liquidacion ? "Liquidación anticipada" : (pg.mora>0 ? "Cuota + mora por atraso" : "Abono / cuota");
   cargarPDFLibs(function(){
     try{
-      const { jsPDF } = window.jspdf; // tamaño angosto de recibo/ticket (80mm), no una hoja completa
-      const doc = new jsPDF({unit:"mm", format:[80,170]});
-      const cx = 40, xL = 6, xR = 74;
-      let y = 10;
-      doc.setFontSize(12); doc.text(nombreApp().toUpperCase(), cx, y, {align:"center"}); y += 6;
-      doc.setFontSize(8); doc.setTextColor(120); doc.text("Recibo de pago", cx, y, {align:"center"}); doc.setTextColor(20); y += 5;
-      doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 6;
-      doc.setFontSize(9);
-      const linea = (label, valor) => { doc.text(label, xL, y); doc.text(String(valor), xR, y, {align:"right"}); y += 6; };
-      linea("No. recibo", "R-"+numRecibo);
-      linea("Fecha", fmtDate(pg.fecha));
-      linea("Cliente", cli?cli.nombre:"—");
-      if(cli && cli.cedula) linea("Cédula", cli.cedula);
-      linea("Préstamo", p.codigo);
-      linea("Método", p.metodo);
-      linea("Concepto", concepto);
-      if(pg.mora>0){ linea("Cuota / abono", money(pg.monto)); linea("Mora", money(pg.mora)); }
-      y += 1; doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 7;
-      doc.setFontSize(11); linea("Total pagado", money(totalPago));
-      doc.setFontSize(8); linea("Saldo pendiente", money(r.saldoPendiente));
-      y += 6; doc.setFontSize(8); doc.text("Gracias por su pago.", cx, y, {align:"center"});
+      const doc = generarReciboPDF(p, cli, pg, r, numRecibo, "compartir");
       const blob = doc.output("blob");
       compartirOdescargarPDF(blob, `recibo-R-${numRecibo}.pdf`, `Recibo de pago R-${numRecibo}`);
     }catch(err){
@@ -1732,8 +1923,30 @@ function compartirReciboPDF(){
   });
 }
 function imprimirTabla(id){
-  state.seleccionId = id;
-  window.print();
+  const p = state.prestamos.find(x=>x.id===id);
+  if(!p) return;
+  const cli = state.clientes.find(c=>c.id===p.clienteId);
+  const r = resumen(p);
+  cargarPDFLibs(function(){
+    const doc = generarAmortizacionPDF(p, cli, r);
+    imprimirPDFDoc(doc);
+  });
+}
+function imprimirRecibo(){
+  const sel = state.reciboSel || {};
+  const p = state.prestamos.find(x=>x.id===sel.prestamoId);
+  if(!p) return;
+  const cli = state.clientes.find(c=>c.id===p.clienteId);
+  const pagos = p.pagos || [];
+  const idx = sel.pagoId ? pagos.findIndex(pg=>pg.id===sel.pagoId) : -1;
+  const pg = idx>=0 ? pagos[idx] : pagos[pagos.length-1];
+  if(!pg) return;
+  const numRecibo = pg.id ? pg.id.slice(-6).toUpperCase() : String(idx+1).padStart(4,"0");
+  const r = resumen(p);
+  cargarPDFLibs(function(){
+    const doc = generarReciboPDF(p, cli, pg, r, numRecibo, "imprimir");
+    imprimirPDFDoc(doc);
+  });
 }
 function registrarPago(id){
   const p = state.prestamos.find(x=>x.id===id);
@@ -1877,7 +2090,8 @@ function viewRecibo(){
   let concepto = pg.liquidacion ? "Liquidación anticipada" : (pg.mora>0 ? "Cuota + mora por atraso" : "Abono / cuota");
 
   return `
-    <div id="recibo-imprimible">
+    <div id="recibo-imprimible" style="position:relative;overflow:hidden;">
+      <span class="marca-agua">${siglasApp()}</span>
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Recibo de pago</p>
       <div class="rline"><span>No. de recibo</span><b>R-${numRecibo}</b></div>
@@ -1892,10 +2106,16 @@ function viewRecibo(){
       <div class="rline rtotal" style="border-bottom:none;padding-top:14px;"><span>Total pagado</span><span>${money(totalPago)}</span></div>
       <div class="rline"><span>Saldo pendiente actual del préstamo</span><b>${money(r.saldoPendiente)}</b></div>
       <p class="hint" style="margin-top:18px;">Gracias por su pago.</p>
+      ${(state.config.reciboFirma||"automatico")==="firma" ? `<div style="margin-top:26px;text-align:center;">
+          <div style="border-top:1px solid #999;width:70%;margin:0 auto;"></div>
+          <p class="hint" style="margin-top:4px;">Firma de quien recibe el pago</p>
+        </div>` : ""}
+      ${(state.config.reciboFirma||"automatico")==="sinfirma" ? `<p class="hint" style="margin-top:16px;text-align:center;">Recibo válido sin firma.</p>` : ""}
+      ${(state.config.reciboFirma||"automatico")==="automatico" ? `<p class="hint" style="margin-top:16px;text-align:center;">Al imprimir sale con línea de firma · al enviarlo sale sin firma.</p>` : ""}
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='lista'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="window.print()">Imprimir recibo</button>
+      <button class="btn btn-gold" onclick="imprimirRecibo()">Imprimir recibo</button>
     </div>
     <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirReciboPDF()">Compartir recibo en PDF</button>
     <button class="btn btn-danger" style="margin-top:10px;" onclick="eliminarPago('${p.id}','${pg.id||""}')">Eliminar este pago</button>`;
