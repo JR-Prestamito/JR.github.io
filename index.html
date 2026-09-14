@@ -47,7 +47,8 @@
   .b-refinanciado{background:#EAF0FB;color:#2255A0;}
   .b-porcobrar{background:#FBF3E4;color:#8A6416;}
   input,select,textarea{width:100%;border:1px solid #d8d3c8;border-radius:10px;padding:9px 11px;font-size:15px;background:#fff;}
-  #claveInicio:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,151,62,.18);}
+  #claveInicio:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,151,62,.35);}
+  .input-clave-bloqueo::placeholder{color:rgba(255,255,255,.45);}
   textarea{font-family:inherit;resize:vertical;}
   label{display:block;margin-bottom:12px;}
   label span{display:block;font-size:13px;color:#666;margin-bottom:4px;}
@@ -124,6 +125,11 @@
 
 <script>
 const NAVY = "#1B2A4A", GOLD = "#C9973E";
+// Nombre/siglas fijas de la marca de la app, usadas SOLO en la pantalla de acceso (login).
+// A propósito NO usan nombreApp()/siglasApp() (que sí cambian con "Nombre del negocio" en
+// Ajustes) — el login es la carta de presentación de la app y debe quedar siempre igual,
+// aunque distintos negocios usen copias de este archivo con otro nombre en sus recibos.
+const NOMBRE_MARCA = "JR Prestamito", SIGLAS_MARCA = "JR";
 
 // ── Ventanas propias (reemplazan alert()/confirm() nativos) ──────────────────
 // Los cuadros nativos del navegador siempre muestran el dominio del sitio
@@ -601,32 +607,31 @@ async function usarHuella(){
 }
 
 function renderBloqueo(){
-  document.title = nombreApp();
+  document.title = NOMBRE_MARCA;
   const error = state._errorClave;
   document.getElementById("app").innerHTML = `
-    <div style="min-height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;padding:64px 24px 24px;background:linear-gradient(160deg, ${NAVY} 0%, #0F1A30 100%);">
+    <div style="min-height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;padding:48px 24px 24px;background:linear-gradient(160deg, ${NAVY} 0%, #0F1A30 100%);">
       <div style="position:absolute;top:-60px;right:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle, rgba(201,151,62,.35) 0%, rgba(201,151,62,0) 70%);"></div>
       <div style="position:absolute;bottom:-80px;left:-60px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.08) 0%, rgba(255,255,255,0) 70%);"></div>
-      <div style="position:relative;width:92px;height:92px;border-radius:26px;background:linear-gradient(145deg, ${GOLD}, #B9832E);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:32px;margin-bottom:24px;box-shadow:0 14px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.3);border:1px solid rgba(255,255,255,.15);">${siglasApp()}</div>
-      <p style="position:relative;color:#fff;font-size:24px;font-weight:800;letter-spacing:.02em;margin:0 0 8px;text-transform:uppercase;text-align:center;">${nombreApp()}</p>
-      <p style="position:relative;color:rgba(255,255,255,.65);font-size:14px;margin:0 0 32px;text-align:center;">Ingresa tu clave para continuar</p>
-      <div style="position:relative;width:100%;max-width:300px;">
-        ${(state.config.huellaCredId && window.__huellaSoportada) ? `<button class="btn btn-outline" style="width:100%;margin-bottom:14px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);color:#fff;" onclick="usarHuella()">👆 Usar huella / Face ID</button>
-        <div style="display:flex;align-items:center;gap:10px;margin:0 0 16px;">
+      <div style="position:relative;width:76px;height:76px;border-radius:22px;background:linear-gradient(145deg, ${GOLD}, #B9832E);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:27px;margin-bottom:18px;box-shadow:0 12px 26px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.3);border:1px solid rgba(255,255,255,.15);">${SIGLAS_MARCA}</div>
+      <p style="position:relative;color:#fff;font-size:20px;font-weight:800;letter-spacing:.02em;margin:0 0 6px;text-transform:uppercase;text-align:center;">${NOMBRE_MARCA}</p>
+      <p style="position:relative;color:rgba(255,255,255,.65);font-size:13px;margin:0 0 24px;text-align:center;">Ingresa tu clave para continuar</p>
+      <div style="position:relative;width:100%;max-width:270px;">
+        ${(state.config.huellaCredId && window.__huellaSoportada) ? `<button class="btn btn-outline" style="width:100%;margin-bottom:12px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);color:#fff;" onclick="usarHuella()">👆 Usar huella / Face ID</button>
+        <div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;">
           <div style="flex:1;height:1px;background:rgba(255,255,255,.2);"></div>
           <span style="font-size:11px;color:rgba(255,255,255,.5);">o escribe tu clave</span>
           <div style="flex:1;height:1px;background:rgba(255,255,255,.2);"></div>
         </div>` : ""}
-        <input id="claveInicio" type="password" inputmode="numeric" placeholder="••••" style="width:100%;text-align:center;font-size:26px;letter-spacing:9px;padding:16px;border:none;border-radius:16px;box-sizing:border-box;box-shadow:0 10px 24px rgba(0,0,0,.25);">
+        <input id="claveInicio" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:22px;letter-spacing:8px;padding:13px;border:1px solid rgba(255,255,255,.3);border-radius:14px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;">
         ${error ? `<p style="color:#FFC2C2;font-size:13px;margin:10px 0 0;text-align:center;">Clave incorrecta.</p>` : ""}
-        <button class="btn btn-gold" style="width:100%;margin-top:16px;font-size:16px;padding:14px;" onclick="verificarClaveInicio()">Entrar</button>
-        <button type="button" onclick="olvideMiClave()" style="display:block;width:100%;background:none;border:none;color:rgba(255,255,255,.7);text-decoration:underline;font-size:13px;margin-top:20px;cursor:pointer;">¿Olvidaste tu clave?</button>
+        <button class="btn btn-gold" style="width:100%;margin-top:14px;font-size:15px;padding:12px;" onclick="verificarClaveInicio()">Entrar</button>
+        <button type="button" onclick="olvideMiClave()" style="display:block;width:100%;background:none;border:none;color:rgba(255,255,255,.7);text-decoration:underline;font-size:12.5px;margin-top:18px;cursor:pointer;">¿Olvidaste tu clave?</button>
       </div>
     </div>`;
   const inp = document.getElementById("claveInicio");
   if(inp){
     inp.focus();
-    inp.addEventListener("keydown", e=>{ if(e.key==="Enter") verificarClaveInicio(); });
     // Se verifica sola en cuanto se completan los mismos caracteres que tiene la clave guardada
     // — así no hace falta tocar "Entrar" ni dar Enter, igual que al usar la huella.
     inp.addEventListener("input", ()=>{
@@ -699,67 +704,26 @@ function generarClaveSync(){
     mostrarClaveGenerada("Clave de sincronización generada", nueva, "Cópiala y pégala también en la misma casilla del script de Google Sheets — debe ser idéntica en ambos lados para que la nube funcione. Si no la pegas ahí también, la nube dejará de aceptar tus subidas y descargas.");
   });
 }
-function pedirCodigoRecuperacion(nuevoPin, esGenerada){
-  mostrarPrompt(
-    "Por último, escribe un código de recuperación: una palabra o frase que solo tú sepas. Si algún día olvidas la clave, te lo pediremos en vez de dejarte entrar sin más (mínimo 4 caracteres):",
-    function(codigo){
-      if(codigo===null) return;
-      const val = (codigo||"").trim();
-      if(val.length<4){ mostrarAlerta("Escribe un código de recuperación de al menos 4 caracteres."); pedirCodigoRecuperacion(nuevoPin, esGenerada); return; }
-      state.config.pin = nuevoPin;
-      state.config.pinRecovery = val;
-      save(); render();
-      if(esGenerada){
-        mostrarClaveGenerada("Clave de inicio configurada", nuevoPin, "Apúntala en un lugar seguro — la app te la pedirá cada vez que la abras y no queda guardada en ningún otro lado.");
-      } else {
-        mostrarAlerta("Clave de inicio configurada. La próxima vez que abras la app, te la pedirá.");
-      }
-    },
-    {tipo:"text", textoAceptar:"Guardar"}
-  );
+function guardarClaveAcceso(){
+  const clave = (document.getElementById("f_claveAcceso").value||"").trim();
+  const codigo = (document.getElementById("f_codigoRecuperacion").value||"").trim();
+  if(!clave){ mostrarAlerta("Escribe una clave primero."); return; }
+  if(clave.length<4){ mostrarAlerta("La clave debe tener al menos 4 caracteres."); return; }
+  if(!codigo){ mostrarAlerta("Escribe también un código de recuperación — es lo único que te permitirá volver a entrar si algún día olvidas la clave."); return; }
+  if(codigo.length<4){ mostrarAlerta("El código de recuperación debe tener al menos 4 caracteres."); return; }
+  state.config.pin = clave;
+  state.config.pinRecovery = codigo;
+  save(); render();
+  mostrarAlerta("Clave de inicio configurada. La próxima vez que abras la app, te la pedirá.");
 }
-function configurarClaveInicio(){
-  const actual = state.config.pin;
-  function pedirGenerarONo(){
-    mostrarConfirmacion(
-      "¿Quieres que te generemos una clave segura automáticamente? (recomendado)",
-      function(generarla){
-        if(generarla){
-          const nueva = generarClaveSegura(8);
-          pedirCodigoRecuperacion(nueva, true);
-          return;
-        }
-        mostrarPrompt("Escribe la nueva clave (números o letras, mínimo 4 caracteres):", function(nueva){
-          if(nueva===null) return;
-          if(nueva.trim().length<4){ mostrarAlerta("La clave debe tener al menos 4 caracteres."); return; }
-          mostrarPrompt("Escribe la clave otra vez para confirmar:", function(confirmacion){
-            if(confirmacion===null) return;
-            if(confirmacion!==nueva){ mostrarAlerta("Las claves no coinciden. Intenta de nuevo."); return; }
-            pedirCodigoRecuperacion(nueva.trim(), false);
-          }, {tipo:"password", textoAceptar:"Confirmar"});
-        }, {tipo:"password", textoAceptar:"Siguiente"});
-      },
-      { textoAceptar: "Generarla automático", textoCancelar: "Prefiero escribirla" }
-    );
-  }
-  if(actual){
-    mostrarConfirmacion(
-      "Ya tienes una clave configurada. ¿Qué quieres hacer?",
-      function(quitar){
-        if(quitar){
-          state.config.pin = "";
-          state.config.pinRecovery = "";
-          save(); render();
-          mostrarAlerta("Se quitó la clave de inicio. La app ya no pedirá clave al abrir.");
-          return;
-        }
-        pedirGenerarONo();
-      },
-      { textoAceptar: "Quitarla", textoCancelar: "Cambiarla" }
-    );
-    return;
-  }
-  pedirGenerarONo();
+function quitarClaveAcceso(){
+  mostrarConfirmacion("¿Quitar la clave de acceso? La app ya no pedirá nada al abrirla ni al entrar a Ajustes.", function(ok){
+    if(!ok) return;
+    state.config.pin = "";
+    state.config.pinRecovery = "";
+    save(); render();
+    mostrarAlerta("Se quitó la clave de inicio.");
+  });
 }
 
 function render(){
@@ -1434,9 +1398,17 @@ function viewAjustes(){
     </label>
   </div>`}
   <div class="row-card" style="display:block;">
-    <p style="font-weight:600;margin:0 0 4px;">Seguridad</p>
-    <p class="hint" style="margin:0 0 10px;">${state.config.pin ? "La app pide una clave cada vez que la abres." : "La app no pide clave al abrir. Puedes ponerle una para que solo tú (o quien la sepa) pueda entrar."}</p>
-    <button class="btn btn-outline" onclick="configurarClaveInicio()">${state.config.pin ? "Cambiar o quitar clave" : "Poner clave de inicio"}</button>
+    <p style="font-weight:600;margin:0 0 4px;">Clave de acceso</p>
+    <p class="hint" style="margin:0 0 12px;">Esta misma clave protege la app al abrirla y también te la vuelve a pedir al entrar a Ajustes, por seguridad extra.</p>
+    <label style="margin-bottom:12px;"><span>Nueva clave</span>
+      <input id="f_claveAcceso" type="text" inputmode="numeric" placeholder="Ej. 1234" value="">
+    </label>
+    <label style="margin-bottom:6px;"><span>Código de recuperación (algo que solo tú sepas, por si olvidas la clave)</span>
+      <input id="f_codigoRecuperacion" type="text" placeholder="Ej. una palabra o frase que recuerdes" value="">
+    </label>
+    <p class="hint" style="margin:0 0 14px;">Si algún día olvidas la clave, la pantalla de acceso te pedirá este código en vez de dejarte entrar sin más — así nadie puede saltarse la clave con solo tocar un botón.</p>
+    <button class="btn btn-gold" onclick="guardarClaveAcceso()">Guardar</button>
+    ${state.config.pin ? `<button class="btn btn-danger" style="margin-top:10px;" onclick="quitarClaveAcceso()">Quitar clave</button>` : ""}
     ${window.__esCopiaCompartida ? "" : `
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid #eee;">
       <p style="font-size:13px;font-weight:600;margin:0 0 4px;">Huella / Face ID</p>
