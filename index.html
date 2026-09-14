@@ -142,9 +142,15 @@ function jrCerrarModal(){
   _jrModalOnOk = null; _jrModalOnCancel = null;
 }
 function jrModalOk(){
+  // Importante: hay que leer el valor del campo de texto ANTES de borrar la ventana modal,
+  // porque borrarla (jrCerrarModal) elimina el <input> del DOM. Si se lee después, siempre
+  // llega vacío — este era un bug real que afectaba a toda función que usa mostrarPrompt
+  // (poner clave manual, confirmar clave, generar clave de sincronización, etc.).
+  const inputEl = document.getElementById("jr-modal-input");
+  const valorCapturado = inputEl ? inputEl.value : undefined;
   const cb = _jrModalOnOk;
   jrCerrarModal();
-  if(cb) cb();
+  if(cb) cb(valorCapturado);
 }
 function jrModalCancel(){
   const cb = _jrModalOnCancel;
@@ -190,9 +196,8 @@ function mostrarPrompt(mensaje, cb, opciones){
   opciones = opciones || {};
   const root = document.getElementById("jr-modal-root");
   if(!root){ if(cb) cb(null); return; }
-  _jrModalOnOk = function(){
-    const el = document.getElementById("jr-modal-input");
-    if(cb) cb(el ? el.value : "");
+  _jrModalOnOk = function(valorCapturado){
+    if(cb) cb(valorCapturado!==undefined ? valorCapturado : "");
   };
   _jrModalOnCancel = function(){ if(cb) cb(null); };
   root.innerHTML = `
@@ -622,12 +627,42 @@ function renderBloqueo(){
   if(inp){
     inp.focus();
     inp.addEventListener("keydown", e=>{ if(e.key==="Enter") verificarClaveInicio(); });
+    // Se verifica sola en cuanto se completan los mismos caracteres que tiene la clave guardada
+    // — así no hace falta tocar "Entrar" ni dar Enter, igual que al usar la huella.
+    inp.addEventListener("input", ()=>{
+      const largoClave = String(state.config.pin||"").length;
+      if(largoClave>0 && inp.value.length===largoClave) verificarClaveInicio();
+    });
   }
 }
 function olvideMiClave(){
+  if(state.config.pinRecovery){
+    mostrarPrompt(
+      "Escribe tu código de recuperación:",
+      function(codigo){
+        if(codigo===null) return;
+        const val = (codigo||"").trim();
+        if(val && val.toLowerCase() === String(state.config.pinRecovery).trim().toLowerCase()){
+          state.config.pin = "";
+          state.config.pinRecovery = "";
+          desbloqueado = true;
+          sessionStorage.setItem(jrKey("jr_desbloqueado"), "1");
+          state._errorClave = false;
+          state._errorClaveAjustes = false;
+          if(state.vista==="ajustesClave") state.vista = "ajustes";
+          save(); render();
+          mostrarAlerta("Clave quitada. Puedes poner una nueva desde Ajustes.");
+        } else {
+          mostrarAlerta("Ese código de recuperación no es correcto.");
+        }
+      },
+      {tipo:"text", textoAceptar:"Verificar"}
+    );
+    return;
+  }
   const tieneNube = !!((state.config.syncUrl||"").trim() && (state.config.syncKey||"").trim());
   mostrarAlerta(
-    "Tu clave no se guarda en ningún servidor, así que no hay forma de recuperártela a distancia — ni siquiera nosotros la podemos ver.\n\n" +
+    "No configuraste un código de recuperación cuando creaste esta clave, así que no podemos verificarlo aquí.\n\n" +
     (tieneNube
       ? "Como sí tienes la nube configurada, puedes: borrar los datos de este sitio desde los ajustes del navegador (esto quita la clave y todo lo local), abrir la app de nuevo, y usar \"Descargar de la nube\" en Ajustes para recuperar tus clientes y préstamos."
       : "Si no tienes un respaldo guardado (archivo .json) ni la nube configurada, borrar los datos del sitio para quitar la clave también borrará tus clientes y préstamos guardados solo en este dispositivo. Revisa primero si tienes un respaldo antes de hacerlo.")
@@ -664,6 +699,25 @@ function generarClaveSync(){
     mostrarClaveGenerada("Clave de sincronización generada", nueva, "Cópiala y pégala también en la misma casilla del script de Google Sheets — debe ser idéntica en ambos lados para que la nube funcione. Si no la pegas ahí también, la nube dejará de aceptar tus subidas y descargas.");
   });
 }
+function pedirCodigoRecuperacion(nuevoPin, esGenerada){
+  mostrarPrompt(
+    "Por último, escribe un código de recuperación: una palabra o frase que solo tú sepas. Si algún día olvidas la clave, te lo pediremos en vez de dejarte entrar sin más (mínimo 4 caracteres):",
+    function(codigo){
+      if(codigo===null) return;
+      const val = (codigo||"").trim();
+      if(val.length<4){ mostrarAlerta("Escribe un código de recuperación de al menos 4 caracteres."); pedirCodigoRecuperacion(nuevoPin, esGenerada); return; }
+      state.config.pin = nuevoPin;
+      state.config.pinRecovery = val;
+      save(); render();
+      if(esGenerada){
+        mostrarClaveGenerada("Clave de inicio configurada", nuevoPin, "Apúntala en un lugar seguro — la app te la pedirá cada vez que la abras y no queda guardada en ningún otro lado.");
+      } else {
+        mostrarAlerta("Clave de inicio configurada. La próxima vez que abras la app, te la pedirá.");
+      }
+    },
+    {tipo:"text", textoAceptar:"Guardar"}
+  );
+}
 function configurarClaveInicio(){
   const actual = state.config.pin;
   function pedirGenerarONo(){
@@ -672,9 +726,7 @@ function configurarClaveInicio(){
       function(generarla){
         if(generarla){
           const nueva = generarClaveSegura(8);
-          state.config.pin = nueva;
-          save(); render();
-          mostrarClaveGenerada("Clave de inicio configurada", nueva, "Apúntala en un lugar seguro — la app te la pedirá cada vez que la abras y no queda guardada en ningún otro lado.");
+          pedirCodigoRecuperacion(nueva, true);
           return;
         }
         mostrarPrompt("Escribe la nueva clave (números o letras, mínimo 4 caracteres):", function(nueva){
@@ -683,9 +735,7 @@ function configurarClaveInicio(){
           mostrarPrompt("Escribe la clave otra vez para confirmar:", function(confirmacion){
             if(confirmacion===null) return;
             if(confirmacion!==nueva){ mostrarAlerta("Las claves no coinciden. Intenta de nuevo."); return; }
-            state.config.pin = nueva.trim();
-            save(); render();
-            mostrarAlerta("Clave de inicio configurada. La próxima vez que abras la app, te la pedirá.");
+            pedirCodigoRecuperacion(nueva.trim(), false);
           }, {tipo:"password", textoAceptar:"Confirmar"});
         }, {tipo:"password", textoAceptar:"Siguiente"});
       },
@@ -698,6 +748,7 @@ function configurarClaveInicio(){
       function(quitar){
         if(quitar){
           state.config.pin = "";
+          state.config.pinRecovery = "";
           save(); render();
           mostrarAlerta("Se quitó la clave de inicio. La app ya no pedirá clave al abrir.");
           return;
@@ -767,6 +818,18 @@ function render(){
 
   html += `</div>` + viewTabbar();
   document.getElementById("app").innerHTML = html;
+
+  // El panel de "Ajustes protegidos" debe verse centrado en el espacio que queda entre el
+  // encabezado y la barra inferior. En vez de adivinar esas alturas (que cambian según el
+  // celular, el notch, etc.), se miden de verdad ya insertado en la pantalla.
+  const panelClave = document.getElementById("panelAjustesClave");
+  if(panelClave){
+    const headerEl = document.querySelector("#app > header");
+    const tabbarEl = document.querySelector("#app > .tabbar");
+    const altoHeader = headerEl ? headerEl.offsetHeight : 0;
+    const altoTabbar = tabbarEl ? tabbarEl.offsetHeight : 0;
+    panelClave.style.minHeight = `calc(100vh - ${altoHeader + altoTabbar}px)`;
+  }
 
   // Restaura el foco (y la posición del cursor) en el mismo campo, si seguía existiendo.
   if(activoId){
@@ -1309,16 +1372,17 @@ function verificarClaveAjustes(){
   }
 }
 function viewAjustesClave(){
-  return `<div style="display:flex;flex-direction:column;align-items:center;padding:40px 16px;text-align:center;">
-    <div style="width:52px;height:52px;border-radius:14px;background:${NAVY};display:flex;align-items:center;justify-content:center;color:${GOLD};margin-bottom:16px;">
+  return `<div id="panelAjustesClave" style="position:relative;overflow:hidden;margin:-16px -16px 0;background:linear-gradient(160deg, ${NAVY} 0%, #0F1A30 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;box-sizing:border-box;">
+    <div style="position:absolute;top:-60px;right:-60px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle, rgba(201,151,62,.3) 0%, rgba(201,151,62,0) 70%);"></div>
+    <div style="position:relative;width:56px;height:56px;border-radius:16px;background:linear-gradient(145deg, ${GOLD}, #B9832E);display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:16px;box-shadow:0 10px 22px rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.15);">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
     </div>
-    <p style="font-size:14px;color:#666;margin:0 0 4px;font-weight:600;">Ajustes protegidos</p>
-    <p style="font-size:12px;color:#999;margin:0 0 16px;">Escribe tu clave para entrar.</p>
-    <input id="claveAjustes" type="password" inputmode="numeric" placeholder="Clave" onkeydown="if(event.key==='Enter') verificarClaveAjustes();" style="width:200px;text-align:center;font-size:20px;letter-spacing:4px;padding:12px;border-radius:12px;margin-bottom:10px;">
-    ${state._errorClaveAjustes ? `<p style="color:#c0433b;font-size:13px;margin:0 0 10px;">Clave incorrecta.</p>` : ""}
-    <button class="btn btn-gold" style="width:200px;" onclick="verificarClaveAjustes()">Entrar</button>
-    <button class="btn btn-outline" style="width:200px;margin-top:8px;" onclick="state.vista='lista'; render();">Cancelar</button>
+    <p style="position:relative;font-size:16px;color:#fff;margin:0 0 2px;font-weight:700;text-align:center;">Ajustes protegidos</p>
+    <p style="position:relative;font-size:13px;color:rgba(255,255,255,.6);margin:0 0 24px;text-align:center;">Es la misma clave con la que abres la app.</p>
+    <input id="claveAjustes" type="password" inputmode="numeric" placeholder="••••" onkeydown="if(event.key==='Enter') verificarClaveAjustes();" oninput="const l=String(state.config.pin||'').length; if(l>0 && this.value.length===l) verificarClaveAjustes();" style="position:relative;width:100%;max-width:220px;text-align:center;font-size:22px;letter-spacing:6px;padding:12px;border:none;border-radius:12px;box-sizing:border-box;box-shadow:0 10px 24px rgba(0,0,0,.25);">
+    ${state._errorClaveAjustes ? `<p style="position:relative;color:#FFC2C2;font-size:13px;margin:10px 0 0;text-align:center;">Clave incorrecta.</p>` : ""}
+    <button class="btn btn-gold" style="position:relative;max-width:220px;width:100%;margin-top:14px;font-size:16px;padding:14px;" onclick="verificarClaveAjustes()">Entrar</button>
+    <button type="button" onclick="olvideMiClave()" style="position:relative;display:block;width:100%;max-width:220px;background:none;border:none;color:rgba(255,255,255,.65);text-decoration:underline;font-size:12.5px;margin-top:20px;cursor:pointer;">¿Olvidaste tu clave?</button>
   </div>`;
 }
 function viewAjustes(){
