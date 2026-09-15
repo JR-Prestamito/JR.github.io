@@ -269,6 +269,32 @@ function save(opts){
     _autoSyncTimer = setTimeout(()=>{ subirNube(true); }, 2000);
   }
 }
+// --- Contabilidad de refinanciamientos según NIF C-19 (equivalente a NIIF 9) ---
+// Cuando se modifican las condiciones de un préstamo (tasa, plazo, capital), la norma
+// exige comparar el valor presente de los flujos de efectivo restantes bajo las nuevas
+// condiciones contra los flujos originales, ambos descontados a la tasa efectiva ORIGINAL.
+// Si la diferencia es de 10% o más, es una "modificación sustancial": se da de baja el
+// préstamo anterior y se reconoce uno nuevo (como ya hacía esta app). Si es menor al 10%,
+// es una modificación NO sustancial: se ajustan las condiciones del mismo préstamo y la
+// diferencia de valor presente se reconoce de inmediato como ganancia o pérdida.
+function valorPresente(flujos, tasaPeriodica){
+  return flujos.reduce((pv, monto, i) => pv + (Number(monto)||0) / Math.pow(1+tasaPeriodica, i+1), 0);
+}
+function evaluarModificacionNIF(origen, r, flujosNuevos){
+  const tasaOriginal = (Number(origen.tasa)||0)/100;
+  const flujosOriginales = (r.tabla||[]).slice(r.pagosHechos||0).map(f=>f.cuota);
+  if(flujosOriginales.length===0 || tasaOriginal<=0){
+    // Sin flujos pendientes confiables que comparar (p. ej. préstamo recién creado o tasa 0):
+    // por prudencia se trata como modificación sustancial, igual que el comportamiento de siempre.
+    return { esSustancial:true, diffPct:null, pvOriginal:0, pvNuevo:0, gananciaPerdida:0 };
+  }
+  const pvOriginal = valorPresente(flujosOriginales, tasaOriginal);
+  const pvNuevo = valorPresente(flujosNuevos, tasaOriginal);
+  const diffPct = pvOriginal>0 ? Math.abs(pvNuevo-pvOriginal)/pvOriginal : 1;
+  const esSustancial = diffPct >= 0.10;
+  const gananciaPerdida = esSustancial ? 0 : (pvNuevo - pvOriginal);
+  return { esSustancial, diffPct, pvOriginal, pvNuevo, gananciaPerdida };
+}
 // Nombre del negocio: se puede editar en Ajustes para "vestir" la app con otro nombre
 // (por ejemplo, para dársela a otro prestamista con su propio negocio). Si no se ha
 // configurado nada, se usa "JR Prestamito" como antes.
@@ -625,7 +651,6 @@ function renderBloqueo(){
         </div>` : ""}
         <input id="claveInicio" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:22px;letter-spacing:8px;padding:13px;border:1px solid rgba(255,255,255,.3);border-radius:14px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;">
         ${error ? `<p style="color:#FFC2C2;font-size:13px;margin:10px 0 0;text-align:center;">Clave incorrecta.</p>` : ""}
-        <button class="btn btn-gold" style="width:100%;margin-top:14px;font-size:15px;padding:12px;" onclick="verificarClaveInicio()">Entrar</button>
         <button type="button" onclick="olvideMiClave()" style="display:block;width:100%;background:none;border:none;color:rgba(255,255,255,.7);text-decoration:underline;font-size:12.5px;margin-top:18px;cursor:pointer;">¿Olvidaste tu clave?</button>
       </div>
     </div>`;
@@ -1049,7 +1074,7 @@ function abrirReportePDF(){
 function generarReportePDF(){
   let prestado=0, cobrado=0;
   state.prestamos.forEach(p=>{
-    prestado += Number(p.capital)||0;
+    prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0);
     cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
   });
   const { jsPDF } = window.jspdf;
@@ -1109,7 +1134,7 @@ function imprimirReportePDF(){
 function viewReportePDF(){
   let prestado=0, cobrado=0;
   state.prestamos.forEach(p=>{
-    prestado += Number(p.capital)||0;
+    prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0);
     cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
   });
   const filas = state.prestamos.map(p=>{
@@ -1175,17 +1200,22 @@ function abrirEstadoResultados(){
   render();
 }
 function viewEstadoResultados(){
-  let interesesCobrados=0, capitalCobrado=0, moraCobrada=0, enganches=0, desembolsos=0;
+  let interesesCobrados=0, capitalCobrado=0, moraCobrada=0, enganches=0, desembolsos=0, gananciaPerdidaModificaciones=0;
   state.prestamos.forEach(p=>{
     const d = desglosePagado(p);
     interesesCobrados += d.interes;
     capitalCobrado += d.capital;
     moraCobrada += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.mora)||0),0);
     if(p.refinanciaDe) enganches += Number(p.engancheAlRefinanciar)||0;
-    desembolsos += Number(p.capital)||0;
+    if(p.refinanciaDe && p.tipoModificacionNIF==="no_sustancial") gananciaPerdidaModificaciones += Number(p.gananciaPerdidaModificacionNIF)||0;
+    // Al refinanciar, el "nuevo capital" es en su mayoría el saldo pendiente del préstamo
+    // anterior que se reacomoda — no es dinero que vuelve a salir de la caja. Lo único que
+    // realmente sale como efectivo nuevo en ese momento es el "monto adicional" entregado
+    // (si lo hubo). Contar el capital nuevo completo duplicaría ese dinero en el reporte.
+    desembolsos += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0);
   });
   const ingresos = interesesCobrados + capitalCobrado + moraCobrada + enganches;
-  const utilidad = ingresos - desembolsos;
+  const utilidad = ingresos - desembolsos + gananciaPerdidaModificaciones;
   const fila = (label, valor, negrita)=>`<tr>
       <td style="padding:6px 6px;${negrita?"font-weight:700;":""}">${label}</td>
       <td style="padding:6px 6px;text-align:right;${negrita?"font-weight:700;":""}">${money(valor)}</td>
@@ -1207,11 +1237,16 @@ function viewEstadoResultados(){
         ${fila("Desembolsos (capital prestado)", desembolsos)}
         ${fila("Total egresos", desembolsos, true)}
       </table>
+      ${gananciaPerdidaModificaciones!==0 ? `
+      <p style="font-weight:700;margin:0 0 6px;">Ganancia/(pérdida) por modificación de préstamos (NIF C-19)</p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px;">
+        ${fila(gananciaPerdidaModificaciones>=0?"Ganancia por modificación":"Pérdida por modificación", gananciaPerdidaModificaciones, true)}
+      </table>` : ""}
       <table style="width:100%;border-collapse:collapse;font-size:14px;border-top:2px solid #1B2A4A;">
         <tr><td style="padding:8px 6px;font-weight:700;">${utilidad>=0?"Utilidad":"Pérdida"} del período</td>
         <td style="padding:8px 6px;text-align:right;font-weight:700;color:${utilidad>=0?"#3B6D11":"#c0433b"};">${money(Math.abs(utilidad))}</td></tr>
       </table>
-      <p class="hint" style="margin-top:14px;">Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Los desembolsos de préstamos refinanciados se cuentan como nuevo desembolso por el monto completo del préstamo nuevo, ya que en este reporte "egreso" = capital colocado en la calle.</p>
+      <p class="hint" style="margin-top:14px;">Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como "desembolso" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo) — el resto del capital nuevo es el saldo pendiente del préstamo anterior reacomodado, no dinero que volvió a salir de la caja. Cuando un refinanciamiento se clasifica como "modificación no sustancial" según NIF C-19 (prueba del 10% de valor presente), la diferencia se reconoce aquí como ganancia o pérdida; cuando es "sustancial", se trata como préstamo nuevo sin efecto adicional en este renglón.</p>
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
@@ -1290,7 +1325,7 @@ function viewInicio(){
   let prestado=0, cobrado=0, activos=0, vencidos=0;
   state.prestamos.forEach(p=>{
     const r = resumen(p);
-    prestado += Number(p.capital)||0;
+    prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0);
     cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
     if(r.estado==="Activo"){ activos++; if(r.proximaFecha && diasAtraso(r.proximaFecha)>0) vencidos++; }
   });
@@ -1790,10 +1825,12 @@ function viewRefinanciar(){
   let periodoOpts = PERIODOS.map(pd=>`<option ${pd===f.periodo?"selected":""}>${pd}</option>`).join("");
 
   let previewHtml = "";
+  let evalNIF = null;
   if(nuevoCapital>0 && f.tasa && (esIndef || f.cuotas)){
     const tabla = generarTabla({capital:nuevoCapital, tasa:f.tasa, cuotas: esIndef?1:f.cuotas, periodo:f.periodo, metodo:f.metodo, fechaInicio:f.fechaInicio});
     const esAmericano = f.metodo === METODOS[4];
     if(tabla.length){
+      evalNIF = evaluarModificacionNIF(origen, r, tabla.map(x=>x.cuota));
       previewHtml = `<div class="card" style="background:#EEF1F6;margin-bottom:16px;">
         <p style="font-size:13px;margin:0 0 4px;">Nuevo capital financiado: <b>${money(nuevoCapital)}</b></p>
         ${esAmericano
@@ -1801,6 +1838,11 @@ function viewRefinanciar(){
              <p style="font-size:13px;margin:0;">Pago único al final (capital + interés): <b>${money(tabla[tabla.length-1].cuota)}</b></p>`
           : `<p style="font-size:13px;margin:0 0 4px;">Cuota ${esIndef?"por período":"(1ª)"}: <b>${money(tabla[0].cuota)}</b></p>
              ${esIndef?"":`<p style="font-size:13px;margin:0;">Total a pagar: <b>${money(tabla.reduce((s,x)=>s+x.cuota,0))}</b></p>`}`}
+      </div>
+      <div class="card" style="background:${evalNIF.esSustancial?'#FBF3E4':'#EAF3DE'};margin-bottom:16px;">
+        <p style="font-size:12px;font-weight:700;margin:0 0 4px;color:${evalNIF.esSustancial?'#8A6416':'#3B6D11'};">Clasificación NIF C-19: ${evalNIF.esSustancial?"Modificación sustancial":"Modificación NO sustancial"}</p>
+        <p style="font-size:12px;margin:0 0 4px;">${evalNIF.diffPct===null ? "No hay suficientes cuotas pendientes del préstamo original para comparar; se trata como préstamo nuevo por prudencia." : `El valor presente de los pagos nuevos difiere ${(evalNIF.diffPct*100).toFixed(1)}% del valor presente de lo que quedaba del préstamo original (ambos a la tasa original). ${evalNIF.esSustancial ? "Como es 10% o más, se da de baja el préstamo anterior y este se registra como préstamo nuevo." : "Como es menor al 10%, se reconoce como ajuste del mismo préstamo."}`}</p>
+        ${(!evalNIF.esSustancial && evalNIF.diffPct!==null) ? `<p style="font-size:13px;margin:0;">${evalNIF.gananciaPerdida>=0?"Ganancia":"Pérdida"} por modificación a reconocer: <b style="color:${evalNIF.gananciaPerdida>=0?'#3B6D11':'#A32D2D'}">${money(Math.abs(evalNIF.gananciaPerdida))}</b></p>` : ""}
       </div>`;
     }
   }
@@ -1838,7 +1880,14 @@ function guardarRefinanciamiento(){
   const nuevoCapital = Math.max(0, capitalPendiente - enganche + adicional);
   if(nuevoCapital<=0) return;
 
-  mostrarConfirmacion(`Vas a refinanciar ${origen.codigo}:\nCapital pendiente: ${money(capitalPendiente)}\nEnganche/abono: ${money(enganche)}\nMonto adicional entregado: ${money(adicional)}\nNuevo capital: ${money(nuevoCapital)}\n\n¿Confirmas?`, function(ok){
+  const tablaNueva = generarTabla({capital:nuevoCapital, tasa:f.tasa, cuotas: esIndef?1:f.cuotas, periodo:f.periodo, metodo:f.metodo, fechaInicio:f.fechaInicio});
+  const evalNIF = evaluarModificacionNIF(origen, r, tablaNueva.map(x=>x.cuota));
+
+  const notaNIF = evalNIF.diffPct===null
+    ? ""
+    : `\n\nClasificación NIF C-19: ${evalNIF.esSustancial ? "Modificación sustancial (se da de baja el préstamo anterior)" : `Modificación NO sustancial — ${evalNIF.gananciaPerdida>=0?"ganancia":"pérdida"} por modificación de ${money(Math.abs(evalNIF.gananciaPerdida))}`}`;
+
+  mostrarConfirmacion(`Vas a refinanciar ${origen.codigo}:\nCapital pendiente: ${money(capitalPendiente)}\nEnganche/abono: ${money(enganche)}\nMonto adicional entregado: ${money(adicional)}\nNuevo capital: ${money(nuevoCapital)}${notaNIF}\n\n¿Confirmas?`, function(ok){
     if(!ok) return;
 
     origen.refinanciado = true;
@@ -1849,7 +1898,9 @@ function guardarRefinanciamiento(){
       id: uid(), codigo, clienteId: origen.clienteId, capital: nuevoCapital, tasa: f.tasa,
       periodo: f.periodo, metodo: f.metodo, fechaInicio: f.fechaInicio,
       cuotas: esIndef?0:Number(f.cuotas), pagos: [],
-      refinanciaDe: origen.id, engancheAlRefinanciar: enganche, adicionalAlRefinanciar: adicional
+      refinanciaDe: origen.id, engancheAlRefinanciar: enganche, adicionalAlRefinanciar: adicional,
+      tipoModificacionNIF: evalNIF.diffPct===null ? null : (evalNIF.esSustancial ? "sustancial" : "no_sustancial"),
+      gananciaPerdidaModificacionNIF: evalNIF.esSustancial ? 0 : evalNIF.gananciaPerdida
     };
     state.prestamos.push(nuevo);
     window._rf = null;
