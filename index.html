@@ -293,19 +293,63 @@ function save(opts){
 function valorPresente(flujos, tasaPeriodica){
   return flujos.reduce((pv, monto, i) => pv + (Number(monto)||0) / Math.pow(1+tasaPeriodica, i+1), 0);
 }
-function evaluarModificacionNIF(origen, capitalBase, flujosNuevos){
-  const tasaOriginal = (Number(origen.tasa)||0)/100;
+// Tasa Interna de Retorno (TIR) periódica: la tasa que hace que el valor presente de
+// "flujos" sea exactamente "capitalInicial". En Francés, Alemán y Capital al final el
+// interés se calcula sobre saldos que decrecen de forma compuesta, así que esta TIR sale
+// idéntica a la tasa nominal del préstamo. Pero en "Tasa plana" (interés fijo, no decrece
+// con el saldo) y "Sistema Americano" (interés simple, no compuesto) la tasa nominal NO es
+// la tasa efectiva real — y usar la nominal para descontar distorsiona la prueba del 10%.
+// Por eso siempre se calcula la TIR real aquí (por bisección, ya que no hay fórmula
+// cerrada general) y esa es la que se usa como "tasa efectiva original".
+function calcularTIR(flujos, capitalInicial){
+  if(!flujos.length || !(capitalInicial>0)) return null;
+  const f = (r) => valorPresente(flujos, r) - capitalInicial;
+  if(f(0) < 0) return null; // ni siquiera sin descuento los flujos alcanzan el capital: no hay TIR válida
+  let lo = 0, hi = 10, hiVal = f(hi), intentos = 0;
+  while(hiVal > 0 && intentos < 20){ hi *= 2; hiVal = f(hi); intentos++; }
+  if(hiVal > 0) return null;
+  for(let i=0;i<100;i++){
+    const mid = (lo+hi)/2, val = f(mid);
+    if(Math.abs(val) < 1e-9) return mid;
+    if(val > 0) lo = mid; else hi = mid;
+  }
+  return (lo+hi)/2;
+}
+function evaluarModificacionNIF(origen, capitalBase, flujosNuevos, opts){
+  opts = opts || {};
   if(!(Number(capitalBase)>0)){
     // Sin una base confiable contra la cual comparar (p. ej. el capital neto quedó en 0):
     // por prudencia se trata como modificación sustancial, igual que el comportamiento de siempre.
     return { esSustancial:true, diffPct:null, pvOriginal:0, pvNuevo:0, gananciaPerdida:0 };
   }
-  const pvNuevo = valorPresente(flujosNuevos, tasaOriginal);
+  const tasaNominalOriginal = (Number(origen.tasa)||0)/100;
+  let tasaEfectivaOriginal = tasaNominalOriginal;
+  // El método Indefinido no tiene un número de cuotas que amortice el capital a cero, así
+  // que no se le puede calcular una TIR (no hay tabla que "cierre" en capital); ahí se usa
+  // la tasa nominal directamente, tal como ya se hace en toda la app para ese método.
+  if(origen.metodo !== METODOS[5]){
+    const capitalOrigenActual = Number(origen.capital)||0;
+    const tablaOrigenActual = generarTabla({capital:capitalOrigenActual, tasa:origen.tasa, cuotas:origen.cuotas, periodo:origen.periodo, metodo:origen.metodo, fechaInicio:origen.fechaInicio});
+    const tir = calcularTIR(tablaOrigenActual.map(f=>f.cuota), capitalOrigenActual);
+    if(tir!==null) tasaEfectivaOriginal = tir;
+  }
+  let pvNuevo;
+  if(opts.esIndefinidoNuevo){
+    // El método Indefinido paga solo interés, para siempre, sin plazo fijo: es una
+    // "perpetuidad". El valor presente de una perpetuidad es pago/tasa — usar en vez la
+    // suma de una tabla truncada a 6 filas (que es solo una ayuda visual/de vencimientos,
+    // no el flujo económico real) subestimaría muchísimo su valor y dispararía falsos
+    // positivos de "modificación sustancial" aunque nada haya cambiado en realidad.
+    const cuotaPeriodica = Number(flujosNuevos[0])||0;
+    pvNuevo = tasaEfectivaOriginal>0 ? cuotaPeriodica/tasaEfectivaOriginal : cuotaPeriodica;
+  } else {
+    pvNuevo = valorPresente(flujosNuevos, tasaEfectivaOriginal);
+  }
   const diffPct = Math.abs(pvNuevo-capitalBase)/capitalBase;
   const umbral = (Number(state.config.umbralModificacionSustancial)||10)/100;
   const esSustancial = diffPct >= umbral;
   const gananciaPerdida = esSustancial ? 0 : (pvNuevo - capitalBase);
-  return { esSustancial, diffPct, pvOriginal: capitalBase, pvNuevo, gananciaPerdida };
+  return { esSustancial, diffPct, pvOriginal: capitalBase, pvNuevo, gananciaPerdida, tasaEfectivaOriginal };
 }
 // Nombre del negocio: se puede editar en Ajustes para "vestir" la app con otro nombre
 // (por ejemplo, para dársela a otro prestamista con su propio negocio). Si no se ha
@@ -1413,7 +1457,30 @@ function abrirAjustes(){
   state.tab = "inicio";
   state.vista = state.config.pin ? "ajustesClave" : "ajustes";
   state._errorClaveAjustes = false;
+  state._huellaAjustesYaIntentada = false;
   render();
+}
+async function usarHuellaAjustes(){
+  if(!(window.PublicKeyCredential && state.config.huellaCredId)) return;
+  try{
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const credId = base64AUint8(state.config.huellaCredId);
+    const resultado = await navigator.credentials.get({
+      publicKey: {
+        challenge: challenge,
+        allowCredentials: [{ id: credId, type:"public-key", transports:["internal"] }],
+        userVerification: "required",
+        timeout: 60000
+      }
+    });
+    if(resultado){
+      state.vista = "ajustes";
+      state._errorClaveAjustes = false;
+      render();
+    }
+  }catch(err){
+    // Canceló o falló la verificación — se queda en la pantalla de clave de Ajustes, sin drama.
+  }
 }
 function verificarClaveAjustes(){
   const inp = document.getElementById("claveAjustes");
@@ -1430,16 +1497,31 @@ function verificarClaveAjustes(){
   }
 }
 function viewAjustesClave(){
-  return `<div id="panelAjustesClave" style="position:relative;overflow:hidden;margin:-16px -16px 0;background:linear-gradient(160deg, ${NAVY} 0%, #0F1A30 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;box-sizing:border-box;">
-    <div style="position:absolute;top:-60px;right:-60px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle, rgba(201,151,62,.3) 0%, rgba(201,151,62,0) 70%);"></div>
-    <div style="position:relative;width:56px;height:56px;border-radius:16px;background:linear-gradient(145deg, ${GOLD}, #B9832E);display:flex;align-items:center;justify-content:center;color:#fff;margin-bottom:16px;box-shadow:0 10px 22px rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.15);">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+  const tieneHuella = !!(state.config.huellaCredId && window.__huellaSoportada);
+  if(tieneHuella && !state._huellaAjustesYaIntentada){
+    // Igual que en el desbloqueo de Inicio: si la huella está activa, se lanza sola la
+    // primera vez que se llega a esta pantalla — el campo de clave queda debajo por si
+    // se cancela el diálogo o se prefiere escribirla. No se relanza en renders posteriores
+    // (p. ej. tras un error de clave), para no interrumpir mientras se está escribiendo.
+    state._huellaAjustesYaIntentada = true;
+    setTimeout(usarHuellaAjustes, 0);
+  }
+  return `<div id="panelAjustesClave" style="position:relative;overflow:hidden;margin:-16px -16px 0;min-height:calc(100vh - 132px);background:linear-gradient(160deg, ${NAVY} 0%, #0F1A30 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;box-sizing:border-box;">
+    <div style="position:absolute;top:-60px;right:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle, rgba(201,151,62,.35) 0%, rgba(201,151,62,0) 70%);"></div>
+    <div style="position:absolute;bottom:-80px;left:-60px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.08) 0%, rgba(255,255,255,0) 70%);"></div>
+    <p style="position:relative;font-size:16px;color:#fff;margin:0 0 24px;font-weight:700;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:linear-gradient(145deg, rgba(201,151,62,.22), rgba(201,151,62,.06));border:1px solid rgba(201,151,62,.4);box-shadow:0 6px 16px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.08);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="${GOLD}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="4.5" y="11" width="15" height="9.5" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/><circle cx="12" cy="15.2" r="1.4" fill="${GOLD}" stroke="none"/></svg>
+      </span>
+      Ajustes protegidos
+    </p>
+    <div style="position:relative;width:100%;max-width:270px;">
+      ${tieneHuella ? `<button type="button" class="btn btn-outline" style="width:100%;margin-bottom:16px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);color:#fff;" onclick="usarHuellaAjustes()">👆 Usar huella / Face ID</button>
+      <div style="height:1px;background:rgba(255,255,255,.15);margin:0 0 16px;"></div>` : ""}
+      <input id="claveAjustes" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:22px;letter-spacing:8px;padding:13px;border:1px solid rgba(255,255,255,.3);border-radius:14px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;" onkeydown="if(event.key==='Enter') verificarClaveAjustes();" oninput="const l=String(state.config.pin||'').length; if(l>0 && this.value.length===l) verificarClaveAjustes();">
+      ${state._errorClaveAjustes ? `<p style="color:#FFC2C2;font-size:13px;margin:10px 0 0;text-align:center;">Clave incorrecta.</p>` : ""}
+      <button type="button" onclick="olvideMiClave()" style="display:block;width:100%;background:none;border:none;color:rgba(255,255,255,.7);text-decoration:underline;font-size:12.5px;margin-top:18px;cursor:pointer;">¿Olvidaste tu clave?</button>
     </div>
-    <p style="position:relative;font-size:16px;color:#fff;margin:0 0 24px;font-weight:700;text-align:center;">Ajustes protegidos</p>
-    <input id="claveAjustes" type="password" inputmode="numeric" placeholder="••••" onkeydown="if(event.key==='Enter') verificarClaveAjustes();" oninput="const l=String(state.config.pin||'').length; if(l>0 && this.value.length===l) verificarClaveAjustes();" style="position:relative;width:100%;max-width:220px;text-align:center;font-size:22px;letter-spacing:6px;padding:12px;border:none;border-radius:12px;box-sizing:border-box;box-shadow:0 10px 24px rgba(0,0,0,.25);">
-    ${state._errorClaveAjustes ? `<p style="position:relative;color:#FFC2C2;font-size:13px;margin:10px 0 0;text-align:center;">Clave incorrecta.</p>` : ""}
-    <button class="btn btn-gold" style="position:relative;max-width:220px;width:100%;margin-top:14px;font-size:16px;padding:14px;" onclick="verificarClaveAjustes()">Entrar</button>
-    <button type="button" onclick="olvideMiClave()" style="position:relative;display:block;width:100%;max-width:220px;background:none;border:none;color:rgba(255,255,255,.65);text-decoration:underline;font-size:12.5px;margin-top:20px;cursor:pointer;">¿Olvidaste tu clave?</button>
   </div>`;
 }
 function viewAjustes(){
@@ -1936,7 +2018,7 @@ function viewRefinanciar(){
     const tabla = generarTabla({capital:nuevoCapital, tasa:f.tasa, cuotas: esIndef?1:f.cuotas, periodo:f.periodo, metodo:f.metodo, fechaInicio:f.fechaInicio});
     const esAmericano = f.metodo === METODOS[4];
     if(tabla.length){
-      evalNIF = evaluarModificacionNIF(origen, nuevoCapital, tabla.map(x=>x.cuota));
+      evalNIF = evaluarModificacionNIF(origen, nuevoCapital, tabla.map(x=>x.cuota), {esIndefinidoNuevo: esIndef});
       previewHtml = `<div class="card" style="background:#EEF1F6;margin-bottom:16px;">
         <p style="font-size:13px;margin:0 0 4px;">Nuevo capital financiado: <b>${money(nuevoCapital)}</b></p>
         ${esAmericano
@@ -1987,7 +2069,7 @@ function guardarRefinanciamiento(){
   if(nuevoCapital<=0) return;
 
   const tablaNueva = generarTabla({capital:nuevoCapital, tasa:f.tasa, cuotas: esIndef?1:f.cuotas, periodo:f.periodo, metodo:f.metodo, fechaInicio:f.fechaInicio});
-  const evalNIF = evaluarModificacionNIF(origen, nuevoCapital, tablaNueva.map(x=>x.cuota));
+  const evalNIF = evaluarModificacionNIF(origen, nuevoCapital, tablaNueva.map(x=>x.cuota), {esIndefinidoNuevo: esIndef});
 
   const notaNIF = evalNIF.diffPct===null
     ? ""
@@ -2051,9 +2133,18 @@ function viewDetallePrestamo(){
   const r = resumen(p);
   const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
 
-  let filasHtml = r.tabla.map((f,i)=>{
+  // El método Indefinido no tiene número de cuotas fijo: internamente se generan varias filas
+  // "virtuales" (generarTabla) solo para poder calcular fechas de vencimiento y mora, pero
+  // mostrar esas filas como si fueran un plazo real confundiría al usuario. En la tabla que
+  // se VE se muestra una sola fila que representa la cuota que se repite cada período.
+  const esIndefDetalle = p.metodo === METODOS[5];
+  const filasParaTabla = esIndefDetalle
+    ? [{ n:1, fecha: r.proximaFecha || p.fechaInicio, saldoInicial: p.capital, cuota: r.cuota, interes: r.cuota, abono:0, saldo: p.capital }]
+    : r.tabla;
+  let filasHtml = filasParaTabla.map((f,i)=>{
     let estadoCelda;
-    if(i < r.pagosHechos) estadoCelda = '<span style="color:#3B6D11">✓ Pagada</span>';
+    if(esIndefDetalle) estadoCelda = r.abonadoEnCuotaActual>0 ? `<span style="color:${GOLD};">Abono ${money(r.abonadoEnCuotaActual)}</span>` : '<span style="color:#bbb">—</span>';
+    else if(i < r.pagosHechos) estadoCelda = '<span style="color:#3B6D11">✓ Pagada</span>';
     else if(i === r.pagosHechos && r.abonadoEnCuotaActual>0) estadoCelda = `<span style="color:${GOLD};">Abono ${money(r.abonadoEnCuotaActual)}</span>`;
     else estadoCelda = '<span style="color:#bbb">—</span>';
     return `<tr style="border-top:1px solid #f0ede6;">
@@ -2067,10 +2158,10 @@ function viewDetallePrestamo(){
       <td style="padding:4px 6px;white-space:nowrap;">${estadoCelda}</td>
     </tr>`;
   }).join("");
-  const totalCuota = r.tabla.reduce((s,f)=>s+(Number(f.cuota)||0),0);
-  const totalInteres = r.tabla.reduce((s,f)=>s+(Number(f.interes)||0),0);
-  const totalAbono = r.tabla.reduce((s,f)=>s+(Number(f.abono)||0),0);
-  const filaTotales = `<tr style="border-top:2px solid #d8d3c8;background:#F5F3EE;font-weight:700;">
+  const totalCuota = filasParaTabla.reduce((s,f)=>s+(Number(f.cuota)||0),0);
+  const totalInteres = filasParaTabla.reduce((s,f)=>s+(Number(f.interes)||0),0);
+  const totalAbono = filasParaTabla.reduce((s,f)=>s+(Number(f.abono)||0),0);
+  const filaTotales = esIndefDetalle ? "" : `<tr style="border-top:2px solid #d8d3c8;background:#F5F3EE;font-weight:700;">
     <td colspan="3" style="padding:5px 6px;">Total</td>
     <td style="padding:5px 6px;text-align:right">${money(totalCuota)}</td>
     <td style="padding:5px 6px;text-align:right">${money(totalInteres)}</td>
@@ -2137,6 +2228,7 @@ function viewDetallePrestamo(){
       <p class="section-title" style="margin:0;">Tabla de amortización</p>
       <p style="font-size:12px;color:#666;margin:0;">Capital: <b style="color:${NAVY}">${money(p.capital)}</b></p>
     </div>
+    ${esIndefDetalle ? `<p class="hint" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija — por eso no hay una tabla de varias cuotas, solo la cuota que se repite.</p>` : ""}
     <div id="tabla-imprimible">
       <h2 class="solo-imprimir">${nombreApp().toUpperCase()}</h2>
       <p class="hint solo-imprimir" style="margin:0 0 10px;">${p.codigo} · ${cli?cli.nombre:"—"} · Capital ${money(p.capital)} · Tasa ${p.tasa}% · ${p.periodo} · ${p.metodo}</p>
@@ -2204,18 +2296,29 @@ function generarAmortizacionPDF(p, cli, r){
   doc.text(nombreApp(), 14, 16);
   doc.setFontSize(9);
   doc.text(`${p.codigo}  ·  ${cli?cli.nombre:"—"}  ·  Capital ${money(p.capital)}  ·  Tasa ${p.tasa}%  ·  ${p.periodo}  ·  ${p.metodo}`, 14, 23);
-  const filas = r.tabla.map((f,i)=>{
-    const estado = i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente");
+  const esIndefPDF = p.metodo === METODOS[5];
+  const filasBase = esIndefPDF
+    ? [{ n:1, fecha: r.proximaFecha || p.fechaInicio, saldoInicial: p.capital, cuota: r.cuota, interes: r.cuota, abono:0, saldo: p.capital }]
+    : r.tabla;
+  let startY = 28;
+  if(esIndefPDF){
+    doc.setFontSize(8);
+    doc.text("Préstamo de plazo indefinido: solo interés cada período, sin fecha de finalización fija.", 14, startY);
+    startY += 5;
+  }
+  const filas = filasBase.map((f,i)=>{
+    const estado = esIndefPDF ? (r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "—")
+      : (i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"));
     return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), money(f.abono), money(f.saldo), estado];
   });
-  const totalCuota = r.tabla.reduce((s,f)=>s+(Number(f.cuota)||0),0);
-  const totalInteres = r.tabla.reduce((s,f)=>s+(Number(f.interes)||0),0);
-  const totalAbono = r.tabla.reduce((s,f)=>s+(Number(f.abono)||0),0);
+  const totalCuota = filasBase.reduce((s,f)=>s+(Number(f.cuota)||0),0);
+  const totalInteres = filasBase.reduce((s,f)=>s+(Number(f.interes)||0),0);
+  const totalAbono = filasBase.reduce((s,f)=>s+(Number(f.abono)||0),0);
   doc.autoTable({
-    startY: 28,
+    startY,
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
     body: filas,
-    foot: [["Total","","",money(totalCuota),money(totalInteres),money(totalAbono),"",""]],
+    foot: esIndefPDF ? undefined : [["Total","","",money(totalCuota),money(totalInteres),money(totalAbono),"",""]],
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [27,42,74] },
     footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" }
