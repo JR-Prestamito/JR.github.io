@@ -866,7 +866,7 @@ function render(){
   const titles = {inicio:"Resumen", clientes:"Clientes", prestamos:"Préstamos", pagos:"Historial de pagos"};
   let html = `<header><div style="display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:center;">`;
-  if(state.tab==="prestamos" && (state.vista==="detalle" || state.vista==="cartera" || state.vista==="refinanciar")){
+  if(state.tab==="prestamos" && (state.vista==="detalle" || state.vista==="cartera" || state.vista==="refinanciar" || state.vista==="colaRecordatorio")){
     html += `<button class="backbtn" onclick="volverLista()">‹</button>`;
   }
   if(state.tab==="pagos" && state.vista==="recibo"){
@@ -888,7 +888,7 @@ function render(){
   const tituloReporte = state.tab==="inicio" && state.vista==="reportePDF" ? "Reporte para PDF" : null;
   const tituloResultados = state.tab==="inicio" && state.vista==="estadoResultados" ? "Estado de resultados" : null;
   document.title = nombreApp();
-  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloAjustes||titles[state.tab])))}</h1></div>
+  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="prestamos"&&state.vista==="colaRecordatorio"?"Enviar recordatorios":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloAjustes||titles[state.tab]))))}</h1></div>
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
     html += `<button class="backbtn" style="margin-right:0;" title="Ajustes" onclick="abrirAjustes()">${ICONS.settings}</button>`;
@@ -1447,6 +1447,7 @@ function viewInicio(){
   <p class="section-title" style="margin-top:16px;">Próximos a vencer</p>`;
 
   if(prox.length===0) html += `<p class="empty">${state.prestamos.length===0 ? "Todavía no tienes préstamos registrados." : "No tienes cuotas por cobrar hoy ni mañana."}</p>`;
+  else html += `<button class="btn btn-outline" style="margin-bottom:12px;" onclick="iniciarColaRecordatorios('pendientes')">Enviar recordatorios a estos pendientes</button>`;
   prox.forEach(({p,r})=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
     html += `<div class="row-card" style="cursor:pointer;" onclick="verDetalle('${p.id}')"><div><p class="name">${cli?cli.nombre:"—"}</p><p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p></div>${badge("Por cobrar")}</div>`;
@@ -1560,6 +1561,18 @@ function viewAjustes(){
     <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="5" placeholder="${PLANTILLA_PENDIENTE_DEFECTO}" oninput="state.config.mensajePendiente=this.value; save(); render();">${state.config.mensajePendiente||""}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()})}</p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajePendiente=''; save(); render(); } })">Restablecer mensaje original</button>
+  </div>`}
+  ${window.__esCopiaCompartida ? "" : `
+  <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Qué WhatsApp usar al enviar</p>
+    <p class="hint" style="margin:0 0 10px;">Si en tu celular tienes instalado WhatsApp normal y WhatsApp Business, aquí eliges cuál se abre al enviar un recordatorio. <b>Esto solo se puede forzar en Android.</b> En iPhone siempre se abrirá el que tengas puesto como predeterminado en los ajustes del celular, sin importar lo que elijas aquí.</p>
+    <label style="margin-bottom:0;"><span>Abrir con</span>
+      <select id="f_appWhatsapp" onchange="state.config.appWhatsapp=this.value; save(); render();">
+        <option value="auto" ${(!state.config.appWhatsapp||state.config.appWhatsapp==="auto")?"selected":""}>El predeterminado del celular</option>
+        <option value="normal" ${state.config.appWhatsapp==="normal"?"selected":""}>WhatsApp normal (Android)</option>
+        <option value="business" ${state.config.appWhatsapp==="business"?"selected":""}>WhatsApp Business (Android)</option>
+      </select>
+    </label>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
@@ -1762,6 +1775,7 @@ function viewPrestamos(){
   if(state.vista==="detalle") return viewDetallePrestamo();
   if(state.vista==="cartera") return viewCartera();
   if(state.vista==="refinanciar") return viewRefinanciar();
+  if(state.vista==="colaRecordatorio") return viewColaRecordatorio();
 
   let html = `<div class="toprow" style="margin-bottom:16px;">
     <input id="buscarPrestamo" style="flex:1;" placeholder="Buscar préstamo o cliente" value="${state.qPrestamos}" oninput="state.qPrestamos=this.value; render()">
@@ -1789,7 +1803,7 @@ function viewPrestamos(){
   return html;
 }
 function verDetalle(id){ state.tab="prestamos"; state.seleccionId=id; state.vista="detalle"; render(); }
-function volverLista(){ state.vista="lista"; render(); }
+function volverLista(){ state.vista="lista"; state._cola=null; render(); }
 function verCartera(){ state.tab="prestamos"; state.vista="cartera"; render(); }
 
 const PLANTILLA_RECORDATORIO_DEFECTO = "Hola {nombre}, su préstamo {codigo} tiene una cuota de {cuota} vencida desde el {fecha} ({dias} de atraso). Le agradecemos ponerse al día lo antes posible. Cualquier duda, con gusto le atendemos. ¡Gracias!";
@@ -1858,17 +1872,120 @@ function mensajeRecordatorio(p, cli, r, atraso){
     .replace(/\{dias\}/g, `${atraso} día${atraso===1?"":"s"}`)
     .replace(/\{negocio\}/g, nombreApp());
 }
+function esAndroid(){
+  return /Android/i.test((navigator.userAgent||""));
+}
 function linkWhatsapp(cli, mensaje){
   if(!cli || !cli.celular) return null;
   const digitos = soloDigitos(cli.celular);
   if(digitos.length!==8) return null;
-  return `https://wa.me/504${digitos}?text=${encodeURIComponent(mensaje)}`;
+  const telefono = `504${digitos}`;
+  const texto = encodeURIComponent(mensaje);
+  const appElegida = state.config.appWhatsapp || "auto";
+  // Forzar una app específica (normal/business) solo es posible en Android, usando
+  // un enlace "intent://" con el paquete exacto. En iPhone no existe esa opción:
+  // siempre se abre la que el celular tenga puesta como predeterminada.
+  if(appElegida!=="auto" && esAndroid()){
+    const paquete = appElegida==="business" ? "com.whatsapp.w4b" : "com.whatsapp";
+    return `intent://send?phone=${telefono}&text=${texto}#Intent;scheme=whatsapp;package=${paquete};end`;
+  }
+  return `https://wa.me/${telefono}?text=${texto}`;
 }
 function linkSms(cli, mensaje){
   if(!cli || !cli.celular) return null;
   const digitos = soloDigitos(cli.celular);
   if(digitos.length!==8) return null;
   return `sms:+504${digitos}?&body=${encodeURIComponent(mensaje)}`;
+}
+
+// ── Envío masivo de recordatorios (manual, uno por uno con un solo toque) ────
+// WhatsApp no permite mandar mensajes a varios contactos con un solo clic real
+// (eso solo existe con la API de WhatsApp Business, de pago y con plantillas
+// aprobadas). Esta cola arma la lista completa y, con un toque en cada tarjeta,
+// abre WhatsApp ya con el mensaje escrito y pasa sola al siguiente cliente.
+function construirColaRecordatorios(tipo){
+  const base = state.prestamos.map(p=>({p, r:resumen(p)}))
+    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && (
+      tipo==="vencidos" ? diasAtraso(x.r.proximaFecha)>0 : [0,1].includes(diasParaVencer(x.r.proximaFecha))
+    ));
+  const items = [];
+  let sinNumero = 0;
+  base.forEach(({p,r})=>{
+    const cli = state.clientes.find(c=>c.id===p.clienteId);
+    const atraso = tipo==="vencidos" ? diasAtraso(r.proximaFecha) : 0;
+    const mensaje = tipo==="vencidos" ? mensajeRecordatorio(p, cli, r, atraso) : mensajePendiente(p, cli, r);
+    const link = linkWhatsapp(cli, mensaje);
+    if(!link){ sinNumero++; return; }
+    items.push({
+      prestamoId: p.id,
+      nombre: cli ? cli.nombre : "Cliente eliminado",
+      codigo: p.codigo,
+      cuota: money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota),
+      link
+    });
+  });
+  return { items, sinNumero };
+}
+function iniciarColaRecordatorios(tipo){
+  const { items, sinNumero } = construirColaRecordatorios(tipo);
+  if(items.length===0){
+    mostrarConfirmacion(sinNumero>0
+      ? `Ninguno de los ${sinNumero} cliente(s) tiene un celular válido registrado (8 dígitos). Agrégalo en la ficha de cada cliente para poder enviarle recordatorio.`
+      : "No hay cuotas para recordar en este momento.",
+      function(){}, { textoCancelar:"Cerrar", textoAceptar:"Entendido" });
+    return;
+  }
+  state._cola = { tipo, items, idx:0, enviados:0, sinNumero };
+  state.tab = "prestamos";
+  state.vista = "colaRecordatorio";
+  render();
+}
+function marcarEnviadoYSiguiente(){
+  const cola = state._cola;
+  if(!cola) return;
+  cola.enviados = (cola.enviados||0) + 1;
+  cola.idx++;
+  render();
+}
+function omitirEnvioActual(){
+  const cola = state._cola;
+  if(!cola) return;
+  cola.idx++;
+  render();
+}
+function salirDeColaRecordatorios(){
+  mostrarConfirmacion("¿Salir del envío masivo? Los que faltan en la lista no se marcarán como enviados.", function(ok){
+    if(ok){ state._cola = null; state.vista = "lista"; render(); }
+  });
+}
+function viewColaRecordatorio(){
+  const cola = state._cola;
+  if(!cola || !cola.items || cola.items.length===0){
+    return `<p class="empty">No hay recordatorios pendientes de enviar.</p>
+      <button class="btn btn-outline" style="margin-top:12px;" onclick="state._cola=null; state.vista='lista'; render();">Volver</button>`;
+  }
+  const total = cola.items.length;
+  const actual = cola.items[cola.idx];
+
+  if(!actual){
+    return `<div class="card" style="background:#EAF3DE;margin-bottom:16px;">
+        <p style="margin:0;font-weight:600;">Terminaste de repasar la lista.</p>
+        <p class="hint" style="margin:6px 0 0;">${cola.enviados} enviado(s) de ${total}${cola.sinNumero?`, ${cola.sinNumero} sin celular registrado (no se incluyeron)`:""}.</p>
+      </div>
+      <button class="btn btn-gold" onclick="state._cola=null; state.vista='lista'; render();">Listo</button>`;
+  }
+
+  return `
+    <p class="hint" style="margin:0 0 14px;">Enviando ${cola.idx+1} de ${total}${cola.sinNumero?` · ${cola.sinNumero} sin celular (no incluidos)`:""}. Cada tarjeta abre WhatsApp con el mensaje ya escrito — solo debes presionar enviar allá y esta app pasa sola al siguiente.</p>
+    <div class="card" style="margin-bottom:16px;">
+      <p class="name" style="margin:0 0 4px;">${actual.nombre}</p>
+      <p class="sub" style="margin:0 0 14px;">${actual.codigo} · ${actual.cuota}</p>
+      <a class="btn btn-gold" style="text-decoration:none;display:block;text-align:center;box-sizing:border-box;" href="${actual.link}" target="_blank" rel="noopener" onclick="setTimeout(marcarEnviadoYSiguiente,400)">Abrir WhatsApp y enviar</a>
+    </div>
+    <div class="flexrow">
+      <button class="btn btn-outline" onclick="omitirEnvioActual()">Omitir este</button>
+      <button class="btn btn-danger" onclick="salirDeColaRecordatorios()">Salir</button>
+    </div>`;
 }
 function viewCartera(){
   const vencidos = state.prestamos.map(p=>({p, r:resumen(p)}))
@@ -1890,6 +2007,7 @@ function viewCartera(){
   ];
 
   html += `<p class="hint" style="margin:0 0 12px;">${vencidos.length} préstamo(s) con cuotas vencidas, agrupados por días de atraso. Toca uno para ver el préstamo y registrar el pago.</p>`;
+  html += `<button class="btn btn-gold" style="margin-bottom:16px;" onclick="iniciarColaRecordatorios('vencidos')">Enviar recordatorios a todos los vencidos</button>`;
 
   grupos.forEach(g=>{
     const enGrupo = vencidos.filter(x=> x.atraso>=g.min && x.atraso<=g.max);
