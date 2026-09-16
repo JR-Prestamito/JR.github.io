@@ -392,6 +392,17 @@ function money(n){
   n = Number.isFinite(n) ? n : 0;
   return "L " + n.toLocaleString("es-HN", {minimumFractionDigits:2, maximumFractionDigits:2});
 }
+function hoyISO(){
+  // OJO: usar el día calendario LOCAL, no toISOString() (que da la fecha en UTC).
+  // Honduras está en UTC-6, así que desde ~6:00pm hora local, toISOString() ya
+  // muestra la fecha del día siguiente, lo cual marcaba cuotas como vencidas un
+  // día antes de tiempo. Por eso aquí se arma la fecha con año/mes/día locales.
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const dd = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${dd}`;
+}
 function addDays(dateStr, days){
   const d = new Date(dateStr + "T00:00:00");
   d.setDate(d.getDate()+days);
@@ -410,7 +421,7 @@ function fmtDateCompacto(dateStr){
 }
 function diasAtraso(fecha){
   if(!fecha) return 0;
-  const hoy = new Date().toISOString().slice(0,10);
+  const hoy = hoyISO();
   const diff = Math.round((new Date(hoy) - new Date(fecha))/86400000);
   return Math.max(0, diff);
 }
@@ -849,7 +860,7 @@ function exportarDatos(){
   const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const fecha = new Date().toISOString().slice(0,10);
+  const fecha = hoyISO();
   a.href = url;
   a.download = `jr-prestamito-respaldo-${fecha}.json`;
   document.body.appendChild(a);
@@ -966,7 +977,7 @@ window.__intentarArrancar();
   const blob = new Blob([html], {type:"text/html"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  const fecha = new Date().toISOString().slice(0,10);
+  const fecha = hoyISO();
   const slug = nombreApp().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-+|-+$)/g,"") || "prestamito";
   // Cada copia lleva un número distinto (1, 2, 3...) para que no se repita el mismo nombre
   // de archivo cuando generas varias copias para distintos celulares.
@@ -1061,7 +1072,7 @@ function exportarExcel(){
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filasClientes), "Clientes");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filasPrestamos), "Préstamos");
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filasPagos), "Pagos");
-      const fecha = new Date().toISOString().slice(0,10);
+      const fecha = hoyISO();
       XLSX.writeFile(wb, `jr-prestamito-reporte-${fecha}.xlsx`);
     } catch(err){
       mostrarAlerta("Ocurrió un error generando el Excel. Intenta de nuevo.");
@@ -1085,7 +1096,7 @@ function generarReportePDF(){
   doc.setFontSize(14);
   doc.text(nombreApp(), 14, 16);
   doc.setFontSize(9);
-  doc.text(`Reporte general  ·  ${fmtDate(new Date().toISOString().slice(0,10))}`, 14, 23);
+  doc.text(`Reporte general  ·  ${fmtDate(hoyISO())}`, 14, 23);
   doc.text(`Capital prestado ${money(prestado)}   ·   Total cobrado ${money(cobrado)}   ·   Clientes ${state.clientes.length}   ·   Préstamos ${state.prestamos.length}`, 14, 29);
   const filas = state.prestamos.map(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
@@ -1157,7 +1168,7 @@ function viewReportePDF(){
   return `
     <div id="reporte-imprimible">
       <h2>${nombreApp().toUpperCase()}</h2>
-      <p class="hint" style="margin:0 0 14px;">Reporte general · ${fmtDate(new Date().toISOString().slice(0,10))}</p>
+      <p class="hint" style="margin:0 0 14px;">Reporte general · ${fmtDate(hoyISO())}</p>
       <div class="grid2" style="margin-bottom:16px;">
         <div><p class="hint" style="margin:0;">Capital prestado</p><p style="font-weight:700;margin:2px 0;">${money(prestado)}</p></div>
         <div><p class="hint" style="margin:0;">Total cobrado</p><p style="font-weight:700;margin:2px 0;">${money(cobrado)}</p></div>
@@ -1234,7 +1245,7 @@ function viewEstadoResultados(){
   return `
     <div id="reporte-imprimible">
       <h2>${nombreApp().toUpperCase()}</h2>
-      <p class="hint" style="margin:0 0 14px;">Estado de resultados (base efectivo) · ${fmtDate(new Date().toISOString().slice(0,10))}</p>
+      <p class="hint" style="margin:0 0 14px;">Estado de resultados (base efectivo) · ${fmtDate(hoyISO())}</p>
       <p style="font-weight:700;margin:0 0 6px;">Ingresos</p>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px;">
         ${fila("Intereses cobrados", interesesCobrados)}
@@ -1421,7 +1432,7 @@ function viewAjustes(){
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de recordatorio (WhatsApp / SMS)</p>
     <p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p>
     <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="5" placeholder="${PLANTILLA_RECORDATORIO_DEFECTO}" oninput="state.config.mensajeRecordatorio=this.value; save(); render();">${state.config.mensajeRecordatorio||""}</textarea></label>
-    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:new Date().toISOString().slice(0,10)}, 3)}</p>
+    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3)}</p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajeRecordatorio=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
@@ -1429,7 +1440,7 @@ function viewAjustes(){
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de pendiente de cobro (1 día antes)</p>
     <p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b>.</p>
     <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="5" placeholder="${PLANTILLA_PENDIENTE_DEFECTO}" oninput="state.config.mensajePendiente=this.value; save(); render();">${state.config.mensajePendiente||""}</textarea></label>
-    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:new Date().toISOString().slice(0,10)})}</p>
+    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()})}</p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajePendiente=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
@@ -1588,7 +1599,11 @@ function guardarCliente(){
     if(dup){ mostrarAlerta(`Esa cédula ya está registrada a nombre de ${dup.nombre}.`); return; }
     cedula = cedula.replace(/(\d{4})(\d{4})(\d{5})/, "$1-$2-$3");
   }
-  if(celular) celular = celular.replace(/(\d{4})(\d{4})/, "$1-$2");
+  if(celular){
+    const dupCel = state.clientes.find(c => c.id !== state.clienteEditId && soloDigitos(c.celular) === celular);
+    if(dupCel){ mostrarAlerta(`Ese número de celular ya está registrado a nombre de ${dupCel.nombre}.`); return; }
+    celular = celular.replace(/(\d{4})(\d{4})/, "$1-$2");
+  }
 
   const datos = {
     nombre,
@@ -1645,11 +1660,12 @@ function viewPrestamos(){
     const cli = state.clientes.find(c=>c.id===p.clienteId);
     const r = resumen(p);
     const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
+    const nVenc = atraso>0 ? cuotasVencidas(r) : 0;
     html += `<div class="row-card" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
       <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
       <p class="sub">${p.codigo} · ${p.metodo.split(" (")[0]}</p>
       <p style="font-size:13px;margin:4px 0 0;color:${NAVY}">${money(r.saldoPendiente)}</p></div>
-      <div style="text-align:right;">${badge(atraso>0?"Vencido":r.estado)}</div>
+      <div style="text-align:right;">${badge(atraso>0?"Vencido":r.estado)}${atraso>0?`<p class="hint" style="margin:2px 0 0;color:#A32D2D;">${nVenc} cuota${nVenc===1?"":"s"}</p>`:""}</div>
     </div>`;
   });
   return html;
@@ -1662,8 +1678,44 @@ const PLANTILLA_RECORDATORIO_DEFECTO = "Hola {nombre}, su préstamo {codigo} tie
 const PLANTILLA_PENDIENTE_DEFECTO = "Hola {nombre}, le recordamos que su préstamo {codigo} tiene una cuota de {cuota} pendiente de cobro, con fecha {fecha}. Cualquier duda, con gusto le atendemos. ¡Gracias!";
 function diasParaVencer(fecha){
   if(!fecha) return null;
-  const hoy = new Date().toISOString().slice(0,10);
+  const hoy = hoyISO();
   return Math.round((new Date(fecha) - new Date(hoy))/86400000);
+}
+// Cuenta cuántas cuotas programadas ya vencieron (fecha pasada) y aún no están
+// completamente pagadas, a partir de la próxima cuota pendiente en adelante.
+function cuotasVencidas(r){
+  if(!r || !r.tabla || !r.tabla.length) return 0;
+  const hoy = hoyISO();
+  let n = 0;
+  for(let i=r.pagosHechos; i<r.tabla.length; i++){
+    if(r.tabla[i].fecha < hoy) n++; else break;
+  }
+  return n;
+}
+// Calcula cuánto corresponde pagar en total para ponerse al día: si solo está pendiente
+// la cuota en curso (aún no vencida o recién vencida) es lo mismo de siempre, pero si ya
+// se acumulan varias cuotas vencidas suma el monto de todas ellas, y calcula la mora de
+// cada una según sus propios días de atraso (no solo los de la más próxima).
+function calcularPendiente(p, r){
+  const tasaMora = Number(state.config.tasaMoraDiaria)||0;
+  const nVenc = cuotasVencidas(r);
+  const diasAtr = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
+  let monto = r.faltaEnCuotaActual || r.cuota || 0;
+  let mora = 0;
+  if(r.proximaFecha && tasaMora>0 && diasAtr>0){
+    const cuotaRef = r.cuotaActual ? r.cuotaActual.cuota : r.cuota;
+    mora += round2(cuotaRef*tasaMora/100*diasAtr);
+  }
+  for(let i=1;i<nVenc;i++){
+    const fila = r.tabla[r.pagosHechos+i];
+    if(!fila) break;
+    monto += fila.cuota;
+    if(tasaMora>0){
+      const diasAtrFila = diasAtraso(fila.fecha);
+      if(diasAtrFila>0) mora += round2(fila.cuota*tasaMora/100*diasAtrFila);
+    }
+  }
+  return { monto: round2(monto), mora: round2(mora), nVenc, diasAtr };
 }
 function mensajePendiente(p, cli, r){
   const cuota = money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota);
@@ -1781,7 +1833,7 @@ function viewNuevoPrestamo(){
 function abrirNuevoPrestamo(){
   window._nf = {
     clienteId: state.clientes[0]?state.clientes[0].id:"", capital:"", tasa:"", cuotas:"",
-    periodo:"Mensual", metodo:METODOS[0], fechaInicio:new Date().toISOString().slice(0,10)
+    periodo:"Mensual", metodo:METODOS[0], fechaInicio:hoyISO()
   };
   state.vista = "nuevo";
   render();
@@ -1820,7 +1872,7 @@ function abrirRefinanciar(id){
   if(!p) return;
   window._rf = {
     origenId: id, enganche:"", adicional:"", tasa:p.tasa, periodo:p.periodo, metodo:p.metodo,
-    cuotas: p.cuotas || "", fechaInicio: new Date().toISOString().slice(0,10)
+    cuotas: p.cuotas || "", fechaInicio: hoyISO()
   };
   state.vista = "refinanciar";
   render();
@@ -1990,11 +2042,10 @@ function viewDetallePrestamo(){
     <td></td><td></td>
   </tr>`;
 
-  const tasaMora = Number(state.config.tasaMoraDiaria)||0;
-  const diasAtr = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
-  const cuotaRef = r.cuotaActual ? r.cuotaActual.cuota : r.cuota;
-  const moraCalc = (tasaMora>0 && diasAtr>0) ? Math.round(cuotaRef*tasaMora/100*diasAtr*100)/100 : 0;
-  const sugerido = r.faltaEnCuotaActual || r.cuota;
+  const pendiente = calcularPendiente(p, r);
+  const sugerido = pendiente.monto;
+  const moraCalc = pendiente.mora;
+  const nVenc = pendiente.nVenc;
   const esBullet = p.metodo === METODOS[3] || p.metodo === METODOS[4];
 
   const diasFaltan = r.proximaFecha ? diasParaVencer(r.proximaFecha) : null;
@@ -2021,7 +2072,7 @@ function viewDetallePrestamo(){
     </div>
     ${necesitaRecordatorio ? `
     <div class="row-card" style="display:block;">
-      <p style="font-weight:700;margin:0 0 6px;color:#A32D2D;">${atraso>0 ? `Cuota vencida (${atraso} día${atraso===1?"":"s"})` : (diasFaltan===0 ? "Por cobrar hoy" : "Por cobrar mañana")}</p>
+      <p style="font-weight:700;margin:0 0 6px;color:#A32D2D;">${atraso>0 ? `Cuota vencida (${atraso} día${atraso===1?"":"s"} · ${nVenc} cuota${nVenc===1?"":"s"})` : (diasFaltan===0 ? "Por cobrar hoy" : "Por cobrar mañana")}</p>
       ${(waRec||smsRec) ? `<div class="flexrow">
         ${waRec?`<a class="btn btn-outline" style="text-decoration:none;text-align:center;" href="${waRec}" target="_blank" rel="noopener">Enviar WhatsApp</a>`:""}
         ${smsRec?`<a class="btn btn-outline" style="text-decoration:none;text-align:center;" href="${smsRec}">Enviar SMS</a>`:""}
@@ -2031,19 +2082,19 @@ function viewDetallePrestamo(){
     <div class="row-card" style="display:block;">
       <p style="font-weight:600;margin:0 0 10px;">Registrar pago</p>
       ${r.abonadoEnCuotaActual>0 ? `<p class="hint" style="color:#8A6416;margin:0 0 10px;">Ya abonaste ${money(r.abonadoEnCuotaActual)} a esta cuota. Falta ${money(r.faltaEnCuotaActual)}.</p>` : ""}
-      ${moraCalc>0 ? `<p class="hint" style="color:#A32D2D;margin:0 0 6px;">Este pago tiene ${diasAtr} día(s) de atraso. Mora calculada: ${money(moraCalc)}</p>
-      <label style="display:flex;align-items:center;gap:6px;margin-bottom:12px;"><input type="checkbox" id="incluirMora" checked style="width:auto;"><span style="margin:0;font-size:13px;color:#666;">Cobrar la mora junto con este pago</span></label>` : ""}
+      ${moraCalc>0 ? `<p class="hint" style="color:#A32D2D;margin:0 0 6px;">${nVenc>1 ? `Tienes ${nVenc} cuotas vencidas. Mora total calculada: ${money(moraCalc)}` : `Este pago tiene ${pendiente.diasAtr} día(s) de atraso. Mora calculada: ${money(moraCalc)}`}</p>
+      <label style="display:flex;align-items:center;gap:6px;margin-bottom:12px;"><input type="checkbox" id="incluirMora" checked style="width:auto;" onchange="document.getElementById('montoPago').value = this.checked ? '${round2(sugerido+moraCalc).toFixed(2)}' : '${sugerido.toFixed(2)}';"><span style="margin:0;font-size:13px;color:#666;">Cobrar la mora junto con este pago</span></label>` : ""}
       <div class="flexrow">
-        <input type="text" inputmode="decimal" id="montoPago" placeholder="${sugerido.toFixed(2)}">
+        <input type="text" inputmode="decimal" id="montoPago" value="${moraCalc>0 ? round2(sugerido+moraCalc).toFixed(2) : ""}" placeholder="${sugerido.toFixed(2)}">
         <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarPago('${p.id}')">Pagar</button>
       </div>
-      <p class="hint">Déjalo vacío para pagar lo sugerido. Un monto menor queda como abono parcial; uno mayor se aplica como abono a capital.</p>
+      <p class="hint">${nVenc>1 ? `El monto sugerido ya incluye las ${nVenc} cuotas vencidas${moraCalc>0?" y la mora":""}.` : (moraCalc>0 ? "El monto ya incluye la mora; desmarca la casilla para dejar solo la cuota." : "Déjalo vacío para pagar lo sugerido.")} Un monto menor queda como abono parcial a la cuota.${(r.proximaFecha && hoyISO()===r.proximaFecha) ? ' Como hoy es el día que corresponde a esta cuota, si pagas de más (después de completarla), el excedente se registra como <b>abono a capital</b>.' : ' Los abonos a capital solo se pueden registrar el día exacto en que corresponde el pago de la cuota' + (r.proximaFecha? ' ('+fmtDate(r.proximaFecha)+')':'') + '; por ahora solo puedes pagar hasta el monto de la cuota.'}</p>
     </div>
     ${esBullet ? `
     <div class="row-card" style="display:block;">
       <p style="font-weight:600;margin:0 0 6px;">Liquidar anticipado</p>
       <p class="hint" style="margin:0 0 10px;">Calcula el interés real, prorateado por los días que realmente pasaron, si cancelas antes de la fecha de la cuota.</p>
-      <label><span>Fecha de liquidación</span><input type="date" id="fechaLiquidacion" value="${new Date().toISOString().slice(0,10)}"></label>
+      <label><span>Fecha de liquidación</span><input type="date" id="fechaLiquidacion" value="${hoyISO()}"></label>
       <button class="btn btn-outline" onclick="liquidarAnticipado('${p.id}')">Calcular y liquidar</button>
     </div>` : ""}` : ""}
     <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;">
@@ -2165,12 +2216,18 @@ function dibujarMarcaAgua(doc, texto, w, h){
     doc.setTextColor(20);
   }catch(err){ /* sin marca de agua si el navegador no soporta GState */ }
 }
+function conceptoPago(pg){
+  if(pg.liquidacion) return "Liquidación anticipada";
+  if(pg.tipo === "abono_capital") return "Abono a capital";
+  if(pg.mora>0) return "Cuota + mora por atraso";
+  return "Cuota";
+}
 function generarReciboPDF(p, cli, pg, r, numRecibo, contexto){
   const { jsPDF } = window.jspdf; // tamaño angosto de recibo/ticket (80mm), no una hoja completa
   const doc = new jsPDF({unit:"mm", format:[80,170]});
   dibujarMarcaAgua(doc, siglasApp(), 80, 170);
   const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0);
-  const concepto = pg.liquidacion ? "Liquidación anticipada" : (pg.mora>0 ? "Cuota + mora por atraso" : "Abono / cuota");
+  const concepto = conceptoPago(pg);
   const cx = 40, xL = 6, xR = 74;
   let y = 10;
   doc.setFontSize(12); doc.text(nombreApp().toUpperCase(), cx, y, {align:"center"}); y += 6;
@@ -2185,7 +2242,7 @@ function generarReciboPDF(p, cli, pg, r, numRecibo, contexto){
   linea("Préstamo", p.codigo);
   linea("Método", p.metodo);
   linea("Concepto", concepto);
-  if(pg.mora>0){ linea("Cuota / abono", money(pg.monto)); linea("Mora", money(pg.mora)); }
+  if(pg.mora>0){ linea("Cuota", money(pg.monto)); linea("Mora", money(pg.mora)); }
   y += 1; doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 7;
   doc.setFontSize(11); linea("Total pagado", money(totalPago));
   doc.setFontSize(8); linea("Saldo pendiente", money(r.saldoPendiente));
@@ -2256,31 +2313,52 @@ function imprimirRecibo(){
 function registrarPago(id){
   const p = state.prestamos.find(x=>x.id===id);
   const r = resumen(p);
-  const tasaMora = Number(state.config.tasaMoraDiaria)||0;
-  const diasAtr = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
-  const cuotaRef = r.cuotaActual ? r.cuotaActual.cuota : r.cuota;
-  let mora = 0;
-  if(tasaMora>0 && diasAtr>0){
-    mora = Math.round(cuotaRef*tasaMora/100*diasAtr*100)/100;
+  const pendiente = calcularPendiente(p, r);
+  let mora = pendiente.mora;
+  if(mora>0){
     const chk = document.getElementById("incluirMora");
     if(chk && !chk.checked) mora = 0;
   }
   const val = document.getElementById("montoPago").value;
-  const sugerido = r.faltaEnCuotaActual || r.cuota;
-  const monto = val ? Number(val) : sugerido;
-  if(!monto || monto<=0) return;
+  const sugerido = pendiente.monto;
+  // El campo de monto ahora puede traer la mora ya incluida (si la casilla está marcada),
+  // así que primero se descuenta la mora para saber cuánto corresponde a cuota/abono, y así
+  // no se confunda la mora con un abono a capital.
+  const montoIngresado = val ? Number(val) : round2(sugerido + mora);
+  if(!montoIngresado || montoIngresado<=0) return;
+  const montoSinMora = round2(Math.max(0, montoIngresado - mora));
 
-  const total = monto + mora;
-  let msgConfirm = `¿Registrar este pago?\n\nMonto: ${money(monto)}`;
-  if(mora>0) msgConfirm += `\nMora: ${money(mora)}\nTotal: ${money(total)}`;
+  // Un abono a capital (pagar más de lo que falta para completar la cuota actual) solo se
+  // permite el día exacto que corresponde al pago de esa cuota, y solo después de dejar la
+  // cuota completamente cubierta (en cero). Cualquier otro día, se corre igual como antes,
+  // pero el excedente sobre la cuota no se acepta como abono a capital.
+  const esFechaCuota = !!(r.proximaFecha && hoyISO() === r.proximaFecha);
+  const excedente = round2(Math.max(0, montoSinMora - sugerido));
+  if(excedente > 0.01 && !esFechaCuota){
+    mostrarAlerta(`Un abono a capital solo se puede registrar el día exacto en que corresponde el pago de esta cuota${r.proximaFecha?` (${fmtDate(r.proximaFecha)})`:""}, y después de completarla.\n\nPor hoy, el monto máximo que puedes pagar en esta cuota es ${money(round2(sugerido+mora))}.`);
+    return;
+  }
+
+  const montoCuota = excedente > 0.01 ? sugerido : montoSinMora;
+  const total = montoIngresado;
+  const etiquetaCuota = pendiente.nVenc>1 ? `Cuotas vencidas (${pendiente.nVenc})` : "Cuota";
+  let msgConfirm = `¿Registrar este pago?\n\n${etiquetaCuota}: ${money(montoCuota)}`;
+  if(excedente > 0.01) msgConfirm += `\nAbono a capital: ${money(excedente)}`;
+  if(mora>0) msgConfirm += `\nMora: ${money(mora)}`;
+  msgConfirm += `\nTotal: ${money(total)}`;
   mostrarConfirmacion(msgConfirm, function(ok){
     if(!ok) return;
     p.pagos = p.pagos || [];
-    p.pagos.push({ id:uid(), fecha:new Date().toISOString().slice(0,10), monto, mora });
+    const fechaPago = hoyISO();
+    p.pagos.push({ id:uid(), fecha:fechaPago, monto:montoCuota, mora, tipo:"cuota" });
+    if(excedente > 0.01){
+      p.pagos.push({ id:uid(), fecha:fechaPago, monto:excedente, mora:0, tipo:"abono_capital" });
+    }
     save(); render();
     const r2 = resumen(p);
     let msg = `✅ Pago registrado: ${money(total)}`;
     if(mora>0) msg += ` (incluye mora de ${money(mora)})`;
+    if(excedente > 0.01) msg += `\nIncluye abono a capital de ${money(excedente)}.`;
     msg += ".\n\n";
     if(r2.estado==="Pagado"){
       msg += "¡Este préstamo quedó completamente pagado! 🎉";
@@ -2295,7 +2373,7 @@ function registrarPago(id){
 function liquidarAnticipado(id){
   const p = state.prestamos.find(x=>x.id===id);
   const r = resumen(p);
-  const fechaLiq = document.getElementById("fechaLiquidacion").value || new Date().toISOString().slice(0,10);
+  const fechaLiq = document.getElementById("fechaLiquidacion").value || hoyISO();
   const diasPeriodo = DIAS_PERIODO[p.periodo] || 30;
   const tasaDiaria = (Number(p.tasa)||0)/100/diasPeriodo;
   const fechaBase = r.pagosHechos>0 ? r.tabla[r.pagosHechos-1].fecha : p.fechaInicio;
@@ -2351,6 +2429,7 @@ function viewPagos(){
     const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
     let sub = `${pg.codigo} · ${fmtDate(pg.fecha)}`;
     if(pg.liquidacion) sub += " · Liquidación anticipada";
+    else if(pg.tipo === "abono_capital") sub += " · Abono a capital";
     else if(pg.mora>0) sub += ` · incluye mora ${money(pg.mora)}`;
     return `<div class="row-card">
     <div style="cursor:pointer;" onclick="verRecibo('${pg.prestamoId}','${pg.id||""}')"><p class="name">${pg.nombre}</p><p class="sub">${sub}</p></div>
@@ -2400,7 +2479,7 @@ function viewRecibo(){
   const numRecibo = pg.id ? pg.id.slice(-6).toUpperCase() : String(idx+1).padStart(4,"0");
   const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0);
   const r = resumen(p);
-  let concepto = pg.liquidacion ? "Liquidación anticipada" : (pg.mora>0 ? "Cuota + mora por atraso" : "Abono / cuota");
+  let concepto = conceptoPago(pg);
 
   return `
     <div id="recibo-imprimible" style="position:relative;overflow:hidden;">
@@ -2414,7 +2493,7 @@ function viewRecibo(){
       <div class="rline"><span>Préstamo</span><b>${p.codigo}</b></div>
       <div class="rline"><span>Método</span><b>${p.metodo}</b></div>
       <div class="rline"><span>Concepto</span><b>${concepto}</b></div>
-      ${pg.mora>0 ? `<div class="rline"><span>Cuota / abono</span><b>${money(pg.monto)}</b></div>
+      ${pg.mora>0 ? `<div class="rline"><span>Cuota</span><b>${money(pg.monto)}</b></div>
       <div class="rline"><span>Mora</span><b>${money(pg.mora)}</b></div>` : ""}
       <div class="rline rtotal" style="border-bottom:none;padding-top:14px;"><span>Total pagado</span><span>${money(totalPago)}</span></div>
       <div class="rline"><span>Saldo pendiente actual del préstamo</span><b>${money(r.saldoPendiente)}</b></div>
