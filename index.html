@@ -26,8 +26,13 @@
 <style>
   :root{ --navy:#1B2A4A; --gold:#C9973E; --cream:#F7F5F0; }
   *{box-sizing:border-box;}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--cream);color:#222;}
-  #app{max-width:420px;margin:0 auto;min-height:100vh;position:relative;padding-bottom:70px;background:var(--cream);}
+  /* Evita que "jalar hacia abajo" en la parte de arriba de la pantalla dispare el gesto
+     nativo de "deslizar para recargar" del navegador/Chrome, que recarga toda la página
+     (y por lo tanto saca al usuario de la pantalla en la que estaba). overscroll-behavior
+     en html/body es lo que controla ese gesto a nivel de navegador. */
+  html{overscroll-behavior-y:contain;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--cream);color:#222;overscroll-behavior-y:contain;}
+  #app{max-width:420px;margin:0 auto;min-height:100vh;position:relative;padding-bottom:70px;background:var(--cream);overscroll-behavior-y:contain;}
   header{background:var(--navy);padding:calc(20px + env(safe-area-inset-top)) 16px 16px;}
   header p{color:rgba(255,255,255,.7);font-size:11px;margin:0 0 2px;letter-spacing:.03em;}
   header h1{color:#fff;font-size:19px;margin:0;font-weight:600;}
@@ -255,17 +260,35 @@ function jrKey(base){ return base + "::" + JR_NS; }
   }catch(e){}
 })();
 
+// Si el navegador recarga la página (por ejemplo, el gesto de "deslizar para recargar" se
+// disparó a pesar del overscroll-behavior, o el usuario le dio refrescar), esto recuerda en
+// qué pantalla estaba para devolverlo ahí en vez de mandarlo siempre al inicio. Se guarda en
+// sessionStorage (no localStorage) para que solo dure mientras la pestaña siga abierta, no
+// entre sesiones distintas de verdad.
+function navGuardada(){
+  try{
+    const raw = sessionStorage.getItem(jrKey("jr_nav"));
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+const _navPrevia = navGuardada();
+
 let state = {
-  tab: "inicio",
+  tab: (_navPrevia && _navPrevia.tab) || "inicio",
   clientes: JSON.parse(localStorage.getItem(jrKey("jr_clientes")) || "[]"),
   prestamos: JSON.parse(localStorage.getItem(jrKey("jr_prestamos")) || "[]"),
   config: JSON.parse(localStorage.getItem(jrKey("jr_config")) || '{"tasaMoraDiaria":0}'),
-  vista: "lista",
-  seleccionId: null,
+  vista: (_navPrevia && _navPrevia.vista) || "lista",
+  seleccionId: (_navPrevia && _navPrevia.seleccionId) || null,
   showFormCliente: false,
   q: "",
   qPrestamos: ""
 };
+function guardarNav(){
+  try{
+    sessionStorage.setItem(jrKey("jr_nav"), JSON.stringify({ tab: state.tab, vista: state.vista, seleccionId: state.seleccionId }));
+  }catch(e){}
+}
 
 let _autoSyncTimer = null;
 function save(opts){
@@ -274,9 +297,41 @@ function save(opts){
   localStorage.setItem(jrKey("jr_config"), JSON.stringify(state.config));
   const sinAutoSync = opts && opts.sinAutoSync;
   if(!sinAutoSync && state.config.syncUrl && state.config.syncKey && state.config.autoSync !== false){
+    // "Al instante" con un pequeñísimo margen (600ms) en vez de 0ms: si no se agrupan los
+    // cambios, escribir un nombre letra por letra dispararía una subida a la nube por cada
+    // tecla presionada. Este margen agrupa esas teclas en una sola subida, pero sigue
+    // sintiéndose instantáneo (antes eran 2 segundos completos de espera).
     clearTimeout(_autoSyncTimer);
-    _autoSyncTimer = setTimeout(()=>{ subirNube(true); }, 2000);
+    _autoSyncTimer = setTimeout(()=>{ subirNube(true); }, 600);
   }
+}
+// Al abrir la app (una sola vez por sesión), si hay nube configurada, trae automáticamente
+// lo último guardado ahí — así si se editó desde otro celular, este se pone al día solo,
+// sin tener que entrar a Ajustes y darle "Descargar" a mano. Es silencioso: si no hay
+// internet o falla, sigue de largo con los datos que ya había en este celular.
+let _autoCargaNubeHecha = false;
+async function autoCargarNubeAlAbrir(){
+  if(_autoCargaNubeHecha) return;
+  _autoCargaNubeHecha = true;
+  const url = (state.config.syncUrl||"").trim();
+  const key = (state.config.syncKey||"").trim();
+  if(!url || !key) return;
+  if(state.syncBusy) return;
+  try{
+    const sep = url.includes("?") ? "&" : "?";
+    const res = await fetch(url + sep + "action=pull&key=" + encodeURIComponent(key));
+    const data = await res.json();
+    if(data.ok && data.datos){
+      state.clientes = data.datos.clientes || state.clientes;
+      state.prestamos = data.datos.prestamos || state.prestamos;
+      if(data.datos.config && data.datos.config.tasaMoraDiaria!==undefined){
+        state.config.tasaMoraDiaria = data.datos.config.tasaMoraDiaria;
+      }
+      state.config.ultimaDescarga = new Date().toISOString();
+      save({sinAutoSync:true});
+      render();
+    }
+  }catch(e){ /* sin internet o la nube no respondió: seguimos con los datos locales, sin molestar con una alerta */ }
 }
 // --- Contabilidad de refinanciamientos según NIF C-19 (equivalente a NIIF 9) ---
 // Cuando se modifican las condiciones de un préstamo (tasa, plazo, capital), la norma
@@ -988,6 +1043,8 @@ function render(){
     renderBloqueo();
     return;
   }
+  guardarNav();
+  autoCargarNubeAlAbrir();
   // Guarda qué campo tenía el foco (y la posición del cursor) antes de reconstruir el DOM.
   // Sin esto, cada tecla presionada destruye y recrea el <input>, lo que en el celular
   // hace que el teclado parpadee o se cierre con cada dígito.
@@ -1853,7 +1910,7 @@ function viewAjustes(){
   </div>
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Sincronizar entre celulares</p>
-    <p class="hint" style="margin:0 0 10px;">Usa una Google Sheet como nube compartida. Configúrala una sola vez (instrucciones aparte) y luego pega aquí la URL y la clave.</p>
+    <p class="hint" style="margin:0 0 10px;">Usa una Google Sheet como nube compartida. Configúrala una sola vez (instrucciones aparte) y luego pega aquí la URL y la clave. Con la URL y clave puestas, cada vez que abras la app en cualquier celular trae automáticamente lo último de la nube.</p>
     <label><span>URL de la aplicación web</span><input id="f_syncUrl" placeholder="https://script.google.com/macros/s/.../exec" value="${state.config.syncUrl||""}" oninput="state.config.syncUrl=this.value; save({sinAutoSync:true});"></label>
     <label style="margin-bottom:10px;"><span>Clave</span>
       <div class="flexrow">
@@ -1872,7 +1929,7 @@ function viewAjustes(){
       <button class="btn btn-outline" onclick="subirNube()" ${state.syncBusy?"disabled style='opacity:.5'":""}>${state.syncBusy==="push"?"Subiendo...":"Subir ahora"}</button>
       <button class="btn btn-outline" onclick="descargarNube()" ${state.syncBusy?"disabled style='opacity:.5'":""}>${state.syncBusy==="pull"?"Descargando...":"Descargar de la nube"}</button>
     </div>
-    <p class="hint" style="margin-top:10px;">Con la subida automática activada, no necesitas acordarte de subir manualmente. Aun así, sigue siendo el último que suba el que queda guardado — si dos celulares editan al mismo tiempo, pídele al otro celular que descargue antes de trabajar.</p>
+    <p class="hint" style="margin-top:10px;">Con la subida automática activada, cada cambio se sube a la nube casi al instante (no necesitas acordarte de subir manualmente), y cada vez que abras la app trae lo último automáticamente. Aun así, sigue siendo el último que suba el que queda guardado — si dos celulares editan al mismo tiempo sin internet, al volver a tener señal el que suba después sobrescribe al otro.</p>
   </div>
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Mora por atraso</p>
@@ -2386,19 +2443,24 @@ function viewDetallePrestamo(){
   const filasParaTabla = esIndefDetalle
     ? [{ n:1, fecha: r.proximaFecha || p.fechaInicio, saldoInicial: p.capital, cuota: r.cuota, interes: r.cuota, abono:0, saldo: p.capital }]
     : r.tabla;
+  // Filas donde cayó un abono a capital extra (ajustesCapital), para resaltarlas en la
+  // tabla: el número de fila coincide con "despuesDeFila" porque ahí es donde el motor
+  // dinámico (generarTablaDinamica) suma ese abono extra al abono programado de esa fila.
+  const filasConAjuste = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
   let filasHtml = filasParaTabla.map((f,i)=>{
     let estadoCelda;
     if(esIndefDetalle) estadoCelda = r.abonadoEnCuotaActual>0 ? `<span style="color:${GOLD};">Abono ${money(r.abonadoEnCuotaActual)}</span>` : '<span style="color:#bbb">—</span>';
     else if(i < r.pagosHechos) estadoCelda = '<span style="color:#3B6D11">✓ Pagada</span>';
     else if(i === r.pagosHechos && r.abonadoEnCuotaActual>0) estadoCelda = `<span style="color:${GOLD};">Abono ${money(r.abonadoEnCuotaActual)}</span>`;
     else estadoCelda = '<span style="color:#bbb">—</span>';
-    return `<tr style="border-top:1px solid #f0ede6;">
+    const tieneAjuste = filasConAjuste.has(f.n);
+    return `<tr style="border-top:1px solid #f0ede6;${tieneAjuste?'background:#F3F8EE;':''}">
       <td style="padding:4px 6px;">${f.n}</td>
       <td style="padding:4px 6px;white-space:nowrap;">${fmtDateCompacto(f.fecha)}</td>
       <td style="padding:4px 6px;text-align:right">${money(f.saldoInicial)}</td>
       <td style="padding:4px 6px;text-align:right">${money(f.cuota)}</td>
       <td style="padding:4px 6px;text-align:right">${money(f.interes)}</td>
-      <td style="padding:4px 6px;text-align:right">${money(f.abono)}</td>
+      <td style="padding:4px 6px;text-align:right${tieneAjuste?';color:#3B6D11;font-weight:700;':''}">${money(f.abono)}${tieneAjuste?`<br><span style="font-weight:600;font-size:10px;white-space:nowrap;">incl. abono a capital</span>`:''}</td>
       <td style="padding:4px 6px;text-align:right">${money(f.saldo)}</td>
       <td style="padding:4px 6px;white-space:nowrap;">${estadoCelda}</td>
     </tr>`;
@@ -2475,6 +2537,7 @@ function viewDetallePrestamo(){
       <p style="font-size:12px;color:#666;margin:0;">Capital: <b style="color:${NAVY}">${money(p.capital)}</b></p>
     </div>
     ${esIndefDetalle ? `<p class="hint" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija — por eso no hay una tabla de varias cuotas, solo la cuota que se repite.</p>` : ""}
+    ${filasConAjuste.size>0 ? `<p class="hint" style="margin:4px 0 10px;"><span style="color:#3B6D11;font-weight:700;">●</span> Las filas resaltadas en verde tuvieron un abono a capital extra además de su cuota normal.</p>` : ""}
     <div id="tabla-imprimible">
       <h2 class="solo-imprimir">${nombreApp().toUpperCase()}</h2>
       <p class="hint solo-imprimir" style="margin:0 0 10px;">${p.codigo} · ${cli?cli.nombre:"—"} · Capital ${money(p.capital)} · Tasa ${p.tasa}% · ${p.periodo} · ${p.metodo}</p>
@@ -2552,10 +2615,12 @@ function generarAmortizacionPDF(p, cli, r){
     doc.text("Préstamo de plazo indefinido: solo interés cada período, sin fecha de finalización fija.", 14, startY);
     startY += 5;
   }
+  const filasConAjustePDF = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
   const filas = filasBase.map((f,i)=>{
+    const tieneAjuste = filasConAjustePDF.has(f.n);
     const estado = esIndefPDF ? (r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "—")
       : (i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"));
-    return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), money(f.abono), money(f.saldo), estado];
+    return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
   });
   const totalCuota = filasBase.reduce((s,f)=>s+(Number(f.cuota)||0),0);
   const totalInteres = filasBase.reduce((s,f)=>s+(Number(f.interes)||0),0);
@@ -2567,8 +2632,24 @@ function generarAmortizacionPDF(p, cli, r){
     foot: esIndefPDF ? undefined : [["Total","","",money(totalCuota),money(totalInteres),money(totalAbono),"",""]],
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [27,42,74] },
-    footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" }
+    footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" },
+    didParseCell: function(data){
+      if(data.section==="body"){
+        const fila = filasBase[data.row.index];
+        if(fila && filasConAjustePDF.has(fila.n)){
+          data.cell.styles.fillColor = [235,245,227];
+          if(data.column.index===5){ data.cell.styles.textColor=[59,109,17]; data.cell.styles.fontStyle="bold"; }
+        }
+      }
+    }
   });
+  if(filasConAjustePDF.size>0){
+    const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : startY;
+    doc.setFontSize(8);
+    doc.setTextColor(59,109,17);
+    doc.text("* Incluye un abono a capital extra además de la cuota normal.", 14, finalY+6);
+    doc.setTextColor(0,0,0);
+  }
   return doc;
 }
 function compartirAmortizacionPDF(prestamoId){
@@ -2920,6 +3001,17 @@ function viewTabbar(){
       ${ICONS[icon]}<span>${label}</span>
     </button>`).join("")}</div>`;
 }
+
+// Antes de salir de la app (cerrar la pestaña, recargar, o navegar a otra página) el
+// navegador muestra su propio aviso de "¿Seguro que quieres salir?". No se puede cambiar el
+// texto de ese aviso (los navegadores lo bloquean por seguridad, para que un sitio no pueda
+// poner un mensaje falso/engañoso), pero sí se puede activar que aparezca. Aplica igual
+// estando en cualquier pantalla o formulario de la app, no solo en la lista principal.
+window.addEventListener("beforeunload", function(e){
+  e.preventDefault();
+  e.returnValue = "";
+  return "";
+});
 
 render();
 </script>
