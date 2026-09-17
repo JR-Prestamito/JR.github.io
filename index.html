@@ -2340,7 +2340,14 @@ function guardarRefinanciamiento(){
         metodoAnterior: origen.metodo, cuotasAnterior: origen.cuotas,
         capitalNuevo: nuevoCapital, tasaNueva: f.tasa, periodoNuevo: f.periodo,
         metodoNuevo: f.metodo, cuotasNuevo: esIndef?0:Number(f.cuotas),
-        enganche, adicional, diffPct: evalNIF.diffPct, gananciaPerdida: evalNIF.gananciaPerdida
+        enganche, adicional, diffPct: evalNIF.diffPct, gananciaPerdida: evalNIF.gananciaPerdida,
+        // Guardamos el historial de pagos/ajustes de ANTES de este refinanciamiento solo
+        // como respaldo/auditoría. capitalPendiente (arriba) YA restó todo lo abonado hasta
+        // hoy para calcular nuevoCapital, así que ese historial no debe seguir contando
+        // contra la tabla nueva (si se dejara, el mismo pago quedaría acreditado dos veces:
+        // una al calcular capitalPendiente y otra al recalcular la tabla — esto es justo lo
+        // que causaba que un pago viejo apareciera como "abono a la primera cuota" nueva).
+        pagosPrevios: origen.pagos || [], ajustesPrevios: origen.ajustesCapital || []
       });
       origen.capital = nuevoCapital;
       origen.tasa = f.tasa;
@@ -2348,6 +2355,8 @@ function guardarRefinanciamiento(){
       origen.metodo = f.metodo;
       origen.cuotas = esIndef?0:Number(f.cuotas);
       origen.fechaInicio = f.fechaInicio;
+      origen.pagos = [];
+      origen.ajustesCapital = [];
       window._rf = null;
       state.seleccionId = origen.id;
       state.vista = "detalle";
