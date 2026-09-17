@@ -550,8 +550,145 @@ function generarTabla(p){
   }
   return filas;
 }
+// --- Motor dinámico de abono a capital ---
+// generarTabla() de arriba genera la tabla "de fábrica" del préstamo (como si se pagara
+// exactamente a tiempo, sin abonos). Cuando el cliente hace un abono a capital, en vez de
+// solo sumar ese dinero al acumulado y "tachar" cuotas futuras de esa tabla original (lo
+// cual cobra de más porque usa montos de interés que ya no corresponden al saldo real),
+// esta función reconstruye la tabla tomando en cuenta el saldo REAL en el momento de cada
+// abono (guardado en p.ajustesCapital, cada uno como {despuesDeFila, monto, fecha}) y
+// aplica la regla de negocio según el método:
+//   - Francés / Tasa plana: la cuota (o el abono fijo, en tasa plana) NO cambia; se
+//     recalculan cuántas cuotas hacen falta para terminar de pagar el saldo nuevo. Así el
+//     préstamo se acorta.
+//   - Alemán: se mantienen las mismas cuotas restantes (misma fecha final) y se recalcula
+//     el abono fijo dividiendo el saldo nuevo entre esas cuotas restantes. Así la cuota
+//     baja, sin importar qué tan grande sea el abono (esto corrige el caso límite donde un
+//     abono grande acortaba el plazo en vez de solo bajar la cuota).
+//   - Capital al final / Indefinido: mismo plazo, el interés periódico se recalcula sobre
+//     el saldo nuevo (baja de inmediato).
+//   - Sistema Americano (puro): no hay cuotas periódicas; el abono reduce el saldo desde
+//     esa fecha en adelante, así que el interés simple acumulado y el pago único final bajan.
+// Si un préstamo no tiene ajustes (p.ajustesCapital vacío o ausente) esta función produce
+// exactamente la misma tabla que generarTabla(), así que es segura para préstamos viejos.
+function generarTablaDinamica(p){
+  const capitalOriginal = Number(p.capital)||0;
+  const tasa = (Number(p.tasa)||0)/100;
+  const dias = DIAS_PERIODO[p.periodo] || 30;
+  const offsetDia1 = (state.config.contarDiaInicio !== false) ? 1 : 0;
+  const metodo = p.metodo;
+  const esIndef = metodo === METODOS[5];
+  const nOriginal = Number(p.cuotas)||0;
+  const ajustes = (p.ajustesCapital||[]).slice().sort((a,b)=>a.despuesDeFila-b.despuesDeFila);
+
+  if(metodo === METODOS[4] && ajustes.length){
+    // Sistema Americano (puro): nada se paga hasta el final; cada abono recalcula el
+    // interés simple pendiente sobre el saldo vigente desde ese punto en adelante.
+    let saldoSeg = capitalOriginal, desdeFila = 0, interesAcum = 0;
+    for(const aj of ajustes){
+      interesAcum += saldoSeg*tasa*(aj.despuesDeFila-desdeFila);
+      saldoSeg = round2(Math.max(0, saldoSeg-(Number(aj.monto)||0)));
+      desdeFila = aj.despuesDeFila;
+    }
+    const filas = [];
+    for(let i=1;i<=nOriginal;i++){
+      const esUltima = i===nOriginal;
+      const interes = esUltima ? round2(interesAcum + saldoSeg*tasa*(nOriginal-desdeFila)) : 0;
+      const abono = esUltima ? saldoSeg : 0;
+      const cuota = round2(interes+abono);
+      filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i - offsetDia1), saldoInicial:capitalOriginal, cuota, interes, abono, saldo: esUltima?0:capitalOriginal});
+    }
+    return filas;
+  }
+  if(!ajustes.length) return generarTabla(p); // sin abonos registrados: comportamiento idéntico al de siempre
+
+  let saldo = capitalOriginal;
+  let nTotalVigente = nOriginal;               // Francés / Tasa plana: puede acortarse
+  let cuotaFijaVigente = null;                  // Francés
+  let abonoFijoVigente = null;                  // Alemán / Tasa plana
+  let interesFijoVigente = null;                // Tasa plana / Capital al final / Indefinido
+
+  if(metodo===METODOS[0]){
+    cuotaFijaVigente = nOriginal===0?0:(tasa===0? capitalOriginal/nOriginal : (capitalOriginal*tasa)/(1-Math.pow(1+tasa,-nOriginal)));
+  } else if(metodo===METODOS[1]){
+    abonoFijoVigente = nOriginal===0?0: capitalOriginal/nOriginal;
+  } else if(metodo===METODOS[2]){
+    interesFijoVigente = capitalOriginal*tasa;
+    abonoFijoVigente = nOriginal===0?0: capitalOriginal/nOriginal;
+  } else if(metodo===METODOS[3] || esIndef){
+    interesFijoVigente = capitalOriginal*tasa;
+  }
+
+  // Recalcula los parámetros vigentes (cuota fija / abono fijo / interés fijo / plazo) a
+  // partir del saldo que queda DESPUÉS de una fila que tuvo abono extra — para que las
+  // filas siguientes usen el saldo ya reducido. "filaActual" es la fila que se acaba de
+  // generar (donde cayó el abono extra), y "saldo" en ese momento ya incluye tanto el
+  // abono programado de esa fila como el abono extra sumado en ella.
+  function recalcularVigente(filaActual){
+    if(metodo===METODOS[0]){
+      if(saldo<=0.01){ nTotalVigente = filaActual; }
+      else if(tasa===0){
+        nTotalVigente = filaActual + Math.max(1, Math.ceil(saldo/cuotaFijaVigente));
+      } else {
+        const raw = -Math.log(1 - (saldo*tasa)/cuotaFijaVigente) / Math.log(1+tasa);
+        nTotalVigente = filaActual + Math.max(1, Math.ceil(raw - 1e-9));
+      }
+    } else if(metodo===METODOS[1]){
+      const nRestante = nTotalVigente - filaActual;
+      abonoFijoVigente = nRestante>0 ? round2(saldo/nRestante) : 0;
+    } else if(metodo===METODOS[2]){
+      nTotalVigente = abonoFijoVigente>0 ? filaActual + Math.max(1, Math.ceil(saldo/abonoFijoVigente - 1e-9)) : filaActual;
+    } else if(metodo===METODOS[3] || esIndef){
+      interesFijoVigente = round2(saldo*tasa);
+    }
+  }
+
+  const filas = [];
+  // Para Indefinido el tope es "cuántas filas mostrar" (no hay plazo real); para los demás
+  // métodos el propio nTotalVigente (que puede cambiar sobre la marcha) marca el tope.
+  const totalFilasIndef = esIndef ? Math.max((p.pagos||[]).length + 4, 6) : 0;
+  let idxAj = 0;
+  for(let i=1; i<=(esIndef?totalFilasIndef:9999); i++){
+    if(!esIndef && i>nTotalVigente) break;
+    const saldoInicial = saldo;
+    let interes, abonoProgramado;
+    if(metodo===METODOS[0]){
+      interes = round2(saldo*tasa);
+      abonoProgramado = (i===nTotalVigente) ? saldo : round2(cuotaFijaVigente-interes);
+    } else if(metodo===METODOS[1]){
+      interes = round2(saldo*tasa);
+      abonoProgramado = (i===nTotalVigente) ? saldo : abonoFijoVigente;
+    } else if(metodo===METODOS[2]){
+      abonoProgramado = (i===nTotalVigente) ? saldo : abonoFijoVigente;
+      interes = interesFijoVigente;
+    } else if(metodo===METODOS[3]){
+      const esUltima = i===nTotalVigente;
+      abonoProgramado = esUltima ? saldo : 0;
+      interes = interesFijoVigente;
+    } else { // Indefinido
+      interes = interesFijoVigente;
+      abonoProgramado = 0;
+    }
+    // Si en esta fila cayó un abono a capital extra (ajustesCapital), se suma AQUÍ, al
+    // abono de esta misma fila — así se ve reflejado donde realmente se pagó, no hasta la
+    // fila siguiente. El saldo de esta fila baja de inmediato con ese extra incluido.
+    let abono = abonoProgramado;
+    let huboAjuste = false;
+    while(idxAj<ajustes.length && ajustes[idxAj].despuesDeFila===i){
+      abono = round2(Math.min(saldoInicial, abono + (Number(ajustes[idxAj].monto)||0)));
+      huboAjuste = true;
+      idxAj++;
+    }
+    const cuota = round2(interes+abono);
+    const nuevoSaldo = round2(Math.max(0, saldoInicial-abono));
+    filas.push({n:i, fecha:addDays(p.fechaInicio, dias*i - offsetDia1), saldoInicial, cuota, interes, abono, saldo: nuevoSaldo});
+    saldo = nuevoSaldo;
+    if(huboAjuste) recalcularVigente(i);
+  }
+  return filas;
+}
 function resumen(p){
-  const tabla = generarTabla(p);
+  const tabla = generarTablaDinamica(p);
   const esIndef = p.metodo === METODOS[5];
   const capital = Number(p.capital)||0, tasa=(Number(p.tasa)||0)/100;
   const pagos = p.pagos || [];
@@ -866,7 +1003,7 @@ function render(){
   const titles = {inicio:"Resumen", clientes:"Clientes", prestamos:"Préstamos", pagos:"Historial de pagos"};
   let html = `<header><div style="display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:center;">`;
-  if(state.tab==="prestamos" && (state.vista==="detalle" || state.vista==="cartera" || state.vista==="refinanciar" || state.vista==="colaRecordatorio")){
+  if(state.tab==="prestamos" && (state.vista==="detalle" || state.vista==="cartera" || state.vista==="refinanciar")){
     html += `<button class="backbtn" onclick="volverLista()">‹</button>`;
   }
   if(state.tab==="pagos" && state.vista==="recibo"){
@@ -878,6 +1015,9 @@ function render(){
   if(state.tab==="inicio" && state.vista==="estadoResultados"){
     html += `<button class="backbtn" onclick="state.vista='ajustes'; render();">‹</button>`;
   }
+  if(state.tab==="inicio" && state.vista==="reporteModificaciones"){
+    html += `<button class="backbtn" onclick="state.vista='ajustes'; render();">‹</button>`;
+  }
   if(state.tab==="inicio" && state.vista==="ajustesClave"){
     html += `<button class="backbtn" onclick="state.vista='lista'; render();">‹</button>`;
   }
@@ -887,8 +1027,9 @@ function render(){
   const tituloAjustes = state.tab==="inicio" && (state.vista==="ajustes"||state.vista==="ajustesClave") ? "Ajustes" : null;
   const tituloReporte = state.tab==="inicio" && state.vista==="reportePDF" ? "Reporte para PDF" : null;
   const tituloResultados = state.tab==="inicio" && state.vista==="estadoResultados" ? "Estado de resultados" : null;
+  const tituloModificaciones = state.tab==="inicio" && state.vista==="reporteModificaciones" ? "Modificaciones y refinanciamientos" : null;
   document.title = nombreApp();
-  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="prestamos"&&state.vista==="colaRecordatorio"?"Enviar recordatorios":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloAjustes||titles[state.tab]))))}</h1></div>
+  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloAjustes||titles[state.tab])))}</h1></div>
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
     html += `<button class="backbtn" style="margin-right:0;" title="Ajustes" onclick="abrirAjustes()">${ICONS.settings}</button>`;
@@ -1170,6 +1311,7 @@ function generarReportePDF(){
   let prestado=0, cobrado=0;
   state.prestamos.forEach(p=>{
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0);
+    (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
     cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
   });
   const { jsPDF } = window.jspdf;
@@ -1230,6 +1372,7 @@ function viewReportePDF(){
   let prestado=0, cobrado=0;
   state.prestamos.forEach(p=>{
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0);
+    (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
     cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
   });
   const filas = state.prestamos.map(p=>{
@@ -1357,6 +1500,87 @@ function viewEstadoResultados(){
     </div>`;
 }
 
+function abrirReporteModificaciones(){
+  state.tab = "inicio";
+  state.vista = "reporteModificaciones";
+  render();
+}
+// Junta en una sola lista, ordenada por fecha, TODOS los eventos de refinanciamiento y
+// modificación registrados: tanto los "sustanciales" (que crean un préstamo nuevo — se
+// identifican porque el préstamo nuevo trae p.refinanciaDe) como los "no sustanciales"
+// (que ajustan el mismo préstamo — quedan guardados en su arreglo p.modificaciones).
+function listaModificaciones(){
+  const eventos = [];
+  state.prestamos.forEach(p=>{
+    const cli = state.clientes.find(c=>c.id===p.clienteId);
+    if(p.refinanciaDe){
+      const origen = state.prestamos.find(x=>x.id===p.refinanciaDe);
+      eventos.push({
+        fecha: p.fechaInicio, codigo: p.codigo, codigoOrigen: origen?origen.codigo:"—",
+        cliente: cli?cli.nombre:"—", tipo: "sustancial",
+        capitalAntes: origen?origen.capital:null, capitalDespues: p.capital,
+        tasaAntes: origen?origen.tasa:null, tasaDespues: p.tasa,
+        enganche: Number(p.engancheAlRefinanciar)||0, adicional: Number(p.adicionalAlRefinanciar)||0,
+        gananciaPerdida: Number(p.gananciaPerdidaModificacionNIF)||0
+      });
+    }
+    (p.modificaciones||[]).forEach(m=>{
+      eventos.push({
+        fecha: m.fecha, codigo: p.codigo, codigoOrigen: p.codigo,
+        cliente: cli?cli.nombre:"—", tipo: "no_sustancial",
+        capitalAntes: m.capitalAnterior, capitalDespues: m.capitalNuevo,
+        tasaAntes: m.tasaAnterior, tasaDespues: m.tasaNueva,
+        enganche: Number(m.enganche)||0, adicional: Number(m.adicional)||0,
+        gananciaPerdida: Number(m.gananciaPerdida)||0
+      });
+    });
+  });
+  eventos.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||""));
+  return eventos;
+}
+function viewReporteModificaciones(){
+  const eventos = listaModificaciones();
+  const totalGanancia = eventos.reduce((s,e)=>s+e.gananciaPerdida,0);
+  const totalSustanciales = eventos.filter(e=>e.tipo==="sustancial").length;
+  const totalNoSustanciales = eventos.filter(e=>e.tipo==="no_sustancial").length;
+  const filas = eventos.map(e=>`<tr style="border-top:1px solid #f0ede6;">
+      <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}${e.tipo==="sustancial"&&e.codigoOrigen!=="—"?` <span style="color:#888;font-size:11px;">(de ${e.codigoOrigen})</span>`:""}</td>
+      <td style="padding:5px 6px;">${e.cliente}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${e.tipo==="sustancial"?"Sustancial":"No sustancial"}</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.capitalAntes!=null?money(e.capitalAntes):"—"} → ${money(e.capitalDespues)}</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.tasaAntes!=null?e.tasaAntes+"%":"—"} → ${e.tasaDespues}%</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;${e.gananciaPerdida>=0?"color:#3B6D11":"color:#c0433b"}">${e.gananciaPerdida!==0?money(e.gananciaPerdida):"—"}</td>
+    </tr>`).join("");
+  return `
+    <div id="reporte-imprimible">
+      <h2>${nombreApp().toUpperCase()}</h2>
+      <p class="hint" style="margin:0 0 14px;">Reporte de modificaciones y refinanciamientos (NIF C-19) · ${fmtDate(hoyISO())}</p>
+      ${eventos.length===0 ? `<p class="hint">Todavía no se ha refinanciado ni modificado ningún préstamo.</p>` : `
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="border-bottom:2px solid #d8d3c8;font-weight:700;">
+          <td style="padding:5px 6px;">Fecha</td><td style="padding:5px 6px;">Préstamo</td><td style="padding:5px 6px;">Cliente</td>
+          <td style="padding:5px 6px;">Clasificación</td><td style="padding:5px 6px;text-align:right;">Capital antes → después</td>
+          <td style="padding:5px 6px;text-align:right;">Tasa antes → después</td><td style="padding:5px 6px;text-align:right;">Ganancia/(pérdida)</td>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:14px;border-top:2px solid #1B2A4A;">
+        <tr><td style="padding:8px 6px;">Modificaciones sustanciales (préstamo nuevo)</td><td style="padding:8px 6px;text-align:right;">${totalSustanciales}</td></tr>
+        <tr><td style="padding:8px 6px;">Modificaciones NO sustanciales (mismo préstamo)</td><td style="padding:8px 6px;text-align:right;">${totalNoSustanciales}</td></tr>
+        <tr><td style="padding:8px 6px;font-weight:700;">${totalGanancia>=0?"Ganancia":"Pérdida"} neta por modificaciones</td>
+        <td style="padding:8px 6px;text-align:right;font-weight:700;color:${totalGanancia>=0?"#3B6D11":"#c0433b"};">${money(Math.abs(totalGanancia))}</td></tr>
+      </table>`}
+      <p class="hint" style="margin-top:14px;">Reúne todos los refinanciamientos y modificaciones de condiciones registrados, con su clasificación NIF C-19 (sustancial o no sustancial) y la ganancia o pérdida reconocida en cada uno. Es el detalle/respaldo de la línea "Ganancia/(pérdida) por modificación de préstamos" del Estado de resultados.</p>
+    </div>
+    <div class="flexrow" style="margin-top:16px;">
+      <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
+      <button class="btn btn-gold" onclick="window.print()">Generar PDF (imprimir)</button>
+    </div>`;
+}
+
 async function subirNube(silencioso){
   const url = (state.config.syncUrl||"").trim();
   const key = (state.config.syncKey||"").trim();
@@ -1423,12 +1647,14 @@ async function _descargarNubeInterna(url, key){
 function viewInicio(){
   if(state.vista==="reportePDF") return viewReportePDF();
   if(state.vista==="estadoResultados") return viewEstadoResultados();
+  if(state.vista==="reporteModificaciones") return viewReporteModificaciones();
   if(state.vista==="ajustesClave") return viewAjustesClave();
   if(state.vista==="ajustes") return viewAjustes();
   let prestado=0, cobrado=0, activos=0, vencidos=0;
   state.prestamos.forEach(p=>{
     const r = resumen(p);
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0);
+    (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
     cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
     if(r.estado==="Activo"){ activos++; if(r.proximaFecha && diasAtraso(r.proximaFecha)>0) vencidos++; }
   });
@@ -1447,7 +1673,6 @@ function viewInicio(){
   <p class="section-title" style="margin-top:16px;">Próximos a vencer</p>`;
 
   if(prox.length===0) html += `<p class="empty">${state.prestamos.length===0 ? "Todavía no tienes préstamos registrados." : "No tienes cuotas por cobrar hoy ni mañana."}</p>`;
-  else html += `<button class="btn btn-outline" style="margin-bottom:12px;" onclick="iniciarColaRecordatorios('pendientes')">Enviar recordatorios a estos pendientes</button>`;
   prox.forEach(({p,r})=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
     html += `<div class="row-card" style="cursor:pointer;" onclick="verDetalle('${p.id}')"><div><p class="name">${cli?cli.nombre:"—"}</p><p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p></div>${badge("Por cobrar")}</div>`;
@@ -1564,18 +1789,6 @@ function viewAjustes(){
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
-    <p style="font-weight:600;margin:0 0 4px;">Qué WhatsApp usar al enviar</p>
-    <p class="hint" style="margin:0 0 10px;">Si en tu celular tienes instalado WhatsApp normal y WhatsApp Business, aquí eliges cuál se abre al enviar un recordatorio. <b>Esto solo se puede forzar en Android.</b> En iPhone siempre se abrirá el que tengas puesto como predeterminado en los ajustes del celular, sin importar lo que elijas aquí.</p>
-    <label style="margin-bottom:0;"><span>Abrir con</span>
-      <select id="f_appWhatsapp" onchange="state.config.appWhatsapp=this.value; save(); render();">
-        <option value="auto" ${(!state.config.appWhatsapp||state.config.appWhatsapp==="auto")?"selected":""}>El predeterminado del celular</option>
-        <option value="normal" ${state.config.appWhatsapp==="normal"?"selected":""}>WhatsApp normal (Android)</option>
-        <option value="business" ${state.config.appWhatsapp==="business"?"selected":""}>WhatsApp Business (Android)</option>
-      </select>
-    </label>
-  </div>`}
-  ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Cómo contar los días del plazo</p>
     <p class="hint" style="margin:0 0 10px;">Ejemplo con préstamo semanal iniciado un miércoles: con "Contar desde el día 1" la primera cuota cae el próximo martes (7 días contando el miércoles como día 1). Con "Estándar" cae el miércoles siguiente (7 días completos después, sin contar el día del préstamo).</p>
     <label style="margin-bottom:0;"><span>Fechas de cuota</span>
@@ -1635,6 +1848,7 @@ function viewAjustes(){
     </div>
     <div class="flexrow" style="margin-top:8px;">
       <button class="btn btn-outline" onclick="abrirEstadoResultados()">Estado de resultados</button>
+      <button class="btn btn-outline" onclick="abrirReporteModificaciones()">Modificaciones (NIF C-19)</button>
     </div>
   </div>
   <div class="row-card" style="display:block;">
@@ -1775,7 +1989,6 @@ function viewPrestamos(){
   if(state.vista==="detalle") return viewDetallePrestamo();
   if(state.vista==="cartera") return viewCartera();
   if(state.vista==="refinanciar") return viewRefinanciar();
-  if(state.vista==="colaRecordatorio") return viewColaRecordatorio();
 
   let html = `<div class="toprow" style="margin-bottom:16px;">
     <input id="buscarPrestamo" style="flex:1;" placeholder="Buscar préstamo o cliente" value="${state.qPrestamos}" oninput="state.qPrestamos=this.value; render()">
@@ -1803,7 +2016,7 @@ function viewPrestamos(){
   return html;
 }
 function verDetalle(id){ state.tab="prestamos"; state.seleccionId=id; state.vista="detalle"; render(); }
-function volverLista(){ state.vista="lista"; state._cola=null; render(); }
+function volverLista(){ state.vista="lista"; render(); }
 function verCartera(){ state.tab="prestamos"; state.vista="cartera"; render(); }
 
 const PLANTILLA_RECORDATORIO_DEFECTO = "Hola {nombre}, su préstamo {codigo} tiene una cuota de {cuota} vencida desde el {fecha} ({dias} de atraso). Le agradecemos ponerse al día lo antes posible. Cualquier duda, con gusto le atendemos. ¡Gracias!";
@@ -1835,8 +2048,11 @@ function calcularPendiente(p, r){
   let monto = r.faltaEnCuotaActual || r.cuota || 0;
   let mora = 0;
   if(r.proximaFecha && tasaMora>0 && diasAtr>0){
-    const cuotaRef = r.cuotaActual ? r.cuotaActual.cuota : r.cuota;
-    mora += round2(cuotaRef*tasaMora/100*diasAtr);
+    // La mora se cobra sobre lo que REALMENTE falta de la cuota, no sobre su monto original.
+    // Si el cliente ya abonó parte de esa cuota (r.faltaEnCuotaActual), esa parte ya la pagó —
+    // cobrarle mora sobre el monto completo la cobraría dos veces sobre dinero que ya entregó.
+    const baseMora = r.cuotaActual ? (r.faltaEnCuotaActual || 0) : (r.cuota||0);
+    mora += round2(baseMora*tasaMora/100*diasAtr);
   }
   for(let i=1;i<nVenc;i++){
     const fila = r.tabla[r.pagosHechos+i];
@@ -1872,120 +2088,17 @@ function mensajeRecordatorio(p, cli, r, atraso){
     .replace(/\{dias\}/g, `${atraso} día${atraso===1?"":"s"}`)
     .replace(/\{negocio\}/g, nombreApp());
 }
-function esAndroid(){
-  return /Android/i.test((navigator.userAgent||""));
-}
 function linkWhatsapp(cli, mensaje){
   if(!cli || !cli.celular) return null;
   const digitos = soloDigitos(cli.celular);
   if(digitos.length!==8) return null;
-  const telefono = `504${digitos}`;
-  const texto = encodeURIComponent(mensaje);
-  const appElegida = state.config.appWhatsapp || "auto";
-  // Forzar una app específica (normal/business) solo es posible en Android, usando
-  // un enlace "intent://" con el paquete exacto. En iPhone no existe esa opción:
-  // siempre se abre la que el celular tenga puesta como predeterminada.
-  if(appElegida!=="auto" && esAndroid()){
-    const paquete = appElegida==="business" ? "com.whatsapp.w4b" : "com.whatsapp";
-    return `intent://send?phone=${telefono}&text=${texto}#Intent;scheme=whatsapp;package=${paquete};end`;
-  }
-  return `https://wa.me/${telefono}?text=${texto}`;
+  return `https://wa.me/504${digitos}?text=${encodeURIComponent(mensaje)}`;
 }
 function linkSms(cli, mensaje){
   if(!cli || !cli.celular) return null;
   const digitos = soloDigitos(cli.celular);
   if(digitos.length!==8) return null;
   return `sms:+504${digitos}?&body=${encodeURIComponent(mensaje)}`;
-}
-
-// ── Envío masivo de recordatorios (manual, uno por uno con un solo toque) ────
-// WhatsApp no permite mandar mensajes a varios contactos con un solo clic real
-// (eso solo existe con la API de WhatsApp Business, de pago y con plantillas
-// aprobadas). Esta cola arma la lista completa y, con un toque en cada tarjeta,
-// abre WhatsApp ya con el mensaje escrito y pasa sola al siguiente cliente.
-function construirColaRecordatorios(tipo){
-  const base = state.prestamos.map(p=>({p, r:resumen(p)}))
-    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && (
-      tipo==="vencidos" ? diasAtraso(x.r.proximaFecha)>0 : [0,1].includes(diasParaVencer(x.r.proximaFecha))
-    ));
-  const items = [];
-  let sinNumero = 0;
-  base.forEach(({p,r})=>{
-    const cli = state.clientes.find(c=>c.id===p.clienteId);
-    const atraso = tipo==="vencidos" ? diasAtraso(r.proximaFecha) : 0;
-    const mensaje = tipo==="vencidos" ? mensajeRecordatorio(p, cli, r, atraso) : mensajePendiente(p, cli, r);
-    const link = linkWhatsapp(cli, mensaje);
-    if(!link){ sinNumero++; return; }
-    items.push({
-      prestamoId: p.id,
-      nombre: cli ? cli.nombre : "Cliente eliminado",
-      codigo: p.codigo,
-      cuota: money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota),
-      link
-    });
-  });
-  return { items, sinNumero };
-}
-function iniciarColaRecordatorios(tipo){
-  const { items, sinNumero } = construirColaRecordatorios(tipo);
-  if(items.length===0){
-    mostrarConfirmacion(sinNumero>0
-      ? `Ninguno de los ${sinNumero} cliente(s) tiene un celular válido registrado (8 dígitos). Agrégalo en la ficha de cada cliente para poder enviarle recordatorio.`
-      : "No hay cuotas para recordar en este momento.",
-      function(){}, { textoCancelar:"Cerrar", textoAceptar:"Entendido" });
-    return;
-  }
-  state._cola = { tipo, items, idx:0, enviados:0, sinNumero };
-  state.tab = "prestamos";
-  state.vista = "colaRecordatorio";
-  render();
-}
-function marcarEnviadoYSiguiente(){
-  const cola = state._cola;
-  if(!cola) return;
-  cola.enviados = (cola.enviados||0) + 1;
-  cola.idx++;
-  render();
-}
-function omitirEnvioActual(){
-  const cola = state._cola;
-  if(!cola) return;
-  cola.idx++;
-  render();
-}
-function salirDeColaRecordatorios(){
-  mostrarConfirmacion("¿Salir del envío masivo? Los que faltan en la lista no se marcarán como enviados.", function(ok){
-    if(ok){ state._cola = null; state.vista = "lista"; render(); }
-  });
-}
-function viewColaRecordatorio(){
-  const cola = state._cola;
-  if(!cola || !cola.items || cola.items.length===0){
-    return `<p class="empty">No hay recordatorios pendientes de enviar.</p>
-      <button class="btn btn-outline" style="margin-top:12px;" onclick="state._cola=null; state.vista='lista'; render();">Volver</button>`;
-  }
-  const total = cola.items.length;
-  const actual = cola.items[cola.idx];
-
-  if(!actual){
-    return `<div class="card" style="background:#EAF3DE;margin-bottom:16px;">
-        <p style="margin:0;font-weight:600;">Terminaste de repasar la lista.</p>
-        <p class="hint" style="margin:6px 0 0;">${cola.enviados} enviado(s) de ${total}${cola.sinNumero?`, ${cola.sinNumero} sin celular registrado (no se incluyeron)`:""}.</p>
-      </div>
-      <button class="btn btn-gold" onclick="state._cola=null; state.vista='lista'; render();">Listo</button>`;
-  }
-
-  return `
-    <p class="hint" style="margin:0 0 14px;">Enviando ${cola.idx+1} de ${total}${cola.sinNumero?` · ${cola.sinNumero} sin celular (no incluidos)`:""}. Cada tarjeta abre WhatsApp con el mensaje ya escrito — solo debes presionar enviar allá y esta app pasa sola al siguiente.</p>
-    <div class="card" style="margin-bottom:16px;">
-      <p class="name" style="margin:0 0 4px;">${actual.nombre}</p>
-      <p class="sub" style="margin:0 0 14px;">${actual.codigo} · ${actual.cuota}</p>
-      <a class="btn btn-gold" style="text-decoration:none;display:block;text-align:center;box-sizing:border-box;" href="${actual.link}" target="_blank" rel="noopener" onclick="setTimeout(marcarEnviadoYSiguiente,400)">Abrir WhatsApp y enviar</a>
-    </div>
-    <div class="flexrow">
-      <button class="btn btn-outline" onclick="omitirEnvioActual()">Omitir este</button>
-      <button class="btn btn-danger" onclick="salirDeColaRecordatorios()">Salir</button>
-    </div>`;
 }
 function viewCartera(){
   const vencidos = state.prestamos.map(p=>({p, r:resumen(p)}))
@@ -2007,7 +2120,6 @@ function viewCartera(){
   ];
 
   html += `<p class="hint" style="margin:0 0 12px;">${vencidos.length} préstamo(s) con cuotas vencidas, agrupados por días de atraso. Toca uno para ver el préstamo y registrar el pago.</p>`;
-  html += `<button class="btn btn-gold" style="margin-bottom:16px;" onclick="iniciarColaRecordatorios('vencidos')">Enviar recordatorios a todos los vencidos</button>`;
 
   grupos.forEach(g=>{
     const enGrupo = vencidos.filter(x=> x.atraso>=g.min && x.atraso<=g.max);
@@ -2333,7 +2445,7 @@ function viewDetallePrestamo(){
         <input type="text" inputmode="decimal" id="montoPago" value="${moraCalc>0 ? round2(sugerido+moraCalc).toFixed(2) : ""}" placeholder="${sugerido.toFixed(2)}">
         <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarPago('${p.id}')">Pagar</button>
       </div>
-      <p class="hint">${nVenc>1 ? `El monto sugerido ya incluye las ${nVenc} cuotas vencidas${moraCalc>0?" y la mora":""}.` : (moraCalc>0 ? "El monto ya incluye la mora; desmarca la casilla para dejar solo la cuota." : "Déjalo vacío para pagar lo sugerido.")} Un monto menor queda como abono parcial a la cuota.${(r.proximaFecha && hoyISO()===r.proximaFecha) ? ' Como hoy es el día que corresponde a esta cuota, si pagas de más (después de completarla), el excedente se registra como <b>abono a capital</b>.' : ' Los abonos a capital solo se pueden registrar el día exacto en que corresponde el pago de la cuota' + (r.proximaFecha? ' ('+fmtDate(r.proximaFecha)+')':'') + '; por ahora solo puedes pagar hasta el monto de la cuota.'}</p>
+      <p class="hint">${nVenc>1 ? `El monto sugerido ya incluye las ${nVenc} cuotas vencidas${moraCalc>0?" y la mora":""}.` : (moraCalc>0 ? "El monto ya incluye la mora; desmarca la casilla para dejar solo la cuota." : "Déjalo vacío para pagar lo sugerido.")} Un monto menor queda como abono parcial a la cuota. Si pagas de más (después de completarla), el excedente se registra como <b>abono a capital</b> — se puede hacer cualquier día.</p>
     </div>
     ${esBullet ? `
     <div class="row-card" style="display:block;">
@@ -2585,16 +2697,10 @@ function registrarPago(id){
   if(!montoIngresado || montoIngresado<=0) return;
   const montoSinMora = round2(Math.max(0, montoIngresado - mora));
 
-  // Un abono a capital (pagar más de lo que falta para completar la cuota actual) solo se
-  // permite el día exacto que corresponde al pago de esa cuota, y solo después de dejar la
-  // cuota completamente cubierta (en cero). Cualquier otro día, se corre igual como antes,
-  // pero el excedente sobre la cuota no se acepta como abono a capital.
-  const esFechaCuota = !!(r.proximaFecha && hoyISO() === r.proximaFecha);
+  // Un abono a capital es pagar más de lo que falta para completar la cuota actual (después
+  // de dejarla en cero). Antes esto solo se permitía el día exacto de la cuota; ahora se
+  // acepta cualquier día, para poder recibir abonos adelantados cuando el cliente se acerque.
   const excedente = round2(Math.max(0, montoSinMora - sugerido));
-  if(excedente > 0.01 && !esFechaCuota){
-    mostrarAlerta(`Un abono a capital solo se puede registrar el día exacto en que corresponde el pago de esta cuota${r.proximaFecha?` (${fmtDate(r.proximaFecha)})`:""}, y después de completarla.\n\nPor hoy, el monto máximo que puedes pagar en esta cuota es ${money(round2(sugerido+mora))}.`);
-    return;
-  }
 
   const montoCuota = excedente > 0.01 ? sugerido : montoSinMora;
   const total = montoIngresado;
@@ -2610,6 +2716,23 @@ function registrarPago(id){
     p.pagos.push({ id:uid(), fecha:fechaPago, monto:montoCuota, mora, tipo:"cuota" });
     if(excedente > 0.01){
       p.pagos.push({ id:uid(), fecha:fechaPago, monto:excedente, mora:0, tipo:"abono_capital" });
+      // Registrar el abono como un ajuste real de saldo (no solo un pago más), para que
+      // generarTablaDinamica() recalcule cuota/plazo según el método a partir de aquí.
+      // Si el abono alcanza para cubrir todo el saldo pendiente, se marca como liquidado
+      // en vez de dejar un ajuste que dejaría filas "fantasma" en cero.
+      const saldoAntes = r.capitalPendiente!=null ? r.capitalPendiente : Number(p.capital)||0;
+      if(round2(saldoAntes - excedente) <= 0.01){
+        p.liquidadoAnticipado = true;
+      } else {
+        // OJO: el ajuste debe aplicarse DESPUÉS de la(s) cuota(s) que se completan en este
+        // mismo pago (r.pagosHechos + pendiente.nVenc), no antes (r.pagosHechos a secas).
+        // Como excedente>0 implica que montoCuota=sugerido pagó exactamente esas nVenc
+        // cuotas completas, esta fila que se está pagando ya generó su interés — el abono
+        // a capital solo debe bajar el saldo de ahí en adelante, para la SIGUIENTE cuota.
+        // Aplicarlo antes (como se hacía) le restaba interés a una cuota ya devengada.
+        p.ajustesCapital = p.ajustesCapital || [];
+        p.ajustesCapital.push({ despuesDeFila: (r.pagosHechos||0) + pendiente.nVenc, monto: excedente, fecha: fechaPago });
+      }
     }
     save(); render();
     const r2 = resumen(p);
