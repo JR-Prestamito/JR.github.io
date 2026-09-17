@@ -1774,9 +1774,9 @@ function viewAjustes(){
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de recordatorio (WhatsApp / SMS)</p>
-    <p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p>
+    <p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{monto}</b> (total vencido, sumando todas las cuotas atrasadas y la mora si aplica), <b>{cuotas}</b> (cantidad de cuotas vencidas, ej. "2 cuotas"), <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p>
     <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="5" placeholder="${PLANTILLA_RECORDATORIO_DEFECTO}" oninput="state.config.mensajeRecordatorio=this.value; save(); render();">${state.config.mensajeRecordatorio||""}</textarea></label>
-    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3)}</p>
+    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3, {monto:3000, mora:90, nVenc:2})}</p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajeRecordatorio=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
@@ -2019,7 +2019,7 @@ function verDetalle(id){ state.tab="prestamos"; state.seleccionId=id; state.vist
 function volverLista(){ state.vista="lista"; render(); }
 function verCartera(){ state.tab="prestamos"; state.vista="cartera"; render(); }
 
-const PLANTILLA_RECORDATORIO_DEFECTO = "Hola {nombre}, su préstamo {codigo} tiene una cuota de {cuota} vencida desde el {fecha} ({dias} de atraso). Le agradecemos ponerse al día lo antes posible. Cualquier duda, con gusto le atendemos. ¡Gracias!";
+const PLANTILLA_RECORDATORIO_DEFECTO = "Hola {nombre}, su préstamo {codigo} tiene {cuotas} vencida(s) desde el {fecha} ({dias} de atraso), por un total de {monto}. Le agradecemos ponerse al día lo antes posible. Cualquier duda, con gusto le atendemos. ¡Gracias!";
 const PLANTILLA_PENDIENTE_DEFECTO = "Hola {nombre}, le recordamos que su préstamo {codigo} tiene una cuota de {cuota} pendiente de cobro, con fecha {fecha}. Cualquier duda, con gusto le atendemos. ¡Gracias!";
 function diasParaVencer(fecha){
   if(!fecha) return null;
@@ -2076,14 +2076,20 @@ function mensajePendiente(p, cli, r){
     .replace(/\{fecha\}/g, fmtDate(r.proximaFecha))
     .replace(/\{negocio\}/g, nombreApp());
 }
-function mensajeRecordatorio(p, cli, r, atraso){
+function mensajeRecordatorio(p, cli, r, atraso, pendiente){
   const cuota = money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota);
   const nombre = cli ? cli.nombre.split(" ")[0] : "";
+  pendiente = pendiente || { monto: r.cuotaActual ? r.cuotaActual.cuota : r.cuota, mora: 0, nVenc: 1 };
+  const montoTotal = money(round2((pendiente.monto||0) + (pendiente.mora||0)));
+  const nVenc = pendiente.nVenc||1;
+  const cuotasTexto = `${nVenc} cuota${nVenc===1?"":"s"}`;
   const plantilla = (state.config.mensajeRecordatorio || "").trim() || PLANTILLA_RECORDATORIO_DEFECTO;
   return plantilla
     .replace(/\{nombre\}/g, nombre)
     .replace(/\{codigo\}/g, p.codigo)
     .replace(/\{cuota\}/g, cuota)
+    .replace(/\{monto\}/g, montoTotal)
+    .replace(/\{cuotas\}/g, cuotasTexto)
     .replace(/\{fecha\}/g, fmtDate(r.proximaFecha))
     .replace(/\{dias\}/g, `${atraso} día${atraso===1?"":"s"}`)
     .replace(/\{negocio\}/g, nombreApp());
@@ -2418,7 +2424,7 @@ function viewDetallePrestamo(){
   const necesitaRecordatorio = r.estado==="Activo" && r.proximaFecha && (atraso>0 || diasFaltan===1 || diasFaltan===0);
   let waRec = null, smsRec = null;
   if(necesitaRecordatorio){
-    const mensajeRec = atraso>0 ? mensajeRecordatorio(p, cli, r, atraso) : mensajePendiente(p, cli, r);
+    const mensajeRec = atraso>0 ? mensajeRecordatorio(p, cli, r, atraso, pendiente) : mensajePendiente(p, cli, r);
     waRec = linkWhatsapp(cli, mensajeRec);
     smsRec = linkSms(cli, mensajeRec);
   }
@@ -2454,6 +2460,7 @@ function viewDetallePrestamo(){
         <input type="text" inputmode="decimal" id="montoPago" value="${moraCalc>0 ? round2(sugerido+moraCalc).toFixed(2) : ""}" placeholder="${sugerido.toFixed(2)}">
         <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarPago('${p.id}')">Pagar</button>
       </div>
+      <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#666;">Fecha del pago</span><input type="date" id="fechaPago" value="${hoyISO()}" max="${hoyISO()}"></label>
       <p class="hint">${nVenc>1 ? `El monto sugerido ya incluye las ${nVenc} cuotas vencidas${moraCalc>0?" y la mora":""}.` : (moraCalc>0 ? "El monto ya incluye la mora; desmarca la casilla para dejar solo la cuota." : "Déjalo vacío para pagar lo sugerido.")} Un monto menor queda como abono parcial a la cuota. Si pagas de más (después de completarla), el excedente se registra como <b>abono a capital</b> — se puede hacer cualquier día.</p>
     </div>
     ${esBullet ? `
@@ -2713,15 +2720,18 @@ function registrarPago(id){
 
   const montoCuota = excedente > 0.01 ? sugerido : montoSinMora;
   const total = montoIngresado;
+  const fEl0 = document.getElementById("fechaPago");
+  const fechaElegida = (fEl0 && fEl0.value) ? fEl0.value : hoyISO();
   const etiquetaCuota = pendiente.nVenc>1 ? `Cuotas vencidas (${pendiente.nVenc})` : "Cuota";
-  let msgConfirm = `¿Registrar este pago?\n\n${etiquetaCuota}: ${money(montoCuota)}`;
+  let msgConfirm = `¿Registrar este pago con fecha ${fmtDate(fechaElegida)}?\n\n${etiquetaCuota}: ${money(montoCuota)}`;
   if(excedente > 0.01) msgConfirm += `\nAbono a capital: ${money(excedente)}`;
   if(mora>0) msgConfirm += `\nMora: ${money(mora)}`;
   msgConfirm += `\nTotal: ${money(total)}`;
   mostrarConfirmacion(msgConfirm, function(ok){
     if(!ok) return;
     p.pagos = p.pagos || [];
-    const fechaPago = hoyISO();
+    const fEl = document.getElementById("fechaPago");
+    const fechaPago = (fEl && fEl.value) ? fEl.value : hoyISO();
     p.pagos.push({ id:uid(), fecha:fechaPago, monto:montoCuota, mora, tipo:"cuota" });
     if(excedente > 0.01){
       p.pagos.push({ id:uid(), fecha:fechaPago, monto:excedente, mora:0, tipo:"abono_capital" });
