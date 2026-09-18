@@ -1561,7 +1561,7 @@ function viewReportePDF(){
       </div>
       <div class="tabla-card">
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-      <table style="width:100%;min-width:100%;border-collapse:collapse;font-size:12px;">
+      <table style="width:100%;min-width:560px;border-collapse:collapse;font-size:12px;">
         <thead><tr style="background:#F5F3EE;">
           <th style="text-align:left;padding:5px 6px;">Código</th><th style="text-align:left;padding:5px 6px;">Cliente</th>
           <th style="text-align:left;padding:5px 6px;">Capital</th><th style="text-align:left;padding:5px 6px;">Estado</th>
@@ -1633,6 +1633,7 @@ function generarEstadoResultadosPDF(){
   const utilidad = ingresos - desembolsos + gananciaPerdidaModificaciones;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
+  const pageHeight = doc.internal.pageSize.getHeight();
   doc.setFontSize(14);
   doc.text(nombreApp(), 14, 16);
   doc.setFontSize(9);
@@ -1648,40 +1649,48 @@ function generarEstadoResultadosPDF(){
     ],
     foot: [["Total ingresos", money(ingresos)]],
     columnStyles: { 1: { halign: "right" } },
-    styles: { fontSize: 9, cellPadding: 3 },
+    styles: { fontSize: 9, cellPadding: 2 },
     headStyles: { fillColor: [27,42,74] },
     footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" }
   });
-  let startY = doc.lastAutoTable.finalY + 10;
+  let startY = doc.lastAutoTable.finalY + 8;
   doc.autoTable({
     startY,
     head: [["Egresos","Monto"]],
     body: [["Desembolsos (capital prestado)", money(desembolsos)]],
     foot: [["Total egresos", money(desembolsos)]],
     columnStyles: { 1: { halign: "right" } },
-    styles: { fontSize: 9, cellPadding: 3 },
+    styles: { fontSize: 9, cellPadding: 2 },
     headStyles: { fillColor: [27,42,74] },
     footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" }
   });
-  startY = doc.lastAutoTable.finalY + 10;
+  startY = doc.lastAutoTable.finalY + 8;
   if(gananciaPerdidaModificaciones !== 0){
     doc.autoTable({
       startY,
       head: [["Ganancia/(pérdida) por modificación de préstamos (NIF C-19)","Monto"]],
       body: [[gananciaPerdidaModificaciones>=0?"Ganancia por modificación":"Pérdida por modificación", money(gananciaPerdidaModificaciones)]],
       columnStyles: { 1: { halign: "right" } },
-      styles: { fontSize: 9, cellPadding: 3 },
+      styles: { fontSize: 9, cellPadding: 2 },
       headStyles: { fillColor: [27,42,74] }
     });
-    startY = doc.lastAutoTable.finalY + 10;
+    startY = doc.lastAutoTable.finalY + 8;
   }
   doc.autoTable({
     startY,
     body: [[`${utilidad>=0?"Utilidad":"Pérdida"} del período`, money(Math.abs(utilidad))]],
     columnStyles: { 1: { halign: "right", textColor: utilidad>=0?[59,109,17]:[192,67,59] } },
-    styles: { fontSize: 10, cellPadding: 4, fontStyle:"bold", fillColor:[245,243,238] }
+    styles: { fontSize: 10, cellPadding: 3, fontStyle:"bold", fillColor:[245,243,238] }
   });
   startY = doc.lastAutoTable.finalY + 8;
+  // La nota final es texto suelto (no una tabla), así que autoTable no la puede paginar sola:
+  // si ya no cabe en lo que queda de la página, hay que pasar a una nueva a mano, o el texto
+  // se queda escrito fuera del área visible/imprimible y parece que "falta" esa parte.
+  const notaAltura = 24; // alto aproximado reservado para la nota, en mm
+  if(startY + notaAltura > pageHeight - 10){
+    doc.addPage();
+    startY = 16;
+  }
   doc.setFontSize(7.5);
   doc.setTextColor(120,120,120);
   const nota = "Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como \"desembolso\" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo). Cuando un refinanciamiento se clasifica como \"modificación no sustancial\" (NIF C-19), la diferencia se reconoce aquí como ganancia o pérdida.";
@@ -1726,8 +1735,8 @@ function viewEstadoResultados(){
   const ingresos = interesesCobrados + capitalCobrado + moraCobrada + enganches;
   const utilidad = ingresos - desembolsos + gananciaPerdidaModificaciones;
   const fila = (label, valor, negrita)=>`<tr class="${negrita?"fila-total-amort":"fila-amort"}">
-      <td style="padding:${negrita?"8px 6px":"6px"};${negrita?"font-weight:700;":""}">${label}</td>
-      <td style="padding:${negrita?"8px 6px":"6px"};text-align:right;${negrita?"font-weight:700;":""}">${money(valor)}</td>
+      <td style="padding:${negrita?"6px 6px":"4px 6px"};${negrita?"font-weight:700;":""}">${label}</td>
+      <td style="padding:${negrita?"6px 6px":"4px 6px"};text-align:right;${negrita?"font-weight:700;":""}">${money(valor)}</td>
     </tr>`;
   return `
     <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
@@ -1894,7 +1903,7 @@ function viewReporteModificaciones(){
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha refinanciado ni modificado ningún préstamo.</p>` : `
       <div class="tabla-card">
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-      <table style="width:100%;min-width:100%;border-collapse:collapse;font-size:12px;">
+      <table style="width:100%;min-width:680px;border-collapse:collapse;font-size:12px;">
         <thead><tr style="background:#F5F3EE;">
           <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Préstamo</th><th style="padding:5px 6px;text-align:left;">Cliente</th>
           <th style="padding:5px 6px;text-align:left;">Clasificación</th><th style="padding:5px 6px;text-align:right;">Capital antes → después</th>
@@ -2006,7 +2015,7 @@ function viewReporteDesembolsos(){
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha desembolsado ningún préstamo.</p>` : `
       <div class="tabla-card">
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-      <table style="width:100%;min-width:100%;border-collapse:collapse;font-size:12px;">
+      <table style="width:100%;min-width:600px;border-collapse:collapse;font-size:12px;">
         <thead><tr style="background:#F5F3EE;">
           <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Préstamo</th>
           <th style="padding:5px 6px;text-align:left;">Cliente</th><th style="padding:5px 6px;text-align:left;">Concepto</th>
@@ -2116,7 +2125,7 @@ function viewReporteHistorialPagos(){
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha registrado ningún pago.</p>` : `
       <div class="tabla-card">
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-      <table style="width:100%;min-width:100%;border-collapse:collapse;font-size:12px;">
+      <table style="width:100%;min-width:660px;border-collapse:collapse;font-size:12px;">
         <thead><tr style="background:#F5F3EE;">
           <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Préstamo</th>
           <th style="padding:5px 6px;text-align:left;">Cliente</th><th style="padding:5px 6px;text-align:left;">Concepto</th>
@@ -2745,7 +2754,7 @@ function viewNuevoPrestamo(){
     const tabla = generarTabla({...f, cuotas: esIndef?1:f.cuotas});
     const esAmericano = f.metodo === METODOS[4];
     if(tabla.length){
-      previewHtml = `<div class="card" style="background:#EEF1F6;margin-bottom:16px;">
+      previewHtml = `<div class="card" style="background:#EEF1F6;margin-bottom:16px;color:#1B2A4A;">
         ${esAmericano
           ? `<p style="font-size:13px;margin:0 0 4px;">Durante el plazo no se cobra nada; todo el interés se acumula.</p>
              <p style="font-size:13px;margin:0;">Pago único al final (capital + interés): <b>${money(tabla[tabla.length-1].cuota)}</b></p>`
@@ -2842,7 +2851,7 @@ function viewRefinanciar(){
     const esAmericano = f.metodo === METODOS[4];
     if(tabla.length){
       evalNIF = evaluarModificacionNIF(origen, nuevoCapital, tabla.map(x=>x.cuota), {esIndefinidoNuevo: esIndef});
-      previewHtml = `<div class="card" style="background:#EEF1F6;margin-bottom:16px;">
+      previewHtml = `<div class="card" style="background:#EEF1F6;margin-bottom:16px;color:#1B2A4A;">
         <p style="font-size:13px;margin:0 0 4px;">Nuevo capital financiado: <b>${money(nuevoCapital)}</b></p>
         ${esAmericano
           ? `<p style="font-size:13px;margin:0 0 4px;">Durante el plazo no se cobra nada; todo el interés se acumula.</p>
@@ -2850,10 +2859,10 @@ function viewRefinanciar(){
           : `<p style="font-size:13px;margin:0 0 4px;">Cuota ${esIndef?"por período":"(1ª)"}: <b>${money(tabla[0].cuota)}</b></p>
              ${esIndef?"":`<p style="font-size:13px;margin:0;">Total a pagar: <b>${money(tabla.reduce((s,x)=>s+x.cuota,0))}</b></p>`}`}
       </div>`;
-      clasificacionHtml = `<div class="card" style="background:${evalNIF.esSustancial?'#FBF3E4':'#EAF3DE'};margin-bottom:16px;">
+      clasificacionHtml = `<div class="card" style="background:${evalNIF.esSustancial?'#FBF3E4':'#EAF3DE'};margin-bottom:16px;color:#333;">
         <p style="font-size:12px;font-weight:700;margin:0 0 4px;color:${evalNIF.esSustancial?'#8A6416':'#3B6D11'};">Clasificación NIF C-19: ${evalNIF.esSustancial?"Modificación sustancial":"Modificación NO sustancial"}</p>
-        <p style="font-size:12px;margin:0 0 4px;">${evalNIF.diffPct===null ? "No hay un capital neto válido contra el cual comparar; se trata como préstamo nuevo por prudencia." : `El valor presente de los pagos nuevos (descontado a la tasa original) difiere ${(evalNIF.diffPct*100).toFixed(1)}% del capital que queda como base después del enganche/monto adicional (umbral ${umbralActualVista}%). ${evalNIF.esSustancial ? "Como la diferencia llega o supera el umbral, se da de baja el préstamo anterior y este se registra como préstamo nuevo." : "Como está por debajo del umbral, se reconoce como ajuste del mismo préstamo (no se crea un préstamo nuevo)."}`}</p>
-        ${(!evalNIF.esSustancial && evalNIF.diffPct!==null) ? `<p style="font-size:13px;margin:0;">${evalNIF.gananciaPerdida>=0?"Ganancia":"Pérdida"} por modificación a reconocer: <b style="color:${evalNIF.gananciaPerdida>=0?'#3B6D11':'#A32D2D'}">${money(Math.abs(evalNIF.gananciaPerdida))}</b></p>` : ""}
+        <p style="font-size:12px;margin:0 0 4px;color:#333;">${evalNIF.diffPct===null ? "No hay un capital neto válido contra el cual comparar; se trata como préstamo nuevo por prudencia." : `El valor presente de los pagos nuevos (descontado a la tasa original) difiere ${(evalNIF.diffPct*100).toFixed(1)}% del capital que queda como base después del enganche/monto adicional (umbral ${umbralActualVista}%). ${evalNIF.esSustancial ? "Como la diferencia llega o supera el umbral, se da de baja el préstamo anterior y este se registra como préstamo nuevo." : "Como está por debajo del umbral, se reconoce como ajuste del mismo préstamo (no se crea un préstamo nuevo)."}`}</p>
+        ${(!evalNIF.esSustancial && evalNIF.diffPct!==null) ? `<p style="font-size:13px;margin:0;color:#333;">${evalNIF.gananciaPerdida>=0?"Ganancia":"Pérdida"} por modificación a reconocer: <b style="color:${evalNIF.gananciaPerdida>=0?'#3B6D11':'#A32D2D'}">${money(Math.abs(evalNIF.gananciaPerdida))}</b></p>` : ""}
       </div>`;
     }
   }
@@ -3076,7 +3085,7 @@ function viewDetallePrestamo(){
       <p class="hint solo-imprimir" style="margin:0 0 10px;">${p.codigo} · ${cli?cli.nombre:"—"} · Capital ${money(p.capital)} · Tasa ${p.tasa}% · ${p.periodo} · ${p.metodo}</p>
       <div class="tabla-card" style="margin-bottom:0;">
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-        <table style="width:100%;min-width:100%;font-size:11px;">
+        <table style="width:100%;min-width:680px;font-size:11px;">
           <thead><tr style="background:#F5F3EE;">
             <th style="padding:5px 6px;text-align:left;">N°</th><th style="padding:5px 6px;text-align:left;">Fecha</th>
             <th style="padding:5px 6px;text-align:right">Saldo ini.</th><th style="padding:5px 6px;text-align:right">Cuota</th>
