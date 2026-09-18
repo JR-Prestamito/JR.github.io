@@ -101,9 +101,10 @@
   #reporte-imprimible h2{font-size:16px;margin:0 0 2px;color:var(--navy);}
   #tabla-imprimible{background:#fff;border:1px solid #e5e1d8;border-radius:16px;padding:20px 10px;}
   #tabla-imprimible h2{font-size:16px;margin:0 0 2px;color:var(--navy);}
-  #tabla-imprimible .fila-amort{border-top:1px solid #f0ede6;}
-  #tabla-imprimible .fila-ajuste{background:#F3F8EE;}
-  #tabla-imprimible .fila-total-amort{border-top:2px solid #d8d3c8;background:#F5F3EE;}
+  .tabla-card{border:1px solid #e5e1d8;border-radius:16px;overflow:hidden;margin-bottom:16px;}
+  .fila-amort{border-top:1px solid #f0ede6;}
+  .fila-ajuste{background:#F3F8EE;}
+  .fila-total-amort{border-top:2px solid #d8d3c8;background:#F5F3EE;}
   .solo-imprimir{display:none;}
   @page{ size: A4; margin: 14mm; }
   @page recibo{ size: 80mm 170mm; margin: 6mm; }
@@ -119,22 +120,23 @@
     #recibo-imprimible{ page: recibo; position:absolute!important; left:0!important; right:0!important; width:100%!important; max-width:300px!important; margin:0 auto!important; }
     #tabla-imprimible table{min-width:0!important;width:100%!important;font-size:9px!important;}
     #tabla-imprimible th, #tabla-imprimible td{padding:4px 5px!important;}
+    #reporte-imprimible table{width:100%!important;font-size:9px!important;}
+    #reporte-imprimible th, #reporte-imprimible td{padding:4px 5px!important;}
+    .tabla-card{border:none!important;border-radius:0!important;}
     #recibo-imprimible{padding:0!important;}
     #recibo-imprimible h2{font-size:14px!important;text-align:center;}
     #recibo-imprimible .rline{font-size:9.5px!important;padding:3px 0!important;}
     #recibo-imprimible .rtotal{font-size:12px!important;}
     #reporte-imprimible{padding:10px!important;}
     #reporte-imprimible h2{font-size:14px!important;}
-    #reporte-imprimible table{font-size:9px!important;}
-    #reporte-imprimible th, #reporte-imprimible td{padding:4px 5px!important;}
     .solo-imprimir{display:block;}
     /* Al imprimir siempre en blanco y negro sobre papel, sin importar si estaba en modo
        oscuro — el papel no tiene "modo oscuro". */
     #recibo-imprimible, #reporte-imprimible, #tabla-imprimible{background:#fff!important;color:#222!important;}
     #recibo-imprimible th, #reporte-imprimible th, #tabla-imprimible th{background:#F5F3EE!important;}
-    #tabla-imprimible .fila-amort{border-top-color:#f0ede6!important;}
-    #tabla-imprimible .fila-ajuste{background:#F3F8EE!important;}
-    #tabla-imprimible .fila-total-amort{border-top-color:#d8d3c8!important;background:#F5F3EE!important;}
+    .fila-amort{border-top-color:#f0ede6!important;}
+    .fila-ajuste{background:#F3F8EE!important;}
+    .fila-total-amort{border-top-color:#d8d3c8!important;background:#F5F3EE!important;}
   }
   .jr-modal-overlay{position:fixed;inset:0;background:rgba(20,20,25,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:9999;animation:jrFadeIn .15s ease-out;}
   @keyframes jrFadeIn{from{opacity:0}to{opacity:1}}
@@ -188,9 +190,10 @@
   [data-theme="dark"] #tabla-imprimible h2{color:#fff;}
   [data-theme="dark"] #recibo-imprimible .rtotal{color:#fff;}
   [data-theme="dark"] #recibo-imprimible .rline{border-bottom-color:rgba(255,255,255,.14);}
-  [data-theme="dark"] #tabla-imprimible .fila-amort{border-top-color:rgba(255,255,255,.08);}
-  [data-theme="dark"] #tabla-imprimible .fila-ajuste{background:rgba(59,109,17,.18);}
-  [data-theme="dark"] #tabla-imprimible .fila-total-amort{border-top-color:rgba(255,255,255,.18);background:#20283A;}
+  [data-theme="dark"] .tabla-card{border-color:rgba(255,255,255,.08);}
+  [data-theme="dark"] .fila-amort{border-top-color:rgba(255,255,255,.08);}
+  [data-theme="dark"] .fila-ajuste{background:rgba(59,109,17,.18);}
+  [data-theme="dark"] .fila-total-amort{border-top-color:rgba(255,255,255,.18);background:#20283A;}
 </style>
 </head>
 <body>
@@ -1529,17 +1532,17 @@ function viewReportePDF(){
     const r = resumen(p);
     const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
     const estado = atraso>0 ? "Vencido" : r.estado;
-    return `<tr>
-      <td style="padding:6px;border-top:1px solid #eee;">${p.codigo}</td>
-      <td style="padding:6px;border-top:1px solid #eee;">${cli?cli.nombre:"—"}</td>
-      <td style="padding:6px;border-top:1px solid #eee;">${money(p.capital)}</td>
-      <td style="padding:6px;border-top:1px solid #eee;">${estado}</td>
-      <td style="padding:6px;border-top:1px solid #eee;text-align:right;">${money(r.saldoPendiente)}</td>
-      <td style="padding:6px;border-top:1px solid #eee;">${r.proximaFecha?fmtDate(r.proximaFecha):"—"}</td>
+    return `<tr class="fila-amort">
+      <td style="padding:5px 6px;white-space:nowrap;">${p.codigo}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${cli?cli.nombre:"—"}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${money(p.capital)}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${estado}</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(r.saldoPendiente)}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${r.proximaFecha?fmtDate(r.proximaFecha):"—"}</td>
     </tr>`;
   }).join("");
   return `
-    <div id="reporte-imprimible">
+    <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Reporte general · ${fmtDate(hoyISO())}</p>
       <div class="grid2" style="margin-bottom:16px;">
@@ -1548,14 +1551,18 @@ function viewReportePDF(){
         <div><p class="hint" style="margin:0;">Clientes</p><p style="font-weight:700;margin:2px 0;">${state.clientes.length}</p></div>
         <div><p class="hint" style="margin:0;">Préstamos</p><p style="font-weight:700;margin:2px 0;">${state.prestamos.length}</p></div>
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <div class="tabla-card">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table style="width:100%;min-width:100%;border-collapse:collapse;font-size:12px;">
         <thead><tr style="background:#F5F3EE;">
-          <th style="text-align:left;padding:6px;">Código</th><th style="text-align:left;padding:6px;">Cliente</th>
-          <th style="text-align:left;padding:6px;">Capital</th><th style="text-align:left;padding:6px;">Estado</th>
-          <th style="text-align:right;padding:6px;">Saldo</th><th style="text-align:left;padding:6px;">Próx. fecha</th>
+          <th style="text-align:left;padding:5px 6px;">Código</th><th style="text-align:left;padding:5px 6px;">Cliente</th>
+          <th style="text-align:left;padding:5px 6px;">Capital</th><th style="text-align:left;padding:5px 6px;">Estado</th>
+          <th style="text-align:right;padding:5px 6px;">Saldo</th><th style="text-align:left;padding:5px 6px;">Próx. fecha</th>
         </tr></thead>
         <tbody>${filas || `<tr><td colspan="6" style="padding:14px;text-align:center;color:#aaa;">Sin préstamos registrados.</td></tr>`}</tbody>
       </table>
+      </div>
+      </div>
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
@@ -1623,36 +1630,44 @@ function viewEstadoResultados(){
   });
   const ingresos = interesesCobrados + capitalCobrado + moraCobrada + enganches;
   const utilidad = ingresos - desembolsos + gananciaPerdidaModificaciones;
-  const fila = (label, valor, negrita)=>`<tr>
-      <td style="padding:6px 6px;${negrita?"font-weight:700;":""}">${label}</td>
-      <td style="padding:6px 6px;text-align:right;${negrita?"font-weight:700;":""}">${money(valor)}</td>
+  const fila = (label, valor, negrita)=>`<tr class="${negrita?"fila-total-amort":"fila-amort"}">
+      <td style="padding:${negrita?"8px 6px":"6px"};${negrita?"font-weight:700;":""}">${label}</td>
+      <td style="padding:${negrita?"8px 6px":"6px"};text-align:right;${negrita?"font-weight:700;":""}">${money(valor)}</td>
     </tr>`;
   return `
-    <div id="reporte-imprimible">
+    <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Estado de resultados (base efectivo) · ${fmtDate(hoyISO())}</p>
       <p style="font-weight:700;margin:0 0 6px;">Ingresos</p>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px;">
+      <div class="tabla-card">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
         ${fila("Intereses cobrados", interesesCobrados)}
         ${fila("Abonos a capital cobrados", capitalCobrado)}
         ${fila("Mora cobrada", moraCobrada)}
         ${fila("Enganches al refinanciar", enganches)}
         ${fila("Total ingresos", ingresos, true)}
       </table>
+      </div>
       <p style="font-weight:700;margin:0 0 6px;">Egresos</p>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px;">
+      <div class="tabla-card">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
         ${fila("Desembolsos (capital prestado)", desembolsos)}
         ${fila("Total egresos", desembolsos, true)}
       </table>
+      </div>
       ${gananciaPerdidaModificaciones!==0 ? `
       <p style="font-weight:700;margin:0 0 6px;">Ganancia/(pérdida) por modificación de préstamos (NIF C-19)</p>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:10px;">
+      <div class="tabla-card">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
         ${fila(gananciaPerdidaModificaciones>=0?"Ganancia por modificación":"Pérdida por modificación", gananciaPerdidaModificaciones, true)}
-      </table>` : ""}
-      <table style="width:100%;border-collapse:collapse;font-size:14px;border-top:2px solid #1B2A4A;">
-        <tr><td style="padding:8px 6px;font-weight:700;">${utilidad>=0?"Utilidad":"Pérdida"} del período</td>
+      </table>
+      </div>` : ""}
+      <div class="tabla-card" style="margin-bottom:0;">
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr class="fila-total-amort"><td style="padding:8px 6px;font-weight:700;">${utilidad>=0?"Utilidad":"Pérdida"} del período</td>
         <td style="padding:8px 6px;text-align:right;font-weight:700;color:${utilidad>=0?"#3B6D11":"#c0433b"};">${money(Math.abs(utilidad))}</td></tr>
       </table>
+      </div>
       <p class="hint" style="margin-top:14px;">Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como "desembolso" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo) — el resto del capital nuevo es el saldo pendiente del préstamo anterior reacomodado, no dinero que volvió a salir de la caja. Cuando un refinanciamiento se clasifica como "modificación no sustancial" según NIF C-19 (prueba del 10% de valor presente), la diferencia se reconoce aquí como ganancia o pérdida; cuando es "sustancial", se trata como préstamo nuevo sin efecto adicional en este renglón.</p>
     </div>
     <div class="flexrow" style="margin-top:16px;">
@@ -1704,36 +1719,40 @@ function viewReporteModificaciones(){
   const totalGanancia = eventos.reduce((s,e)=>s+e.gananciaPerdida,0);
   const totalSustanciales = eventos.filter(e=>e.tipo==="sustancial").length;
   const totalNoSustanciales = eventos.filter(e=>e.tipo==="no_sustancial").length;
-  const filas = eventos.map(e=>`<tr style="border-top:1px solid #f0ede6;">
+  const filas = eventos.map(e=>`<tr class="fila-amort">
       <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
       <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}${e.tipo==="sustancial"&&e.codigoOrigen!=="—"?` <span style="color:#888;font-size:11px;">(de ${e.codigoOrigen})</span>`:""}</td>
-      <td style="padding:5px 6px;">${e.cliente}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${e.cliente}</td>
       <td style="padding:5px 6px;white-space:nowrap;">${e.tipo==="sustancial"?"Sustancial":"No sustancial"}</td>
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.capitalAntes!=null?money(e.capitalAntes):"—"} → ${money(e.capitalDespues)}</td>
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.tasaAntes!=null?e.tasaAntes+"%":"—"} → ${e.tasaDespues}%</td>
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;${e.gananciaPerdida>=0?"color:#3B6D11":"color:#c0433b"}">${e.gananciaPerdida!==0?money(e.gananciaPerdida):"—"}</td>
     </tr>`).join("");
   return `
-    <div id="reporte-imprimible">
+    <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Reporte de modificaciones y refinanciamientos (NIF C-19) · ${fmtDate(hoyISO())}</p>
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha refinanciado ni modificado ningún préstamo.</p>` : `
-      <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;">
-        <thead><tr style="border-bottom:2px solid #d8d3c8;font-weight:700;">
-          <td style="padding:5px 6px;">Fecha</td><td style="padding:5px 6px;">Préstamo</td><td style="padding:5px 6px;">Cliente</td>
-          <td style="padding:5px 6px;">Clasificación</td><td style="padding:5px 6px;text-align:right;">Capital antes → después</td>
-          <td style="padding:5px 6px;text-align:right;">Tasa antes → después</td><td style="padding:5px 6px;text-align:right;">Ganancia/(pérdida)</td>
+      <div class="tabla-card">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table style="width:100%;min-width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="background:#F5F3EE;">
+          <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Préstamo</th><th style="padding:5px 6px;text-align:left;">Cliente</th>
+          <th style="padding:5px 6px;text-align:left;">Clasificación</th><th style="padding:5px 6px;text-align:right;">Capital antes → después</th>
+          <th style="padding:5px 6px;text-align:right;">Tasa antes → después</th><th style="padding:5px 6px;text-align:right;">Ganancia/(pérdida)</th>
         </tr></thead>
         <tbody>${filas}</tbody>
       </table>
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:14px;border-top:2px solid #1B2A4A;">
-        <tr><td style="padding:8px 6px;">Modificaciones sustanciales (préstamo nuevo)</td><td style="padding:8px 6px;text-align:right;">${totalSustanciales}</td></tr>
-        <tr><td style="padding:8px 6px;">Modificaciones NO sustanciales (mismo préstamo)</td><td style="padding:8px 6px;text-align:right;">${totalNoSustanciales}</td></tr>
-        <tr><td style="padding:8px 6px;font-weight:700;">${totalGanancia>=0?"Ganancia":"Pérdida"} neta por modificaciones</td>
+      </div>
+      <div class="tabla-card" style="margin-bottom:0;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr class="fila-amort"><td style="padding:8px 6px;">Modificaciones sustanciales (préstamo nuevo)</td><td style="padding:8px 6px;text-align:right;">${totalSustanciales}</td></tr>
+        <tr class="fila-amort"><td style="padding:8px 6px;">Modificaciones NO sustanciales (mismo préstamo)</td><td style="padding:8px 6px;text-align:right;">${totalNoSustanciales}</td></tr>
+        <tr class="fila-total-amort"><td style="padding:8px 6px;font-weight:700;">${totalGanancia>=0?"Ganancia":"Pérdida"} neta por modificaciones</td>
         <td style="padding:8px 6px;text-align:right;font-weight:700;color:${totalGanancia>=0?"#3B6D11":"#c0433b"};">${money(Math.abs(totalGanancia))}</td></tr>
-      </table>`}
+      </table>
+      </div>`}
       <p class="hint" style="margin-top:14px;">Reúne todos los refinanciamientos y modificaciones de condiciones registrados, con su clasificación NIF C-19 (sustancial o no sustancial) y la ganancia o pérdida reconocida en cada uno. Es el detalle/respaldo de la línea "Ganancia/(pérdida) por modificación de préstamos" del Estado de resultados.</p>
     </div>
     <div class="flexrow" style="margin-top:16px;">
@@ -1774,32 +1793,36 @@ function abrirReporteDesembolsos(){
 function viewReporteDesembolsos(){
   const eventos = listaDesembolsos();
   const total = eventos.reduce((s,e)=>s+e.monto,0);
-  const filas = eventos.map(e=>`<tr style="border-top:1px solid #f0ede6;">
+  const filas = eventos.map(e=>`<tr class="fila-amort">
       <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
       <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}</td>
-      <td style="padding:5px 6px;">${e.cliente}</td>
-      <td style="padding:5px 6px;">${e.concepto}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${e.cliente}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${e.concepto}</td>
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(e.monto)}</td>
     </tr>`).join("");
   return `
-    <div id="reporte-imprimible">
+    <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Reporte de desembolsos · ${fmtDate(hoyISO())}</p>
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha desembolsado ningún préstamo.</p>` : `
-      <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;">
-        <thead><tr style="border-bottom:2px solid #d8d3c8;font-weight:700;">
-          <td style="padding:5px 6px;">Fecha</td><td style="padding:5px 6px;">Préstamo</td>
-          <td style="padding:5px 6px;">Cliente</td><td style="padding:5px 6px;">Concepto</td>
-          <td style="padding:5px 6px;text-align:right;">Monto</td>
+      <div class="tabla-card">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table style="width:100%;min-width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="background:#F5F3EE;">
+          <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Préstamo</th>
+          <th style="padding:5px 6px;text-align:left;">Cliente</th><th style="padding:5px 6px;text-align:left;">Concepto</th>
+          <th style="padding:5px 6px;text-align:right;">Monto</th>
         </tr></thead>
         <tbody>${filas}</tbody>
       </table>
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:14px;border-top:2px solid #1B2A4A;">
-        <tr><td style="padding:8px 6px;font-weight:700;">Total desembolsado</td>
+      </div>
+      <div class="tabla-card" style="margin-bottom:0;">
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr class="fila-total-amort"><td style="padding:8px 6px;font-weight:700;">Total desembolsado</td>
         <td style="padding:8px 6px;text-align:right;font-weight:700;">${money(total)}</td></tr>
-      </table>`}
+      </table>
+      </div>`}
       <p class="hint" style="margin-top:14px;">Incluye el capital de cada préstamo nuevo y, cuando un préstamo nace de un refinanciamiento, solo el monto adicional que realmente se entregó en efectivo (el resto es el saldo del préstamo anterior reacomodado). También incluye los montos adicionales entregados en modificaciones no sustanciales (NIF C-19).</p>
     </div>
     <div class="flexrow" style="margin-top:16px;">
@@ -1837,37 +1860,41 @@ function viewReporteHistorialPagos(){
   const eventos = listaHistorialPagos();
   const totalMonto = eventos.reduce((s,e)=>s+e.monto,0);
   const totalMora = eventos.reduce((s,e)=>s+e.mora,0);
-  const filas = eventos.map(e=>`<tr style="border-top:1px solid #f0ede6;">
+  const filas = eventos.map(e=>`<tr class="fila-amort">
       <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
       <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}</td>
-      <td style="padding:5px 6px;">${e.cliente}</td>
-      <td style="padding:5px 6px;">${e.concepto}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${e.cliente}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${e.concepto}</td>
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(e.monto)}</td>
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.mora>0?money(e.mora):"—"}</td>
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;font-weight:600;">${money(e.monto+e.mora)}</td>
     </tr>`).join("");
   return `
-    <div id="reporte-imprimible">
+    <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Historial de pagos · ${fmtDate(hoyISO())}</p>
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha registrado ningún pago.</p>` : `
-      <div style="overflow-x:auto;">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;">
-        <thead><tr style="border-bottom:2px solid #d8d3c8;font-weight:700;">
-          <td style="padding:5px 6px;">Fecha</td><td style="padding:5px 6px;">Préstamo</td>
-          <td style="padding:5px 6px;">Cliente</td><td style="padding:5px 6px;">Concepto</td>
-          <td style="padding:5px 6px;text-align:right;">Monto</td><td style="padding:5px 6px;text-align:right;">Mora</td>
-          <td style="padding:5px 6px;text-align:right;">Total</td>
+      <div class="tabla-card">
+      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table style="width:100%;min-width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="background:#F5F3EE;">
+          <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Préstamo</th>
+          <th style="padding:5px 6px;text-align:left;">Cliente</th><th style="padding:5px 6px;text-align:left;">Concepto</th>
+          <th style="padding:5px 6px;text-align:right;">Monto</th><th style="padding:5px 6px;text-align:right;">Mora</th>
+          <th style="padding:5px 6px;text-align:right;">Total</th>
         </tr></thead>
         <tbody>${filas}</tbody>
       </table>
       </div>
-      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:14px;border-top:2px solid #1B2A4A;">
-        <tr><td style="padding:8px 6px;">Total en cuotas/abonos</td><td style="padding:8px 6px;text-align:right;">${money(totalMonto)}</td></tr>
-        <tr><td style="padding:8px 6px;">Total en mora</td><td style="padding:8px 6px;text-align:right;">${money(totalMora)}</td></tr>
-        <tr><td style="padding:8px 6px;font-weight:700;">Total cobrado</td>
+      </div>
+      <div class="tabla-card" style="margin-bottom:0;">
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr class="fila-amort"><td style="padding:8px 6px;">Total en cuotas/abonos</td><td style="padding:8px 6px;text-align:right;">${money(totalMonto)}</td></tr>
+        <tr class="fila-amort"><td style="padding:8px 6px;">Total en mora</td><td style="padding:8px 6px;text-align:right;">${money(totalMora)}</td></tr>
+        <tr class="fila-total-amort"><td style="padding:8px 6px;font-weight:700;">Total cobrado</td>
         <td style="padding:8px 6px;text-align:right;font-weight:700;">${money(totalMonto+totalMora)}</td></tr>
-      </table>`}
+      </table>
+      </div>`}
       <p class="hint" style="margin-top:14px;">Incluye todos los pagos registrados en todos los préstamos: cuotas, abonos a capital y liquidaciones anticipadas, con su mora cobrada cuando aplica.</p>
     </div>
     <div class="flexrow" style="margin-top:16px;">
@@ -2806,7 +2833,7 @@ function viewDetallePrestamo(){
     <div id="tabla-imprimible" style="margin:0 -16px 16px;padding:16px 6px;">
       <h2 class="solo-imprimir">${nombreApp().toUpperCase()}</h2>
       <p class="hint solo-imprimir" style="margin:0 0 10px;">${p.codigo} · ${cli?cli.nombre:"—"} · Capital ${money(p.capital)} · Tasa ${p.tasa}% · ${p.periodo} · ${p.metodo}</p>
-      <div style="border:1px solid #e5e1d8;border-radius:16px;overflow:hidden;">
+      <div class="tabla-card" style="margin-bottom:0;">
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
         <table style="width:100%;min-width:100%;font-size:11px;">
           <thead><tr style="background:#F5F3EE;">
