@@ -755,7 +755,13 @@ function generarTablaDinamica(p){
   const filas = [];
   // Para Indefinido el tope es "cuántas filas mostrar" (no hay plazo real); para los demás
   // métodos el propio nTotalVigente (que puede cambiar sobre la marcha) marca el tope.
-  const totalFilasIndef = esIndef ? Math.max((p.pagos||[]).length + 4, 6) : 0;
+  // El buffer no puede depender solo de cuántos pagos hay: un préstamo indefinido muy
+  // atrasado y sin pagos igual necesita filas hasta el día de hoy (+1) para que la fila del
+  // período que toca pueda aparecer. Por eso también se calcula cuántos períodos han pasado
+  // de verdad según la fecha, y se usa el que sea más grande de los dos.
+  const diasTranscurridos = esIndef ? Math.max(0, Math.floor((new Date(hoyISO()+"T00:00:00") - new Date(p.fechaInicio+"T00:00:00")) / 86400000)) : 0;
+  const periodosTranscurridos = esIndef && dias>0 ? Math.floor(diasTranscurridos/dias) : 0;
+  const totalFilasIndef = esIndef ? Math.max((p.pagos||[]).length + 4, periodosTranscurridos + 4, 6) : 0;
   let idxAj = 0;
   for(let i=1; i<=(esIndef?totalFilasIndef:9999); i++){
     if(!esIndef && i>nTotalVigente) break;
@@ -817,13 +823,27 @@ function resumen(p){
   }
 
   if(esIndef){
-    const cuotaPeriodo = capital*tasa;
-    const periodosPagados = cuotaPeriodo>0 ? Math.floor((totalPagado+0.01)/cuotaPeriodo) : 0;
-    const abonadoEnCuotaActual = Math.max(0, totalPagado - periodosPagados*cuotaPeriodo);
-    return { cuota:cuotaPeriodo, saldoPendiente:capital, capitalPendiente:capital, estado:"Activo",
-      proximaFecha: tabla[periodosPagados] ? tabla[periodosPagados].fecha : null, tabla,
-      pagosHechos: periodosPagados, cuotaActual: tabla[periodosPagados]||null,
-      abonadoEnCuotaActual, faltaEnCuotaActual: Math.max(0, cuotaPeriodo-abonadoEnCuotaActual), moraTotal, totalPagado };
+    // Antes se usaba una fórmula fija (capital*tasa) para saber cuántos períodos ya se
+    // pagaron. El problema: si hubo un abono a capital, el interés real de los períodos
+    // siguientes baja (eso ya lo calcula bien generarTablaDinamica en "tabla"), pero la
+    // fórmula fija seguía comparando contra el interés ORIGINAL, más alto — de ahí que el
+    // conteo de períodos pagados quedara mal después de un abono. Ahora se compara contra
+    // la cuota real de cada fila de "tabla", igual que se hace para los demás métodos.
+    let cumI = 0, periodosPagados = 0;
+    for(let i=0;i<tabla.length;i++){
+      cumI += tabla[i].cuota;
+      if(totalPagado+0.01 >= cumI) periodosPagados = i+1; else break;
+    }
+    const cuotaActualRow = tabla[periodosPagados] || null;
+    const baseAnterior = periodosPagados>0 ? tabla.slice(0,periodosPagados).reduce((s,f)=>s+f.cuota,0) : 0;
+    const abonadoEnCuotaActual = Math.max(0, totalPagado-baseAnterior);
+    const capitalPendienteIndef = periodosPagados>0 ? (tabla[periodosPagados-1].saldo||capital) : capital;
+    return { cuota: cuotaActualRow ? cuotaActualRow.cuota : (tabla[tabla.length-1]?tabla[tabla.length-1].cuota:0),
+      saldoPendiente: capitalPendienteIndef, capitalPendiente: capitalPendienteIndef, estado:"Activo",
+      proximaFecha: cuotaActualRow ? cuotaActualRow.fecha : null, tabla,
+      pagosHechos: periodosPagados, cuotaActual: cuotaActualRow,
+      abonadoEnCuotaActual, faltaEnCuotaActual: cuotaActualRow ? Math.max(0, cuotaActualRow.cuota-abonadoEnCuotaActual) : 0,
+      moraTotal, totalPagado };
   }
 
   // acumulado de cuotas: una cuota se marca "completa" cuando lo pagado alcanza su acumulado,
@@ -2491,13 +2511,17 @@ function viewDetallePrestamo(){
   const r = resumen(p);
   const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
 
-  // El método Indefinido no tiene número de cuotas fijo: internamente se generan varias filas
-  // "virtuales" (generarTabla) solo para poder calcular fechas de vencimiento y mora, pero
-  // mostrar esas filas como si fueran un plazo real confundiría al usuario. En la tabla que
-  // se VE se muestra una sola fila que representa la cuota que se repite cada período.
+  // El método Indefinido no tiene número de cuotas fijo, pero ahora sí se muestra un
+  // historial real: cada período (fila) aparece un día ANTES de que se cumpla, y se va
+  // quedando en la tabla ya como periodo pagado o pendiente — en vez de mostrar de una vez
+  // varias filas futuras que todavía no tocan, o esconder todo detrás de una sola fila fija.
   const esIndefDetalle = p.metodo === METODOS[5];
   const filasParaTabla = esIndefDetalle
-    ? [{ n:1, fecha: r.proximaFecha || p.fechaInicio, saldoInicial: p.capital, cuota: r.cuota, interes: r.cuota, abono:0, saldo: p.capital }]
+    ? (function(){
+        const limite = addDays(hoyISO(), 1); // hoy + 1 día: así la fila ya aparece un día antes de vencer
+        const visibles = r.tabla.filter(f=>f.fecha <= limite);
+        return visibles.length ? visibles : [r.tabla[0]];
+      })()
     : r.tabla;
   // Filas donde cayó un abono a capital extra (ajustesCapital), para resaltarlas en la
   // tabla: el número de fila coincide con "despuesDeFila" porque ahí es donde el motor
@@ -2505,8 +2529,7 @@ function viewDetallePrestamo(){
   const filasConAjuste = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
   let filasHtml = filasParaTabla.map((f,i)=>{
     let estadoCelda;
-    if(esIndefDetalle) estadoCelda = r.abonadoEnCuotaActual>0 ? `<span style="color:${GOLD};">Abono ${money(r.abonadoEnCuotaActual)}</span>` : '<span style="color:#bbb">—</span>';
-    else if(i < r.pagosHechos) estadoCelda = '<span style="color:#3B6D11">✓ Pagada</span>';
+    if(i < r.pagosHechos) estadoCelda = '<span style="color:#3B6D11">✓ Pagada</span>';
     else if(i === r.pagosHechos && r.abonadoEnCuotaActual>0) estadoCelda = `<span style="color:${GOLD};">Abono ${money(r.abonadoEnCuotaActual)}</span>`;
     else estadoCelda = '<span style="color:#bbb">—</span>';
     const tieneAjuste = filasConAjuste.has(f.n);
@@ -2592,7 +2615,7 @@ function viewDetallePrestamo(){
       <p class="section-title" style="margin:0;">Tabla de amortización</p>
       <p style="font-size:12px;color:#666;margin:0;">Capital: <b style="color:${NAVY}">${money(p.capital)}</b></p>
     </div>
-    ${esIndefDetalle ? `<p class="hint" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija — por eso no hay una tabla de varias cuotas, solo la cuota que se repite.</p>` : ""}
+    ${esIndefDetalle ? `<p class="hint" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija. Cada fila nueva aparece un día antes de que se cumpla ese período.</p>` : ""}
     ${filasConAjuste.size>0 ? `<p class="hint" style="margin:4px 0 10px;"><span style="color:#3B6D11;font-weight:700;">*</span> Las filas resaltadas en verde tuvieron un abono a capital extra además de su cuota normal.</p>` : ""}
     <div id="tabla-imprimible">
       <h2 class="solo-imprimir">${nombreApp().toUpperCase()}</h2>
@@ -2663,7 +2686,11 @@ function generarAmortizacionPDF(p, cli, r){
   doc.text(`${p.codigo}  ·  ${cli?cli.nombre:"—"}  ·  Capital ${money(p.capital)}  ·  Tasa ${p.tasa}%  ·  ${p.periodo}  ·  ${p.metodo}`, 14, 23);
   const esIndefPDF = p.metodo === METODOS[5];
   const filasBase = esIndefPDF
-    ? [{ n:1, fecha: r.proximaFecha || p.fechaInicio, saldoInicial: p.capital, cuota: r.cuota, interes: r.cuota, abono:0, saldo: p.capital }]
+    ? (function(){
+        const limite = addDays(hoyISO(), 1);
+        const visibles = r.tabla.filter(f=>f.fecha <= limite);
+        return visibles.length ? visibles : [r.tabla[0]];
+      })()
     : r.tabla;
   let startY = 28;
   if(esIndefPDF){
@@ -2674,8 +2701,7 @@ function generarAmortizacionPDF(p, cli, r){
   const filasConAjustePDF = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
   const filas = filasBase.map((f,i)=>{
     const tieneAjuste = filasConAjustePDF.has(f.n);
-    const estado = esIndefPDF ? (r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "—")
-      : (i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"));
+    const estado = i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente");
     return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
   });
   const totalCuota = filasBase.reduce((s,f)=>s+(Number(f.cuota)||0),0);
@@ -2871,7 +2897,8 @@ function registrarPago(id){
     const fechaPago = (fEl && fEl.value) ? fEl.value : hoyISO();
     p.pagos.push({ id:uid(), fecha:fechaPago, monto:montoCuota, mora, tipo:"cuota" });
     if(excedente > 0.01){
-      p.pagos.push({ id:uid(), fecha:fechaPago, monto:excedente, mora:0, tipo:"abono_capital" });
+      const idAbono = uid();
+      p.pagos.push({ id:idAbono, fecha:fechaPago, monto:excedente, mora:0, tipo:"abono_capital" });
       // Registrar el abono como un ajuste real de saldo (no solo un pago más), para que
       // generarTablaDinamica() recalcule cuota/plazo según el método a partir de aquí.
       // Si el abono alcanza para cubrir todo el saldo pendiente, se marca como liquidado
@@ -2886,8 +2913,10 @@ function registrarPago(id){
         // cuotas completas, esta fila que se está pagando ya generó su interés — el abono
         // a capital solo debe bajar el saldo de ahí en adelante, para la SIGUIENTE cuota.
         // Aplicarlo antes (como se hacía) le restaba interés a una cuota ya devengada.
+        // pagoId enlaza este ajuste con el pago de arriba, para poder deshacer ambos juntos
+        // si el pago se llega a eliminar más adelante (ver eliminarPago).
         p.ajustesCapital = p.ajustesCapital || [];
-        p.ajustesCapital.push({ despuesDeFila: (r.pagosHechos||0) + pendiente.nVenc, monto: excedente, fecha: fechaPago });
+        p.ajustesCapital.push({ despuesDeFila: (r.pagosHechos||0) + pendiente.nVenc, monto: excedente, fecha: fechaPago, pagoId: idAbono });
       }
     }
     save(); render();
@@ -2939,13 +2968,21 @@ function eliminarPrestamo(id){
   if(!p) return;
   const cli = state.clientes.find(c=>c.id===p.clienteId);
   const numPagos = (p.pagos||[]).length;
+  const origen = p.refinanciaDe ? state.prestamos.find(x=>x.id===p.refinanciaDe) : null;
   let msg = `¿Seguro que quieres eliminar el préstamo ${p.codigo}${cli?" de "+cli.nombre:""}? Esta acción no se puede deshacer.`;
   if(numPagos>0){
     msg = `El préstamo ${p.codigo}${cli?" de "+cli.nombre:""} tiene ${numPagos} pago(s) registrado(s). Si lo eliminas, se pierde también ese historial de pagos.\n\n`+
       `¿Seguro que quieres eliminarlo? Esta acción no se puede deshacer.`;
   }
+  if(origen){
+    msg += `\n\nEste préstamo nació de refinanciar ${origen.codigo}. Al eliminarlo, ${origen.codigo} volverá a quedar Activo con el saldo e historial que tenía justo antes de ese refinanciamiento.`;
+  }
   mostrarConfirmacion(msg, function(ok){
     if(!ok) return;
+    if(origen){
+      origen.refinanciado = false;
+      delete origen.fechaRefinanciado;
+    }
     state.prestamos = state.prestamos.filter(x=>x.id!==id);
     state.vista = "lista";
     save(); render();
@@ -2986,11 +3023,28 @@ function eliminarPago(prestamoId, pagoId){
   const pg = pagos[idx];
   const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
   const cli = state.clientes.find(c=>c.id===p.clienteId);
-  const msg = `¿Eliminar el pago de ${money(total)} del ${fmtDate(pg.fecha)} (${p.codigo}${cli?" · "+cli.nombre:""})?\n\n`+
+  let msg = `¿Eliminar el pago de ${money(total)} del ${fmtDate(pg.fecha)} (${p.codigo}${cli?" · "+cli.nombre:""})?\n\n`+
     `El préstamo recalculará sus cuotas pendientes sin este pago. Esta acción no se puede deshacer.`;
+  if(pg.tipo==="abono_capital") msg += `\n\nEste pago incluye un abono a capital — la tabla de amortización también se actualizará, quitando el efecto de ese abono.`;
   mostrarConfirmacion(msg, function(ok){
     if(!ok) return;
     if(pg.liquidacion) p.liquidadoAnticipado = false;
+    if(pg.tipo==="abono_capital" && (p.ajustesCapital||[]).length){
+      // Se busca primero por el enlace directo (pagoId); si el ajuste es de antes de que
+      // existiera ese enlace, se usa como respaldo la fecha+monto (que es como quedó
+      // guardado el ajuste en ese momento) para no dejarlo huérfano en la tabla.
+      const porId = p.ajustesCapital.findIndex(a=>a.pagoId===pg.id);
+      if(porId>=0) p.ajustesCapital.splice(porId,1);
+      else {
+        const porFechaMonto = p.ajustesCapital.findIndex(a=>a.fecha===pg.fecha && round2(a.monto)===round2(pg.monto));
+        if(porFechaMonto>=0) p.ajustesCapital.splice(porFechaMonto,1);
+      }
+    }
+    // Si el préstamo estaba marcado como liquidado (por haber alcanzado el saldo completo
+    // con un abono a capital, sin pasar por "Liquidar anticipado"), se destraba aquí también:
+    // al quitar el pago, ya no es seguro que siga completamente pagado — resumen() vuelve a
+    // calcular el estado real con lo que queda.
+    if(p.liquidadoAnticipado) p.liquidadoAnticipado = false;
     pagos.splice(idx,1);
     p.pagos = pagos;
     if(state.vista==="recibo") state.vista = "lista";
