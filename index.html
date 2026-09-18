@@ -1459,7 +1459,7 @@ function abrirReportePDF(){
 function generarReportePDF(){
   let prestado=0, cobrado=0;
   state.prestamos.forEach(p=>{
-    prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0);
+    prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
     cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
   });
@@ -1520,7 +1520,7 @@ function imprimirReportePDF(){
 function viewReportePDF(){
   let prestado=0, cobrado=0;
   state.prestamos.forEach(p=>{
-    prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0);
+    prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
     cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
   });
@@ -1563,6 +1563,18 @@ function viewReportePDF(){
     </div>
     <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirReportePDF()">Compartir en PDF</button>`;
 }
+function capitalOriginalDesembolsado(p){
+  // p.capital se sobreescribe con el capital MAS RECIENTE cada vez que el prestamo tiene una
+  // modificacion NO sustancial en el mismo prestamo (ver guardarRefinanciamiento: origen.capital
+  // = nuevoCapital). Para saber cuanto se desembolso originalmente (antes de esa modificacion,
+  // que ya se cuenta aparte via m.adicional) hay que tomar el capitalAnterior de la PRIMERA
+  // modificacion registrada -- no el p.capital actual, que ya trae ese adicional sumado y
+  // duplicaria el monto en los reportes de desembolsos/capital prestado.
+  if(p.modificaciones && p.modificaciones.length){
+    return Number(p.modificaciones[0].capitalAnterior)||0;
+  }
+  return Number(p.capital)||0;
+}
 function desglosePagado(p){
   // Reparte lo realmente cobrado en un préstamo entre interés y capital,
   // recorriendo la tabla de amortización cuota por cuota (igual proporción que cada fila).
@@ -1599,7 +1611,7 @@ function viewEstadoResultados(){
     // anterior que se reacomoda — no es dinero que vuelve a salir de la caja. Lo único que
     // realmente sale como efectivo nuevo en ese momento es el "monto adicional" entregado
     // (si lo hubo). Contar el capital nuevo completo duplicaría ese dinero en el reporte.
-    desembolsos += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0);
+    desembolsos += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     // Modificaciones NO sustanciales (NIF C-19): no crean préstamo nuevo, así que su enganche,
     // monto adicional y ganancia/pérdida quedan guardados dentro del mismo préstamo en
     // "modificaciones" — hay que sumarlos aquí para que no se pierdan del reporte.
@@ -1741,7 +1753,7 @@ function listaDesembolsos(){
     eventos.push({
       fecha: p.fechaInicio, codigo: p.codigo, cliente: cli?cli.nombre:"—",
       concepto: p.refinanciaDe ? `Adicional al refinanciar${origen?" (de "+origen.codigo+")":""}` : "Préstamo nuevo",
-      monto: p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0)
+      monto: p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p)
     });
     (p.modificaciones||[]).forEach(m=>{
       if((Number(m.adicional)||0) === 0) return;
@@ -1935,12 +1947,13 @@ function viewInicio(){
   if(state.vista==="reporteHistorialPagos") return viewReporteHistorialPagos();
   if(state.vista==="ajustesClave") return viewAjustesClave();
   if(state.vista==="ajustes") return viewAjustes();
-  let prestado=0, cobrado=0, activos=0, vencidos=0;
+  let prestado=0, cobrado=0, activos=0, vencidos=0, capitalActual=0;
   state.prestamos.forEach(p=>{
     const r = resumen(p);
-    prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0);
+    prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
     cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
+    capitalActual += Number(r.capitalPendiente)||0;
     if(r.estado==="Activo"){ activos++; if(r.proximaFecha && diasAtraso(r.proximaFecha)>0) vencidos++; }
   });
   let prox = state.prestamos.map(p=>({p, r:resumen(p)}))
@@ -1953,6 +1966,11 @@ function viewInicio(){
     <div class="card" style="background:${modoOscuro?'#1B212C':'#FBF3E4'};"><p class="lbl">Total cobrado</p><p class="val" style="color:${modoOscuro?'#F2F2F2':'#8A6416'}">${money(cobrado)}</p></div>
     <div class="card" style="background:${modoOscuro?'#1B212C':'#EAF3DE'};"><p class="lbl">Préstamos activos</p><p class="val" style="color:${modoOscuro?'#F2F2F2':'#3B6D11'}">${activos}</p></div>
     <div class="card" style="background:${modoOscuro?'#1B212C':'#FCEBEB'};cursor:pointer;" onclick="verCartera()"><p class="lbl">Cuotas vencidas</p><p class="val" style="color:${modoOscuro?'#F2F2F2':'#A32D2D'}">${vencidos}</p></div>
+  </div>
+  <div class="card" style="background:${modoOscuro?'#1B212C':'#EAF0FB'};margin:-4px 0 16px;">
+    <p class="lbl">Capital prestado actual <span style="font-weight:400;">(cartera vigente)</span></p>
+    <p class="val" style="color:${modoOscuro?'#F2F2F2':'#2255A0'}">${money(capitalActual)}</p>
+    <p class="hint" style="margin:4px 0 0;">Capital que hoy sigue pendiente de cobro en préstamos activos, sin contar el interés que falta.</p>
   </div>
   <p class="section-title">Clientes</p>
   <div class="row-card"><div class="flex-gap">${ICONS.users.replace("currentColor",modoOscuro?'#F2F2F2':NAVY)}<span>${state.clientes.length} Registrados</span></div></div>
