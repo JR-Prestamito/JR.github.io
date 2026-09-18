@@ -99,7 +99,7 @@
   #recibo-imprimible > *:not(.marca-agua){position:relative;z-index:1;}
   #reporte-imprimible{background:#fff;border:1px solid #e5e1d8;border-radius:16px;padding:20px;}
   #reporte-imprimible h2{font-size:16px;margin:0 0 2px;color:var(--navy);}
-  #tabla-imprimible{background:#fff;border:1px solid #e5e1d8;border-radius:16px;padding:20px;}
+  #tabla-imprimible{background:#fff;border:1px solid #e5e1d8;border-radius:16px;padding:20px 10px;}
   #tabla-imprimible h2{font-size:16px;margin:0 0 2px;color:var(--navy);}
   #tabla-imprimible .fila-amort{border-top:1px solid #f0ede6;}
   #tabla-imprimible .fila-ajuste{background:#F3F8EE;}
@@ -114,7 +114,8 @@
     #recibo-imprimible, #recibo-imprimible *,
     #reporte-imprimible, #reporte-imprimible *,
     #tabla-imprimible, #tabla-imprimible *{visibility:visible;}
-    #recibo-imprimible, #reporte-imprimible, #tabla-imprimible{position:absolute;top:0;left:0;width:100%;border:none;}
+    #recibo-imprimible, #reporte-imprimible, #tabla-imprimible{position:absolute;top:0;left:0;width:100%;border:none;margin:0!important;}
+    #tabla-imprimible{padding:10px!important;}
     #recibo-imprimible{ page: recibo; position:absolute!important; left:0!important; right:0!important; width:100%!important; max-width:300px!important; margin:0 auto!important; }
     #tabla-imprimible table{min-width:0!important;width:100%!important;font-size:9px!important;}
     #tabla-imprimible th, #tabla-imprimible td{padding:4px 5px!important;}
@@ -1158,6 +1159,12 @@ function render(){
   if(state.tab==="inicio" && state.vista==="reporteModificaciones"){
     html += `<button class="backbtn" onclick="state.vista='ajustes'; render();">‹</button>`;
   }
+  if(state.tab==="inicio" && state.vista==="reporteDesembolsos"){
+    html += `<button class="backbtn" onclick="state.vista='ajustes'; render();">‹</button>`;
+  }
+  if(state.tab==="inicio" && state.vista==="reporteHistorialPagos"){
+    html += `<button class="backbtn" onclick="state.vista='ajustes'; render();">‹</button>`;
+  }
   if(state.tab==="inicio" && state.vista==="ajustesClave"){
     html += `<button class="backbtn" onclick="state.vista='lista'; render();">‹</button>`;
   }
@@ -1168,8 +1175,10 @@ function render(){
   const tituloReporte = state.tab==="inicio" && state.vista==="reportePDF" ? "Reporte para PDF" : null;
   const tituloResultados = state.tab==="inicio" && state.vista==="estadoResultados" ? "Estado de resultados" : null;
   const tituloModificaciones = state.tab==="inicio" && state.vista==="reporteModificaciones" ? "Modificaciones y refinanciamientos" : null;
+  const tituloDesembolsos = state.tab==="inicio" && state.vista==="reporteDesembolsos" ? "Reporte de desembolsos" : null;
+  const tituloHistorialPagos = state.tab==="inicio" && state.vista==="reporteHistorialPagos" ? "Historial de pagos" : null;
   document.title = nombreApp();
-  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloAjustes||titles[state.tab])))}</h1></div>
+  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||titles[state.tab])))}</h1></div>
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
     html += `<button class="backbtn" style="margin-right:0;" title="Ajustes" onclick="abrirAjustes()">${ICONS.settings}</button>`;
@@ -1720,6 +1729,140 @@ function viewReporteModificaciones(){
       <button class="btn btn-gold" onclick="window.print()">Generar PDF (imprimir)</button>
     </div>`;
 }
+// Junta en una sola lista, ordenada por fecha, TODO el dinero que ha salido de caja como
+// capital prestado: el desembolso inicial de cada préstamo (o el "monto adicional" si nació
+// de un refinanciamiento, ya que el resto es saldo reacomodado, no dinero nuevo) y el
+// "adicional" de cada modificación no sustancial (NIF C-19) registrada sobre un préstamo.
+function listaDesembolsos(){
+  const eventos = [];
+  state.prestamos.forEach(p=>{
+    const cli = state.clientes.find(c=>c.id===p.clienteId);
+    const origen = p.refinanciaDe ? state.prestamos.find(x=>x.id===p.refinanciaDe) : null;
+    eventos.push({
+      fecha: p.fechaInicio, codigo: p.codigo, cliente: cli?cli.nombre:"—",
+      concepto: p.refinanciaDe ? `Adicional al refinanciar${origen?" (de "+origen.codigo+")":""}` : "Préstamo nuevo",
+      monto: p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : (Number(p.capital)||0)
+    });
+    (p.modificaciones||[]).forEach(m=>{
+      if((Number(m.adicional)||0) === 0) return;
+      eventos.push({
+        fecha: m.fecha, codigo: p.codigo, cliente: cli?cli.nombre:"—",
+        concepto: "Adicional por modificación", monto: Number(m.adicional)||0
+      });
+    });
+  });
+  eventos.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||""));
+  return eventos;
+}
+function abrirReporteDesembolsos(){
+  state.tab = "inicio";
+  state.vista = "reporteDesembolsos";
+  render();
+}
+function viewReporteDesembolsos(){
+  const eventos = listaDesembolsos();
+  const total = eventos.reduce((s,e)=>s+e.monto,0);
+  const filas = eventos.map(e=>`<tr style="border-top:1px solid #f0ede6;">
+      <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}</td>
+      <td style="padding:5px 6px;">${e.cliente}</td>
+      <td style="padding:5px 6px;">${e.concepto}</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(e.monto)}</td>
+    </tr>`).join("");
+  return `
+    <div id="reporte-imprimible">
+      <h2>${nombreApp().toUpperCase()}</h2>
+      <p class="hint" style="margin:0 0 14px;">Reporte de desembolsos · ${fmtDate(hoyISO())}</p>
+      ${eventos.length===0 ? `<p class="hint">Todavía no se ha desembolsado ningún préstamo.</p>` : `
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="border-bottom:2px solid #d8d3c8;font-weight:700;">
+          <td style="padding:5px 6px;">Fecha</td><td style="padding:5px 6px;">Préstamo</td>
+          <td style="padding:5px 6px;">Cliente</td><td style="padding:5px 6px;">Concepto</td>
+          <td style="padding:5px 6px;text-align:right;">Monto</td>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:14px;margin-top:14px;border-top:2px solid #1B2A4A;">
+        <tr><td style="padding:8px 6px;font-weight:700;">Total desembolsado</td>
+        <td style="padding:8px 6px;text-align:right;font-weight:700;">${money(total)}</td></tr>
+      </table>`}
+      <p class="hint" style="margin-top:14px;">Incluye el capital de cada préstamo nuevo y, cuando un préstamo nace de un refinanciamiento, solo el monto adicional que realmente se entregó en efectivo (el resto es el saldo del préstamo anterior reacomodado). También incluye los montos adicionales entregados en modificaciones no sustanciales (NIF C-19).</p>
+    </div>
+    <div class="flexrow" style="margin-top:16px;">
+      <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
+      <button class="btn btn-gold" onclick="window.print()">Generar PDF (imprimir)</button>
+    </div>`;
+}
+
+// Junta en una sola lista, ordenada por fecha, todos los pagos registrados en todos los
+// préstamos (cuotas, abonos a capital y liquidaciones anticipadas).
+function listaHistorialPagos(){
+  const eventos = [];
+  state.prestamos.forEach(p=>{
+    const cli = state.clientes.find(c=>c.id===p.clienteId);
+    (p.pagos||[]).forEach(pg=>{
+      let concepto = "Cuota";
+      if(pg.liquidacion) concepto = "Liquidación anticipada";
+      else if(pg.tipo === "abono_capital") concepto = "Abono a capital";
+      else if(pg.mora>0) concepto = "Cuota + mora";
+      eventos.push({
+        fecha: pg.fecha, codigo: p.codigo, cliente: cli?cli.nombre:"—",
+        concepto, monto: Number(pg.monto)||0, mora: Number(pg.mora)||0
+      });
+    });
+  });
+  eventos.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||""));
+  return eventos;
+}
+function abrirReporteHistorialPagos(){
+  state.tab = "inicio";
+  state.vista = "reporteHistorialPagos";
+  render();
+}
+function viewReporteHistorialPagos(){
+  const eventos = listaHistorialPagos();
+  const totalMonto = eventos.reduce((s,e)=>s+e.monto,0);
+  const totalMora = eventos.reduce((s,e)=>s+e.mora,0);
+  const filas = eventos.map(e=>`<tr style="border-top:1px solid #f0ede6;">
+      <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
+      <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}</td>
+      <td style="padding:5px 6px;">${e.cliente}</td>
+      <td style="padding:5px 6px;">${e.concepto}</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(e.monto)}</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.mora>0?money(e.mora):"—"}</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;font-weight:600;">${money(e.monto+e.mora)}</td>
+    </tr>`).join("");
+  return `
+    <div id="reporte-imprimible">
+      <h2>${nombreApp().toUpperCase()}</h2>
+      <p class="hint" style="margin:0 0 14px;">Historial de pagos · ${fmtDate(hoyISO())}</p>
+      ${eventos.length===0 ? `<p class="hint">Todavía no se ha registrado ningún pago.</p>` : `
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead><tr style="border-bottom:2px solid #d8d3c8;font-weight:700;">
+          <td style="padding:5px 6px;">Fecha</td><td style="padding:5px 6px;">Préstamo</td>
+          <td style="padding:5px 6px;">Cliente</td><td style="padding:5px 6px;">Concepto</td>
+          <td style="padding:5px 6px;text-align:right;">Monto</td><td style="padding:5px 6px;text-align:right;">Mora</td>
+          <td style="padding:5px 6px;text-align:right;">Total</td>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:14px;border-top:2px solid #1B2A4A;">
+        <tr><td style="padding:8px 6px;">Total en cuotas/abonos</td><td style="padding:8px 6px;text-align:right;">${money(totalMonto)}</td></tr>
+        <tr><td style="padding:8px 6px;">Total en mora</td><td style="padding:8px 6px;text-align:right;">${money(totalMora)}</td></tr>
+        <tr><td style="padding:8px 6px;font-weight:700;">Total cobrado</td>
+        <td style="padding:8px 6px;text-align:right;font-weight:700;">${money(totalMonto+totalMora)}</td></tr>
+      </table>`}
+      <p class="hint" style="margin-top:14px;">Incluye todos los pagos registrados en todos los préstamos: cuotas, abonos a capital y liquidaciones anticipadas, con su mora cobrada cuando aplica.</p>
+    </div>
+    <div class="flexrow" style="margin-top:16px;">
+      <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
+      <button class="btn btn-gold" onclick="window.print()">Generar PDF (imprimir)</button>
+    </div>`;
+}
 
 async function subirNube(silencioso){
   const url = (state.config.syncUrl||"").trim();
@@ -1788,6 +1931,8 @@ function viewInicio(){
   if(state.vista==="reportePDF") return viewReportePDF();
   if(state.vista==="estadoResultados") return viewEstadoResultados();
   if(state.vista==="reporteModificaciones") return viewReporteModificaciones();
+  if(state.vista==="reporteDesembolsos") return viewReporteDesembolsos();
+  if(state.vista==="reporteHistorialPagos") return viewReporteHistorialPagos();
   if(state.vista==="ajustesClave") return viewAjustesClave();
   if(state.vista==="ajustes") return viewAjustes();
   let prestado=0, cobrado=0, activos=0, vencidos=0;
@@ -1999,6 +2144,10 @@ function viewAjustes(){
     <div class="flexrow" style="margin-top:8px;">
       <button class="btn btn-outline" onclick="abrirEstadoResultados()">Estado de resultados</button>
       <button class="btn btn-outline" onclick="abrirReporteModificaciones()">Modificaciones (NIF C-19)</button>
+    </div>
+    <div class="flexrow" style="margin-top:8px;">
+      <button class="btn btn-outline" onclick="abrirReporteDesembolsos()">Desembolsos</button>
+      <button class="btn btn-outline" onclick="abrirReporteHistorialPagos()">Historial de pagos</button>
     </div>
   </div>
   <div class="row-card" style="display:block;">
@@ -2636,12 +2785,12 @@ function viewDetallePrestamo(){
     </div>
     ${esIndefDetalle ? `<p class="hint" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija. Cada fila nueva aparece un día antes de que se cumpla ese período.</p>` : ""}
     ${filasConAjuste.size>0 ? `<p class="hint" style="margin:4px 0 10px;"><span style="color:#3B6D11;font-weight:700;">*</span> Las filas resaltadas en verde tuvieron un abono a capital extra además de su cuota normal.</p>` : ""}
-    <div id="tabla-imprimible">
+    <div id="tabla-imprimible" style="margin:0 -16px 16px;padding:16px 6px;">
       <h2 class="solo-imprimir">${nombreApp().toUpperCase()}</h2>
       <p class="hint solo-imprimir" style="margin:0 0 10px;">${p.codigo} · ${cli?cli.nombre:"—"} · Capital ${money(p.capital)} · Tasa ${p.tasa}% · ${p.periodo} · ${p.metodo}</p>
-      <div style="border:1px solid #e5e1d8;border-radius:16px;overflow:hidden;margin-bottom:16px;">
+      <div style="border:1px solid #e5e1d8;border-radius:16px;overflow:hidden;">
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-        <table style="min-width:520px;font-size:11px;">
+        <table style="width:100%;min-width:100%;font-size:11px;">
           <thead><tr style="background:#F5F3EE;">
             <th style="padding:5px 6px;text-align:left;">N°</th><th style="padding:5px 6px;text-align:left;">Fecha</th>
             <th style="padding:5px 6px;text-align:right">Saldo ini.</th><th style="padding:5px 6px;text-align:right">Cuota</th>
