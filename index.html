@@ -43,6 +43,7 @@
   .card .val{font-size:18px;font-weight:600;margin:0;}
   .section-title{font-size:13px;font-weight:600;color:#8a8680;margin:0 0 8px;}
   .row-card{border:1px solid #e5e1d8;border-radius:16px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;background:#fff;}
+  .monto-navy{color:var(--navy);}
   .row-card .name{font-size:14px;font-weight:600;margin:0;}
   .row-card .sub{font-size:12px;color:#8a8680;margin:2px 0 0;}
   .badge{font-size:11px;padding:3px 9px;border-radius:99px;font-weight:600;white-space:nowrap;}
@@ -100,6 +101,9 @@
   #reporte-imprimible h2{font-size:16px;margin:0 0 2px;color:var(--navy);}
   #tabla-imprimible{background:#fff;border:1px solid #e5e1d8;border-radius:16px;padding:20px;}
   #tabla-imprimible h2{font-size:16px;margin:0 0 2px;color:var(--navy);}
+  #tabla-imprimible .fila-amort{border-top:1px solid #f0ede6;}
+  #tabla-imprimible .fila-ajuste{background:#F3F8EE;}
+  #tabla-imprimible .fila-total-amort{border-top:2px solid #d8d3c8;background:#F5F3EE;}
   .solo-imprimir{display:none;}
   @page{ size: A4; margin: 14mm; }
   @page recibo{ size: 80mm 170mm; margin: 6mm; }
@@ -123,6 +127,13 @@
     #reporte-imprimible table{font-size:9px!important;}
     #reporte-imprimible th, #reporte-imprimible td{padding:4px 5px!important;}
     .solo-imprimir{display:block;}
+    /* Al imprimir siempre en blanco y negro sobre papel, sin importar si estaba en modo
+       oscuro — el papel no tiene "modo oscuro". */
+    #recibo-imprimible, #reporte-imprimible, #tabla-imprimible{background:#fff!important;color:#222!important;}
+    #recibo-imprimible th, #reporte-imprimible th, #tabla-imprimible th{background:#F5F3EE!important;}
+    #tabla-imprimible .fila-amort{border-top-color:#f0ede6!important;}
+    #tabla-imprimible .fila-ajuste{background:#F3F8EE!important;}
+    #tabla-imprimible .fila-total-amort{border-top-color:#d8d3c8!important;background:#F5F3EE!important;}
   }
   .jr-modal-overlay{position:fixed;inset:0;background:rgba(20,20,25,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:9999;animation:jrFadeIn .15s ease-out;}
   @keyframes jrFadeIn{from{opacity:0}to{opacity:1}}
@@ -133,13 +144,15 @@
   .jr-modal-card .flexrow .btn{flex:1;}
 
   /* ===== Modo oscuro =====
-     Se activa con [data-theme="dark"] en <html>. Los recibos/reportes imprimibles
-     (#recibo-imprimible, #reporte-imprimible, #tabla-imprimible) se dejan siempre
-     claros a propósito, aunque el modo oscuro esté activo, porque están pensados
-     para imprimirse en papel blanco. Las tarjetas de color (capital prestado,
-     cobrado, activos, vencidos, etc.) se dejan con su mismo color de acento —
-     quedan como "chips" vivos sobre el fondo oscuro, un patrón común en apps con
-     tema oscuro — solo se ajustan fondo, bordes y textos neutros de la app.
+     Se activa con [data-theme="dark"] en <html>. Los recibos/reportes/tabla de amortización
+     (#recibo-imprimible, #reporte-imprimible, #tabla-imprimible) ahora sí siguen el tema en
+     PANTALLA (antes se dejaban siempre blancos, y por eso se veían como un bloque blanco
+     encima del fondo oscuro). Solo se fuerzan a blanco cuando de verdad se están imprimiendo
+     (dentro de @media print más abajo), porque ahí sí conviene que salgan en papel blanco
+     sin importar el tema. Las tarjetas de color (capital prestado, cobrado, activos,
+     vencidos, etc.) se dejan con su mismo color de acento — quedan como "chips" vivos sobre
+     el fondo oscuro, un patrón común en apps con tema oscuro — solo se ajustan fondo,
+     bordes y textos neutros de la app.
   */
   [data-theme="dark"] body{background:#12161f;color:#E7E7EA;}
   [data-theme="dark"] #app{background:#12161f;}
@@ -163,14 +176,20 @@
   [data-theme="dark"] .hint{color:rgba(255,255,255,.4);}
   [data-theme="dark"] .avatar{background:rgba(255,255,255,.08);color:#fff;}
   [data-theme="dark"] .card .lbl{color:rgba(255,255,255,.5);}
+  [data-theme="dark"] .monto-navy{color:#8FB2E8;}
   [data-theme="dark"] .jr-modal-card{background:#1B212C;}
   [data-theme="dark"] .jr-modal-msg{color:#E7E7EA;}
   [data-theme="dark"] #recibo-imprimible,
   [data-theme="dark"] #reporte-imprimible,
-  [data-theme="dark"] #tabla-imprimible{background:#fff!important;color:#222!important;}
-  [data-theme="dark"] #recibo-imprimible th,
-  [data-theme="dark"] #reporte-imprimible th,
-  [data-theme="dark"] #tabla-imprimible th{background:#F5F3EE!important;}
+  [data-theme="dark"] #tabla-imprimible{background:#1B212C;color:#E7E7EA;border-color:rgba(255,255,255,.08);}
+  [data-theme="dark"] #recibo-imprimible h2,
+  [data-theme="dark"] #reporte-imprimible h2,
+  [data-theme="dark"] #tabla-imprimible h2{color:#fff;}
+  [data-theme="dark"] #recibo-imprimible .rtotal{color:#fff;}
+  [data-theme="dark"] #recibo-imprimible .rline{border-bottom-color:rgba(255,255,255,.14);}
+  [data-theme="dark"] #tabla-imprimible .fila-amort{border-top-color:rgba(255,255,255,.08);}
+  [data-theme="dark"] #tabla-imprimible .fila-ajuste{background:rgba(59,109,17,.18);}
+  [data-theme="dark"] #tabla-imprimible .fila-total-amort{border-top-color:rgba(255,255,255,.18);background:#20283A;}
 </style>
 </head>
 <body>
@@ -2142,7 +2161,7 @@ function viewPrestamos(){
     html += `<div class="row-card" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
       <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
       <p class="sub">${p.codigo} · ${p.metodo.split(" (")[0]}</p>
-      <p style="font-size:13px;margin:4px 0 0;color:${NAVY}">${money(r.saldoPendiente)}</p></div>
+      <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(r.saldoPendiente)}</p></div>
       <div style="text-align:right;">${badge(atraso>0?"Vencido":r.estado)}${atraso>0?`<p class="hint" style="margin:2px 0 0;color:#A32D2D;">${nVenc} cuota${nVenc===1?"":"s"}</p>`:""}</div>
     </div>`;
   });
@@ -2269,7 +2288,7 @@ function viewCartera(){
       html += `<div class="row-card" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
         <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
         <p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p>
-        <p style="font-size:13px;margin:4px 0 0;color:${NAVY}">${money(r.cuotaActual?r.cuotaActual.cuota:r.cuota)}</p></div>
+        <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(r.cuotaActual?r.cuotaActual.cuota:r.cuota)}</p></div>
         <span class="badge b-vencido">${atraso} día${atraso===1?"":"s"}</span>
       </div>`;
     });
@@ -2533,7 +2552,7 @@ function viewDetallePrestamo(){
     else if(i === r.pagosHechos && r.abonadoEnCuotaActual>0) estadoCelda = `<span style="color:${GOLD};">Abono ${money(r.abonadoEnCuotaActual)}</span>`;
     else estadoCelda = '<span style="color:#bbb">—</span>';
     const tieneAjuste = filasConAjuste.has(f.n);
-    return `<tr style="border-top:1px solid #f0ede6;${tieneAjuste?'background:#F3F8EE;':''}">
+    return `<tr class="fila-amort${tieneAjuste?' fila-ajuste':''}">
       <td style="padding:4px 6px;">${f.n}${tieneAjuste?' <span title="Incluye abono a capital" style="color:#3B6D11;font-weight:700;">*</span>':''}</td>
       <td style="padding:4px 6px;white-space:nowrap;">${fmtDateCompacto(f.fecha)}</td>
       <td style="padding:4px 6px;text-align:right">${money(f.saldoInicial)}</td>
@@ -2547,7 +2566,7 @@ function viewDetallePrestamo(){
   const totalCuota = filasParaTabla.reduce((s,f)=>s+(Number(f.cuota)||0),0);
   const totalInteres = filasParaTabla.reduce((s,f)=>s+(Number(f.interes)||0),0);
   const totalAbono = filasParaTabla.reduce((s,f)=>s+(Number(f.abono)||0),0);
-  const filaTotales = esIndefDetalle ? "" : `<tr style="border-top:2px solid #d8d3c8;background:#F5F3EE;font-weight:700;">
+  const filaTotales = esIndefDetalle ? "" : `<tr class="fila-total-amort" style="font-weight:700;">
     <td colspan="3" style="padding:5px 6px;">Total</td>
     <td style="padding:5px 6px;text-align:right">${money(totalCuota)}</td>
     <td style="padding:5px 6px;text-align:right">${money(totalInteres)}</td>
@@ -2613,7 +2632,7 @@ function viewDetallePrestamo(){
     </div>` : ""}` : ""}
     <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;">
       <p class="section-title" style="margin:0;">Tabla de amortización</p>
-      <p style="font-size:12px;color:#666;margin:0;">Capital: <b style="color:${NAVY}">${money(p.capital)}</b></p>
+      <p style="font-size:12px;color:#666;margin:0;">Capital: <b class="monto-navy">${money(p.capital)}</b></p>
     </div>
     ${esIndefDetalle ? `<p class="hint" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija. Cada fila nueva aparece un día antes de que se cumpla ese período.</p>` : ""}
     ${filasConAjuste.size>0 ? `<p class="hint" style="margin:4px 0 10px;"><span style="color:#3B6D11;font-weight:700;">*</span> Las filas resaltadas en verde tuvieron un abono a capital extra además de su cuota normal.</p>` : ""}
