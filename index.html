@@ -133,7 +133,8 @@
     /* Al imprimir siempre en blanco y negro sobre papel, sin importar si estaba en modo
        oscuro — el papel no tiene "modo oscuro". */
     #recibo-imprimible, #reporte-imprimible, #tabla-imprimible{background:#fff!important;color:#222!important;}
-    #recibo-imprimible th, #reporte-imprimible th, #tabla-imprimible th{background:#F5F3EE!important;}
+    #recibo-imprimible th{background:#F5F3EE!important;}
+    #reporte-imprimible th, #tabla-imprimible th{background:#1B2A4A!important;color:#fff!important;}
     .fila-amort{border-top-color:#f0ede6!important;}
     .fila-ajuste{background:#F3F8EE!important;}
     .fila-total-amort{border-top-color:#d8d3c8!important;background:#F5F3EE!important;}
@@ -1143,6 +1144,13 @@ function render(){
     try{ selStart = activo.selectionStart; selEnd = activo.selectionEnd; }catch(e){}
   }
   const scrollY = window.scrollY;
+  // Si se sigue en la MISMA pantalla (p. ej. solo cambió un dato mientras escribes), se
+  // mantiene el scroll donde estaba para no dar un salto molesto. Pero si se navegó a una
+  // pantalla distinta (p. ej. se abrió un reporte desde Ajustes), debe iniciar arriba del
+  // todo, no quedar con el scroll que traía la pantalla anterior.
+  const claveVista = `${state.tab}|${state.vista}|${state.seleccionId||""}`;
+  const mismaVista = window._claveVistaAnterior === claveVista;
+  window._claveVistaAnterior = claveVista;
 
   const titles = {inicio:"Resumen", clientes:"Clientes", prestamos:"Préstamos", pagos:"Historial de pagos"};
   let html = `<header><div style="display:flex;align-items:center;justify-content:space-between;">
@@ -1218,7 +1226,7 @@ function render(){
       }
     }
   }
-  window.scrollTo(0, scrollY);
+  window.scrollTo(0, mismaVista ? scrollY : 0);
 }
 
 function exportarDatos(){
@@ -1605,6 +1613,93 @@ function abrirEstadoResultados(){
   state.vista = "estadoResultados";
   render();
 }
+function generarEstadoResultadosPDF(){
+  let interesesCobrados=0, capitalCobrado=0, moraCobrada=0, enganches=0, desembolsos=0, gananciaPerdidaModificaciones=0;
+  state.prestamos.forEach(p=>{
+    const d = desglosePagado(p);
+    interesesCobrados += d.interes;
+    capitalCobrado += d.capital;
+    moraCobrada += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.mora)||0),0);
+    if(p.refinanciaDe) enganches += Number(p.engancheAlRefinanciar)||0;
+    if(p.refinanciaDe && p.tipoModificacionNIF==="no_sustancial") gananciaPerdidaModificaciones += Number(p.gananciaPerdidaModificacionNIF)||0;
+    desembolsos += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
+    (p.modificaciones||[]).forEach(m=>{
+      enganches += Number(m.enganche)||0;
+      desembolsos += Number(m.adicional)||0;
+      gananciaPerdidaModificaciones += Number(m.gananciaPerdida)||0;
+    });
+  });
+  const ingresos = interesesCobrados + capitalCobrado + moraCobrada + enganches;
+  const utilidad = ingresos - desembolsos + gananciaPerdidaModificaciones;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14);
+  doc.text(nombreApp(), 14, 16);
+  doc.setFontSize(9);
+  doc.text(`Estado de resultados (base efectivo)  ·  ${fmtDate(hoyISO())}`, 14, 23);
+  doc.autoTable({
+    startY: 30,
+    head: [["Ingresos","Monto"]],
+    body: [
+      ["Intereses cobrados", money(interesesCobrados)],
+      ["Abonos a capital cobrados", money(capitalCobrado)],
+      ["Mora cobrada", money(moraCobrada)],
+      ["Enganches al refinanciar", money(enganches)]
+    ],
+    foot: [["Total ingresos", money(ingresos)]],
+    columnStyles: { 1: { halign: "right" } },
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [27,42,74] },
+    footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" }
+  });
+  let startY = doc.lastAutoTable.finalY + 10;
+  doc.autoTable({
+    startY,
+    head: [["Egresos","Monto"]],
+    body: [["Desembolsos (capital prestado)", money(desembolsos)]],
+    foot: [["Total egresos", money(desembolsos)]],
+    columnStyles: { 1: { halign: "right" } },
+    styles: { fontSize: 9, cellPadding: 3 },
+    headStyles: { fillColor: [27,42,74] },
+    footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" }
+  });
+  startY = doc.lastAutoTable.finalY + 10;
+  if(gananciaPerdidaModificaciones !== 0){
+    doc.autoTable({
+      startY,
+      head: [["Ganancia/(pérdida) por modificación de préstamos (NIF C-19)","Monto"]],
+      body: [[gananciaPerdidaModificaciones>=0?"Ganancia por modificación":"Pérdida por modificación", money(gananciaPerdidaModificaciones)]],
+      columnStyles: { 1: { halign: "right" } },
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [27,42,74] }
+    });
+    startY = doc.lastAutoTable.finalY + 10;
+  }
+  doc.autoTable({
+    startY,
+    body: [[`${utilidad>=0?"Utilidad":"Pérdida"} del período`, money(Math.abs(utilidad))]],
+    columnStyles: { 1: { halign: "right", textColor: utilidad>=0?[59,109,17]:[192,67,59] } },
+    styles: { fontSize: 10, cellPadding: 4, fontStyle:"bold", fillColor:[245,243,238] }
+  });
+  startY = doc.lastAutoTable.finalY + 8;
+  doc.setFontSize(7.5);
+  doc.setTextColor(120,120,120);
+  const nota = "Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como \"desembolso\" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo). Cuando un refinanciamiento se clasifica como \"modificación no sustancial\" (NIF C-19), la diferencia se reconoce aquí como ganancia o pérdida.";
+  doc.text(doc.splitTextToSize(nota, 180), 14, startY);
+  doc.setTextColor(0,0,0);
+  return doc;
+}
+function imprimirEstadoResultadosPDF(){
+  cargarPDFLibs(function(){ imprimirPDFDoc(generarEstadoResultadosPDF()); });
+}
+function compartirEstadoResultadosPDF(){
+  cargarPDFLibs(function(){
+    try{
+      const blob = generarEstadoResultadosPDF().output("blob");
+      compartirOdescargarPDF(blob, `estado-resultados-jr-prestamito.pdf`, `Estado de resultados`);
+    }catch(err){ mostrarAlerta("Ocurrió un error generando el PDF. Intenta de nuevo."); }
+  });
+}
 function viewEstadoResultados(){
   let interesesCobrados=0, capitalCobrado=0, moraCobrada=0, enganches=0, desembolsos=0, gananciaPerdidaModificaciones=0;
   state.prestamos.forEach(p=>{
@@ -1672,10 +1767,10 @@ function viewEstadoResultados(){
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="window.print()">Generar PDF (imprimir)</button>
-    </div>`;
+      <button class="btn btn-gold" onclick="imprimirEstadoResultadosPDF()">Imprimir</button>
+    </div>
+    <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirEstadoResultadosPDF()">Compartir en PDF</button>`;
 }
-
 function abrirReporteModificaciones(){
   state.tab = "inicio";
   state.vista = "reporteModificaciones";
@@ -1713,6 +1808,70 @@ function listaModificaciones(){
   });
   eventos.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||""));
   return eventos;
+}
+function generarReporteModificacionesPDF(){
+  const eventos = listaModificaciones();
+  const totalGanancia = eventos.reduce((s,e)=>s+e.gananciaPerdida,0);
+  const totalSustanciales = eventos.filter(e=>e.tipo==="sustancial").length;
+  const totalNoSustanciales = eventos.filter(e=>e.tipo==="no_sustancial").length;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14);
+  doc.text(nombreApp(), 14, 16);
+  doc.setFontSize(9);
+  doc.text(`Reporte de modificaciones y refinanciamientos (NIF C-19)  ·  ${fmtDate(hoyISO())}`, 14, 23);
+  const filas = eventos.map(e=>[
+    fmtDateCompacto(e.fecha),
+    `${e.codigo}${e.tipo==="sustancial"&&e.codigoOrigen!=="—"?` (de ${e.codigoOrigen})`:""}`,
+    e.cliente,
+    e.tipo==="sustancial"?"Sustancial":"No sustancial",
+    `${e.capitalAntes!=null?money(e.capitalAntes):"—"} → ${money(e.capitalDespues)}`,
+    `${e.tasaAntes!=null?e.tasaAntes+"%":"—"} → ${e.tasaDespues}%`,
+    e.gananciaPerdida!==0?money(e.gananciaPerdida):"—"
+  ]);
+  doc.autoTable({
+    startY: 28,
+    head: [["Fecha","Préstamo","Cliente","Clasificación","Capital antes→después","Tasa antes→después","Ganancia/(pérdida)"]],
+    body: filas.length?filas:[["—","—","Todavía no se ha refinanciado ni modificado ningún préstamo.","","","",""]],
+    styles: { fontSize: 7.5, cellPadding: 2 },
+    headStyles: { fillColor: [27,42,74] }
+  });
+  let startY = doc.lastAutoTable.finalY + 10;
+  doc.autoTable({
+    startY,
+    body: [
+      ["Modificaciones sustanciales (préstamo nuevo)", String(totalSustanciales)],
+      ["Modificaciones NO sustanciales (mismo préstamo)", String(totalNoSustanciales)],
+      [`${totalGanancia>=0?"Ganancia":"Pérdida"} neta por modificaciones`, money(Math.abs(totalGanancia))]
+    ],
+    columnStyles: { 1: { halign: "right" } },
+    styles: { fontSize: 9, cellPadding: 3 },
+    didParseCell: function(data){
+      if(data.row.index===2){
+        data.cell.styles.fontStyle="bold";
+        data.cell.styles.fillColor=[245,243,238];
+        if(data.column.index===1) data.cell.styles.textColor = totalGanancia>=0?[59,109,17]:[192,67,59];
+      }
+    }
+  });
+  startY = doc.lastAutoTable.finalY + 8;
+  doc.setFontSize(7.5);
+  doc.setTextColor(120,120,120);
+  const nota = "Reúne todos los refinanciamientos y modificaciones de condiciones registrados, con su clasificación NIF C-19 (sustancial o no sustancial) y la ganancia o pérdida reconocida en cada uno. Es el detalle/respaldo de la línea \"Ganancia/(pérdida) por modificación de préstamos\" del Estado de resultados.";
+  doc.text(doc.splitTextToSize(nota, 180), 14, startY);
+  doc.setTextColor(0,0,0);
+  return doc;
+}
+function imprimirReporteModificacionesPDF(){
+  cargarPDFLibs(function(){ imprimirPDFDoc(generarReporteModificacionesPDF()); });
+}
+function compartirReporteModificacionesPDF(){
+  cargarPDFLibs(function(){
+    try{
+      const blob = generarReporteModificacionesPDF().output("blob");
+      compartirOdescargarPDF(blob, `modificaciones-jr-prestamito.pdf`, `Reporte de modificaciones`);
+    }catch(err){ mostrarAlerta("Ocurrió un error generando el PDF. Intenta de nuevo."); }
+  });
 }
 function viewReporteModificaciones(){
   const eventos = listaModificaciones();
@@ -1757,8 +1916,9 @@ function viewReporteModificaciones(){
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="window.print()">Generar PDF (imprimir)</button>
-    </div>`;
+      <button class="btn btn-gold" onclick="imprimirReporteModificacionesPDF()">Imprimir</button>
+    </div>
+    <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirReporteModificacionesPDF()">Compartir en PDF</button>`;
 }
 // Junta en una sola lista, ordenada por fecha, TODO el dinero que ha salido de caja como
 // capital prestado: el desembolso inicial de cada préstamo (o el "monto adicional" si nació
@@ -1789,6 +1949,45 @@ function abrirReporteDesembolsos(){
   state.tab = "inicio";
   state.vista = "reporteDesembolsos";
   render();
+}
+function generarReporteDesembolsosPDF(){
+  const eventos = listaDesembolsos();
+  const total = eventos.reduce((s,e)=>s+e.monto,0);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14);
+  doc.text(nombreApp(), 14, 16);
+  doc.setFontSize(9);
+  doc.text(`Reporte de desembolsos  ·  ${fmtDate(hoyISO())}`, 14, 23);
+  const filas = eventos.map(e=>[fmtDateCompacto(e.fecha), e.codigo, e.cliente, e.concepto, money(e.monto)]);
+  doc.autoTable({
+    startY: 28,
+    head: [["Fecha","Préstamo","Cliente","Concepto","Monto"]],
+    body: filas.length?filas:[["—","—","Todavía no se ha desembolsado ningún préstamo.","",""]],
+    foot: [["","","","Total desembolsado", money(total)]],
+    columnStyles: { 4: { halign: "right" } },
+    styles: { fontSize: 8, cellPadding: 2.5 },
+    headStyles: { fillColor: [27,42,74] },
+    footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" }
+  });
+  const startY = doc.lastAutoTable.finalY + 8;
+  doc.setFontSize(7.5);
+  doc.setTextColor(120,120,120);
+  const nota = "Incluye el capital de cada préstamo nuevo y, cuando un préstamo nace de un refinanciamiento, solo el monto adicional que realmente se entregó en efectivo (el resto es el saldo del préstamo anterior reacomodado). También incluye los montos adicionales entregados en modificaciones no sustanciales (NIF C-19).";
+  doc.text(doc.splitTextToSize(nota, 180), 14, startY);
+  doc.setTextColor(0,0,0);
+  return doc;
+}
+function imprimirReporteDesembolsosPDF(){
+  cargarPDFLibs(function(){ imprimirPDFDoc(generarReporteDesembolsosPDF()); });
+}
+function compartirReporteDesembolsosPDF(){
+  cargarPDFLibs(function(){
+    try{
+      const blob = generarReporteDesembolsosPDF().output("blob");
+      compartirOdescargarPDF(blob, `desembolsos-jr-prestamito.pdf`, `Reporte de desembolsos`);
+    }catch(err){ mostrarAlerta("Ocurrió un error generando el PDF. Intenta de nuevo."); }
+  });
 }
 function viewReporteDesembolsos(){
   const eventos = listaDesembolsos();
@@ -1827,8 +2026,9 @@ function viewReporteDesembolsos(){
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="window.print()">Generar PDF (imprimir)</button>
-    </div>`;
+      <button class="btn btn-gold" onclick="imprimirReporteDesembolsosPDF()">Imprimir</button>
+    </div>
+    <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirReporteDesembolsosPDF()">Compartir en PDF</button>`;
 }
 
 // Junta en una sola lista, ordenada por fecha, todos los pagos registrados en todos los
@@ -1855,6 +2055,46 @@ function abrirReporteHistorialPagos(){
   state.tab = "inicio";
   state.vista = "reporteHistorialPagos";
   render();
+}
+function generarHistorialPagosPDF(){
+  const eventos = listaHistorialPagos();
+  const totalMonto = eventos.reduce((s,e)=>s+e.monto,0);
+  const totalMora = eventos.reduce((s,e)=>s+e.mora,0);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  doc.setFontSize(14);
+  doc.text(nombreApp(), 14, 16);
+  doc.setFontSize(9);
+  doc.text(`Historial de pagos  ·  ${fmtDate(hoyISO())}`, 14, 23);
+  const filas = eventos.map(e=>[fmtDateCompacto(e.fecha), e.codigo, e.cliente, e.concepto, money(e.monto), e.mora>0?money(e.mora):"—", money(e.monto+e.mora)]);
+  doc.autoTable({
+    startY: 28,
+    head: [["Fecha","Préstamo","Cliente","Concepto","Monto","Mora","Total"]],
+    body: filas.length?filas:[["—","—","Todavía no se ha registrado ningún pago.","","","",""]],
+    foot: [["","","","Total cobrado", money(totalMonto), money(totalMora), money(totalMonto+totalMora)]],
+    columnStyles: { 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" } },
+    styles: { fontSize: 7.5, cellPadding: 2.5 },
+    headStyles: { fillColor: [27,42,74] },
+    footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" }
+  });
+  const startY = doc.lastAutoTable.finalY + 8;
+  doc.setFontSize(7.5);
+  doc.setTextColor(120,120,120);
+  const nota = "Incluye todos los pagos registrados en todos los préstamos: cuotas, abonos a capital y liquidaciones anticipadas, con su mora cobrada cuando aplica.";
+  doc.text(doc.splitTextToSize(nota, 180), 14, startY);
+  doc.setTextColor(0,0,0);
+  return doc;
+}
+function imprimirHistorialPagosPDF(){
+  cargarPDFLibs(function(){ imprimirPDFDoc(generarHistorialPagosPDF()); });
+}
+function compartirHistorialPagosPDF(){
+  cargarPDFLibs(function(){
+    try{
+      const blob = generarHistorialPagosPDF().output("blob");
+      compartirOdescargarPDF(blob, `historial-pagos-jr-prestamito.pdf`, `Historial de pagos`);
+    }catch(err){ mostrarAlerta("Ocurrió un error generando el PDF. Intenta de nuevo."); }
+  });
 }
 function viewReporteHistorialPagos(){
   const eventos = listaHistorialPagos();
@@ -1899,8 +2139,9 @@ function viewReporteHistorialPagos(){
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="window.print()">Generar PDF (imprimir)</button>
-    </div>`;
+      <button class="btn btn-gold" onclick="imprimirHistorialPagosPDF()">Imprimir</button>
+    </div>
+    <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirHistorialPagosPDF()">Compartir en PDF</button>`;
 }
 
 async function subirNube(silencioso){
