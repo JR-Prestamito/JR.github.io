@@ -48,6 +48,13 @@
   .section-title{font-size:13px;font-weight:600;color:#8a8680;margin:0 0 8px;}
   .row-card{border:1px solid #e5e1d8;border-radius:16px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;background:#fff;}
   .monto-navy{color:var(--navy);}
+  /* Las notas de ayuda (envueltas en <details class="nota-ayuda-details">) quedan cerradas
+     por defecto en cada sección por separado — cada una se abre/cierra independiente de las
+     demás, sin necesidad de JavaScript (es el comportamiento nativo de <details>). */
+  .nota-ayuda-details{margin-top:6px;}
+  .nota-ayuda-details summary{list-style:revert;cursor:pointer;font-size:12px;font-weight:600;color:#8a8680;padding:0;display:list-item;}
+  .nota-ayuda-details[open] summary{margin-bottom:2px;}
+  [data-theme="dark"] .nota-ayuda-details summary{color:rgba(255,255,255,.5);}
   .preview-cuota{background:#EEF1F6;color:#1B2A4A;}
   .row-card .name{font-size:14px;font-weight:600;margin:0;}
   .row-card .sub{font-size:12px;color:#8a8680;margin:2px 0 0;}
@@ -1834,7 +1841,7 @@ function viewEstadoResultados(){
         <td style="padding:8px 6px;text-align:right;font-weight:700;color:${utilidad>=0?"#3B6D11":"#c0433b"};">${money(Math.abs(utilidad))}</td></tr>
       </table>
       </div>
-      <p class="hint" style="margin-top:14px;">Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como "desembolso" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo) — el resto del capital nuevo es el saldo pendiente del préstamo anterior reacomodado, no dinero que volvió a salir de la caja. Cuando un refinanciamiento se clasifica como "modificación no sustancial" según NIF C-19 (prueba del 10% de valor presente), la diferencia se reconoce aquí como ganancia o pérdida; cuando es "sustancial", se trata como préstamo nuevo sin efecto adicional en este renglón.</p>
+      <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin-top:14px;">Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como "desembolso" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo) — el resto del capital nuevo es el saldo pendiente del préstamo anterior reacomodado, no dinero que volvió a salir de la caja. Cuando un refinanciamiento se clasifica como "modificación no sustancial" según NIF C-19 (prueba del 10% de valor presente), la diferencia se reconoce aquí como ganancia o pérdida; cuando es "sustancial", se trata como préstamo nuevo sin efecto adicional en este renglón.</p></details>
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
@@ -2006,7 +2013,7 @@ function viewReporteModificaciones(){
         <td style="padding:8px 6px;text-align:right;font-weight:700;color:${totalGanancia>=0?"#3B6D11":"#c0433b"};">${money(Math.abs(totalGanancia))}</td></tr>
       </table>
       </div>`}
-      <p class="hint" style="margin-top:14px;">Reúne todos los refinanciamientos y modificaciones de condiciones registrados, con su clasificación NIF C-19 (sustancial o no sustancial) y la ganancia o pérdida reconocida en cada uno. Es el detalle/respaldo de la línea "Ganancia/(pérdida) por modificación de préstamos" del Estado de resultados.</p>
+      <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin-top:14px;">Reúne todos los refinanciamientos y modificaciones de condiciones registrados, con su clasificación NIF C-19 (sustancial o no sustancial) y la ganancia o pérdida reconocida en cada uno. Es el detalle/respaldo de la línea "Ganancia/(pérdida) por modificación de préstamos" del Estado de resultados.</p></details>
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
@@ -2023,8 +2030,17 @@ function listaDesembolsos(){
   state.prestamos.forEach(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
     const origen = p.refinanciaDe ? state.prestamos.find(x=>x.id===p.refinanciaDe) : null;
+    // Si el préstamo tuvo una modificación NO sustancial, p.fechaInicio ya no es la fecha en
+    // que salió el capital original de caja — es la fecha del refinanciamiento más reciente
+    // (se sobreescribe en el mismo préstamo). Por eso el desembolso original debe usar la
+    // fecha guardada en fechaInicioAnterior de la PRIMERA modificación, no p.fechaInicio; si
+    // no se hace así, el desembolso original y el "adicional" de esa modificación terminan
+    // mostrando la misma fecha (la más reciente) en vez de sus fechas reales.
+    const fechaDesembolsoOriginal = (p.modificaciones && p.modificaciones.length && p.modificaciones[0].fechaInicioAnterior)
+      ? p.modificaciones[0].fechaInicioAnterior
+      : p.fechaInicio;
     eventos.push({
-      fecha: p.fechaInicio, codigo: p.codigo, cliente: cli?cli.nombre:"—",
+      fecha: fechaDesembolsoOriginal, codigo: p.codigo, cliente: cli?cli.nombre:"—",
       concepto: p.refinanciaDe ? `Adicional al refinanciar${origen?" (de "+origen.codigo+")":""}` : "Préstamo nuevo",
       monto: p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p)
     });
@@ -2116,7 +2132,7 @@ function viewReporteDesembolsos(){
         <td style="padding:8px 6px;text-align:right;font-weight:700;">${money(total)}</td></tr>
       </table>
       </div>`}
-      <p class="hint" style="margin-top:14px;">Incluye el capital de cada préstamo nuevo y, cuando un préstamo nace de un refinanciamiento, solo el monto adicional que realmente se entregó en efectivo (el resto es el saldo del préstamo anterior reacomodado). También incluye los montos adicionales entregados en modificaciones no sustanciales (NIF C-19).</p>
+      <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin-top:14px;">Incluye el capital de cada préstamo nuevo y, cuando un préstamo nace de un refinanciamiento, solo el monto adicional que realmente se entregó en efectivo (el resto es el saldo del préstamo anterior reacomodado). También incluye los montos adicionales entregados en modificaciones no sustanciales (NIF C-19).</p></details>
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
@@ -2317,7 +2333,7 @@ function viewReporteHistorialPagos(){
         <td style="padding:8px 6px;text-align:right;font-weight:700;">${money(totalMonto+totalMora)}</td></tr>
       </table>
       </div>`}
-      <p class="hint" style="margin-top:14px;">Incluye todos los pagos registrados en todos los préstamos: cuotas, abonos a capital y liquidaciones anticipadas, con su mora cobrada cuando aplica. Los pagos hechos antes de una modificación de préstamo se agrupan aparte, en "Pagos anteriores".</p>
+      <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin-top:14px;">Incluye todos los pagos registrados en todos los préstamos: cuotas, abonos a capital y liquidaciones anticipadas, con su mora cobrada cuando aplica. Los pagos hechos antes de una modificación de préstamo se agrupan aparte, en "Pagos anteriores".</p></details>
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
@@ -2420,7 +2436,7 @@ function viewInicio(){
   <div class="card" style="background:${modoOscuro?'#1B212C':'#EAF0FB'};margin:-4px 0 16px;">
     <p class="lbl">Capital prestado actual <span style="font-weight:400;">(cartera vigente)</span></p>
     <p class="val" style="color:${modoOscuro?'#F2F2F2':'#2255A0'}">${money(capitalActual)}</p>
-    <p class="hint" style="margin:4px 0 0;">Capital que hoy sigue pendiente de cobro en préstamos activos, sin contar el interés que falta.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:4px 0 0;">Capital que hoy sigue pendiente de cobro en préstamos activos, sin contar el interés que falta.</p></details>
   </div>
   <p class="section-title">Clientes</p>
   <div class="row-card"><div class="flex-gap">${ICONS.users.replace("currentColor",modoOscuro?'#F2F2F2':NAVY)}<span>${state.clientes.length} Registrados</span></div></div>
@@ -2513,18 +2529,18 @@ function viewAjustes(){
       <input type="checkbox" style="width:auto;" ${state.config.temaOscuro?"checked":""} onchange="state.config.temaOscuro=this.checked; document.documentElement.setAttribute('data-theme', this.checked?'dark':'light'); save(); render();">
       <span style="margin:0;font-size:14px;">Modo oscuro</span>
     </label>
-    <p class="hint" style="margin:6px 0 0;">Los recibos y reportes que imprimes o envías siempre se ven en claro, pensados para papel.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:6px 0 0;">Los recibos y reportes que imprimes o envías siempre se ven en claro, pensados para papel.</p></details>
   </div>
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Nombre del negocio</p>
-    <p class="hint" style="margin:0 0 10px;">Aparece en el encabezado, los recibos y los reportes. Cámbialo si vas a usar esta app para otro negocio.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Aparece en el encabezado, los recibos y los reportes. Cámbialo si vas a usar esta app para otro negocio.</p></details>
     <label style="margin-bottom:0;"><span>Nombre</span><input id="f_nombreNegocio" placeholder="JR Prestamito" value="${state.config.nombreNegocio||""}" oninput="state.config.nombreNegocio=this.value; save(); render();"></label>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Recibo</p>
-    <p class="hint" style="margin:0 0 10px;">El recibo lleva una marca de agua de fondo con las iniciales de tu negocio (${siglasApp()}) para que no se pueda falsificar fácilmente. Por defecto, el recibo sale <b>sin firma</b> cuando lo envías por WhatsApp/PDF y <b>con línea de firma</b> cuando lo imprimes en papel — puedes forzar una sola opción para ambos casos aquí:</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">El recibo lleva una marca de agua de fondo con las iniciales de tu negocio (${siglasApp()}) para que no se pueda falsificar fácilmente. Por defecto, el recibo sale <b>sin firma</b> cuando lo envías por WhatsApp/PDF y <b>con línea de firma</b> cuando lo imprimes en papel — puedes forzar una sola opción para ambos casos aquí:</p></details>
     <label style="margin-bottom:0;"><span>Al final del recibo</span>
       <select id="f_reciboFirma" onchange="state.config.reciboFirma=this.value; save(); render();">
         <option value="automatico" ${(!state.config.reciboFirma||state.config.reciboFirma==="automatico")?"selected":""}>Automático: sin firma al enviar, con firma al imprimir</option>
@@ -2537,7 +2553,7 @@ function viewAjustes(){
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de recordatorio (WhatsApp / SMS)</p>
-    <p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{monto}</b> (total vencido, sumando todas las cuotas atrasadas y la mora si aplica), <b>{cuotas}</b> (cantidad de cuotas vencidas, ej. "2 cuotas"), <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{monto}</b> (total vencido, sumando todas las cuotas atrasadas y la mora si aplica), <b>{cuotas}</b> (cantidad de cuotas vencidas, ej. "2 cuotas"), <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p></details>
     <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="5" placeholder="${PLANTILLA_RECORDATORIO_DEFECTO}" oninput="state.config.mensajeRecordatorio=this.value; save(); render();">${state.config.mensajeRecordatorio||""}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3, {monto:3000, mora:90, nVenc:2})}</p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajeRecordatorio=''; save(); render(); } })">Restablecer mensaje original</button>
@@ -2545,7 +2561,7 @@ function viewAjustes(){
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de pendiente de cobro (1 día antes)</p>
-    <p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b>.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b>.</p></details>
     <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="5" placeholder="${PLANTILLA_PENDIENTE_DEFECTO}" oninput="state.config.mensajePendiente=this.value; save(); render();">${state.config.mensajePendiente||""}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()})}</p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajePendiente=''; save(); render(); } })">Restablecer mensaje original</button>
@@ -2553,7 +2569,7 @@ function viewAjustes(){
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Cómo contar los días del plazo</p>
-    <p class="hint" style="margin:0 0 10px;">Ejemplo con préstamo semanal iniciado un miércoles: con "Contar desde el día 1" la primera cuota cae el próximo martes (7 días contando el miércoles como día 1). Con "Estándar" cae el miércoles siguiente (7 días completos después, sin contar el día del préstamo).</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Ejemplo con préstamo semanal iniciado un miércoles: con "Contar desde el día 1" la primera cuota cae el próximo martes (7 días contando el miércoles como día 1). Con "Estándar" cae el miércoles siguiente (7 días completos después, sin contar el día del préstamo).</p></details>
     <label style="margin-bottom:0;"><span>Fechas de cuota</span>
       <select id="f_contarDiaInicio" onchange="state.config.contarDiaInicio=(this.value==='si'); save(); render();">
         <option value="si" ${(state.config.contarDiaInicio!==false)?"selected":""}>Contar desde el día 1 (el día del préstamo ya cuenta)</option>
@@ -2563,14 +2579,14 @@ function viewAjustes(){
   </div>`}
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Clave de acceso</p>
-    <p class="hint" style="margin:0 0 12px;">Esta misma clave protege la app al abrirla y también te la vuelve a pedir al entrar a Ajustes, por seguridad extra.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 12px;">Esta misma clave protege la app al abrirla y también te la vuelve a pedir al entrar a Ajustes, por seguridad extra.</p></details>
     <label style="margin-bottom:12px;"><span>Nueva clave</span>
       <input id="f_claveAcceso" type="text" inputmode="numeric" placeholder="Ej. 1234" value="">
     </label>
     <label style="margin-bottom:6px;"><span>Código de recuperación (algo que solo tú sepas, por si olvidas la clave)</span>
       <input id="f_codigoRecuperacion" type="text" placeholder="Ej. una palabra o frase que recuerdes" value="">
     </label>
-    <p class="hint" style="margin:0 0 14px;">Si algún día olvidas la clave, la pantalla de acceso te pedirá este código en vez de dejarte entrar sin más — así nadie puede saltarse la clave con solo tocar un botón.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 14px;">Si algún día olvidas la clave, la pantalla de acceso te pedirá este código en vez de dejarte entrar sin más — así nadie puede saltarse la clave con solo tocar un botón.</p></details>
     <button class="btn btn-gold" onclick="guardarClaveAcceso()">Guardar</button>
     ${state.config.pin ? `<button class="btn btn-danger" style="margin-top:10px;" onclick="quitarClaveAcceso()">Quitar clave</button>` : ""}
     ${state.config.pin ? `
@@ -2579,31 +2595,31 @@ function viewAjustes(){
         <input type="checkbox" id="f_pedirClaveAjustes" ${state.config.pedirClaveEnAjustes!==false?"checked":""} onchange="state.config.pedirClaveEnAjustes=this.checked; save(); render();" style="width:18px;height:18px;flex:none;">
         <span style="font-size:14px;">Pedir esta clave también al entrar a Ajustes</span>
       </label>
-      <p class="hint" style="margin:6px 0 0;">Si la desactivas, la clave se te sigue pidiendo al abrir la app, pero ya no al entrar aquí a Ajustes.</p>
+      <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:6px 0 0;">Si la desactivas, la clave se te sigue pidiendo al abrir la app, pero ya no al entrar aquí a Ajustes.</p></details>
     </div>` : ""}
     ${window.__esCopiaCompartida ? "" : `
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid #eee;">
       <p style="font-size:13px;font-weight:600;margin:0 0 4px;">Huella / Face ID</p>
       ${!state.config.pin
-        ? `<p class="hint" style="margin:0;">Primero pon una clave de inicio (arriba) para poder activar la huella como atajo.</p>`
+        ? `<details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0;">Primero pon una clave de inicio (arriba) para poder activar la huella como atajo.</p></details>`
         : window.__huellaSoportada
           ? (state.config.huellaCredId
               ? `<p class="hint" style="margin:0 0 10px;">Activada en este celular.</p><button class="btn btn-outline" onclick="desactivarHuella()">Desactivar huella</button>`
-              : `<p class="hint" style="margin:0 0 10px;">Úsala como atajo para no escribir la clave cada vez que abres la app. La clave se sigue guardando y funciona siempre como respaldo.</p><button class="btn btn-outline" onclick="activarHuella()">Activar huella / Face ID</button>`)
-          : `<p class="hint" style="margin:0;">No disponible ahora mismo en este celular/navegador. Para poder usarla, la app debe abrirse desde una dirección https:// (no como archivo descargado directamente) y el celular debe tener huella o Face ID configurados en sus ajustes.</p>`
+              : `<details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Úsala como atajo para no escribir la clave cada vez que abres la app. La clave se sigue guardando y funciona siempre como respaldo.</p></details><button class="btn btn-outline" onclick="activarHuella()">Activar huella / Face ID</button>`)
+          : `<details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0;">No disponible ahora mismo en este celular/navegador. Para poder usarla, la app debe abrirse desde una dirección https:// (no como archivo descargado directamente) y el celular debe tener huella o Face ID configurados en sus ajustes.</p></details>`
       }
     </div>`}
   </div>
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Compartir copia protegida</p>
-    <p class="hint" style="margin:0 0 10px;">Genera una copia de este archivo con su propia clave (segura, generada al azar). Nadie puede abrir ni ver nada de esa copia sin escribir esa clave primero — ideal para mandarle el archivo a un cobrador u otra persona. Esa copia sale vacía (sin tus clientes ni préstamos) y NO trae la opción de volver a generar otra copia protegida desde ella; si quien la recibe necesita compartirla de nuevo, tiene que pedírtela a ti.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Genera una copia de este archivo con su propia clave (segura, generada al azar). Nadie puede abrir ni ver nada de esa copia sin escribir esa clave primero — ideal para mandarle el archivo a un cobrador u otra persona. Esa copia sale vacía (sin tus clientes ni préstamos) y NO trae la opción de volver a generar otra copia protegida desde ella; si quien la recibe necesita compartirla de nuevo, tiene que pedírtela a ti.</p></details>
     <button class="btn btn-outline" onclick="generarCopiaProtegida()">Generar archivo protegido para compartir</button>
-    <p class="hint" style="margin-top:10px;">Nota: esto evita que alguien sin la clave abra el archivo normalmente. No es un cifrado imposible de romper (alguien muy técnico podría revisar el código fuente), pero es suficiente para que nadie casual lo abra sin permiso.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin-top:10px;">Nota: esto evita que alguien sin la clave abra el archivo normalmente. No es un cifrado imposible de romper (alguien muy técnico podría revisar el código fuente), pero es suficiente para que nadie casual lo abra sin permiso.</p></details>
   </div>`}
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Respaldo de datos</p>
-    <p class="hint" style="margin:0 0 10px;">Guarda un archivo con tus clientes y préstamos, o restaura uno que ya tengas. Por seguridad, tu clave de inicio y la conexión con la nube NO se incluyen en este archivo — si restauras en otro celular, tendrás que configurarlas ahí de nuevo.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Guarda un archivo con tus clientes y préstamos, o restaura uno que ya tengas. Por seguridad, tu clave de inicio y la conexión con la nube NO se incluyen en este archivo — si restauras en otro celular, tendrás que configurarlas ahí de nuevo.</p></details>
     <div class="flexrow">
       <button class="btn btn-outline" onclick="exportarDatos()">Descargar respaldo</button>
       <button class="btn btn-outline" onclick="document.getElementById('archivoRespaldo').click()">Restaurar respaldo</button>
@@ -2612,7 +2628,7 @@ function viewAjustes(){
   </div>
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Reportes</p>
-    <p class="hint" style="margin:0 0 10px;">Para leer, imprimir o llevar a tu contador. Estos NO sirven para restaurar datos en el celular — para eso usa el respaldo de arriba.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Para leer, imprimir o llevar a tu contador. Estos NO sirven para restaurar datos en el celular — para eso usa el respaldo de arriba.</p></details>
     <div class="flexrow">
       <button class="btn btn-outline" onclick="exportarExcel()" ${state.excelBusy?"disabled style='opacity:.5'":""}>${state.excelBusy?"Generando...":"Excel"}</button>
       <button class="btn btn-outline" onclick="abrirReportePDF()">PDF (imprimir)</button>
@@ -2628,7 +2644,7 @@ function viewAjustes(){
   </div>
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Sincronizar entre celulares</p>
-    <p class="hint" style="margin:0 0 10px;">Usa una Google Sheet como nube compartida. Configúrala una sola vez (instrucciones aparte) y luego pega aquí la URL y la clave. Con la URL y clave puestas, cada vez que abras la app en cualquier celular trae automáticamente lo último de la nube.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Usa una Google Sheet como nube compartida. Configúrala una sola vez (instrucciones aparte) y luego pega aquí la URL y la clave. Con la URL y clave puestas, cada vez que abras la app en cualquier celular trae automáticamente lo último de la nube.</p></details>
     <label><span>URL de la aplicación web</span><input id="f_syncUrl" placeholder="https://script.google.com/macros/s/.../exec" value="${state.config.syncUrl||""}" oninput="state.config.syncUrl=this.value; save({sinAutoSync:true});"></label>
     <label style="margin-bottom:10px;"><span>Clave</span>
       <div class="flexrow">
@@ -2647,16 +2663,16 @@ function viewAjustes(){
       <button class="btn btn-outline" onclick="subirNube()" ${state.syncBusy?"disabled style='opacity:.5'":""}>${state.syncBusy==="push"?"Subiendo...":"Subir ahora"}</button>
       <button class="btn btn-outline" onclick="descargarNube()" ${state.syncBusy?"disabled style='opacity:.5'":""}>${state.syncBusy==="pull"?"Descargando...":"Descargar de la nube"}</button>
     </div>
-    <p class="hint" style="margin-top:10px;">Con la subida automática activada, cada cambio se sube a la nube casi al instante (no necesitas acordarte de subir manualmente), y cada vez que abras la app trae lo último automáticamente. Aun así, sigue siendo el último que suba el que queda guardado — si dos celulares editan al mismo tiempo sin internet, al volver a tener señal el que suba después sobrescribe al otro.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin-top:10px;">Con la subida automática activada, cada cambio se sube a la nube casi al instante (no necesitas acordarte de subir manualmente), y cada vez que abras la app trae lo último automáticamente. Aun así, sigue siendo el último que suba el que queda guardado — si dos celulares editan al mismo tiempo sin internet, al volver a tener señal el que suba después sobrescribe al otro.</p></details>
   </div>
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Mora por atraso</p>
-    <p class="hint" style="margin:0 0 10px;">Porcentaje que se cobra por cada día de atraso sobre el monto de la cuota. Déjalo en 0 si no quieres cobrar mora.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Porcentaje que se cobra por cada día de atraso sobre el monto de la cuota. Déjalo en 0 si no quieres cobrar mora.</p></details>
     <label style="margin-bottom:0;"><span>Tasa de mora diaria (%)</span><input type="text" inputmode="decimal" step="0.01" min="0" value="${state.config.tasaMoraDiaria}" oninput="state.config.tasaMoraDiaria=filtrarDecimal(this.value); save();"></label>
   </div>
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Umbral de modificación sustancial (NIF)</p>
-    <p class="hint" style="margin:0 0 10px;">Al refinanciar, se compara el valor presente del préstamo nuevo contra el del préstamo original. Si la diferencia es igual o mayor a este porcentaje, se clasifica como modificación sustancial (préstamo nuevo); si es menor, se registra como no sustancial (con su ganancia o pérdida por modificación). 10% es el criterio más usado.</p>
+    <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Al refinanciar, se compara el valor presente del préstamo nuevo contra el del préstamo original. Si la diferencia es igual o mayor a este porcentaje, se clasifica como modificación sustancial (préstamo nuevo); si es menor, se registra como no sustancial (con su ganancia o pérdida por modificación). 10% es el criterio más usado.</p></details>
     <label style="margin-bottom:0;"><span>Umbral (%)</span><input type="text" inputmode="decimal" step="0.1" min="0" value="${state.config.umbralModificacionSustancial!==undefined?state.config.umbralModificacionSustancial:10}" oninput="state.config.umbralModificacionSustancial=filtrarDecimal(this.value); save();"></label>
   </div>`;
 }
@@ -2965,7 +2981,7 @@ function viewNuevoPrestamo(){
   }
 
   return `
-    ${editando ? `<p class="hint" style="margin-bottom:12px;">Editando ${f.codigo} — cambiar estos datos puede afectar la tabla de amortización y los pagos ya registrados.</p>` : ""}
+    ${editando ? `<details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin-bottom:12px;">Editando ${f.codigo} — cambiar estos datos puede afectar la tabla de amortización y los pagos ya registrados.</p></details>` : ""}
     ${state.clientes.length===0 ? `<p style="color:#c0433b;font-size:13px;">Agrega un cliente primero en la pestaña Clientes.</p>` : ""}
     <label><span>Cliente</span><select onchange="window._nf.clienteId=this.value; render()">${opts}</select></label>
     <label><span>Capital a financiar (L)</span><input id="nf_capital" type="text" inputmode="decimal" value="${f.capital}" oninput="window._nf.capital=filtrarDecimal(this.value); render()"></label>
@@ -3073,7 +3089,7 @@ function viewRefinanciar(){
       <p style="color:#fff;font-size:22px;font-weight:700;margin:4px 0 0;">${money(capitalPendiente)}</p>
       <p style="color:rgba(255,255,255,.7);font-size:12px;margin:2px 0 0;">capital pendiente a refinanciar</p>
     </div>
-    ${clasificacionHtml || `<p class="hint" style="margin-bottom:12px;">Completa la tasa, cuotas y método abajo para ver aquí la clasificación NIF C-19 (sustancial o no) de este refinanciamiento.</p>`}
+    ${clasificacionHtml || `<details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin-bottom:12px;">Completa la tasa, cuotas y método abajo para ver aquí la clasificación NIF C-19 (sustancial o no) de este refinanciamiento.</p></details>`}
     <label><span>Enganche / abono que reduce el préstamo (L, opcional)</span><input id="rf_enganche" type="text" inputmode="decimal" value="${f.enganche}" oninput="window._rf.enganche=filtrarDecimal(this.value); render()"></label>
     <label><span>Monto adicional a desembolsar (L, opcional)</span><input id="rf_adicional" type="text" inputmode="decimal" value="${f.adicional}" oninput="window._rf.adicional=filtrarDecimal(this.value); render()"></label>
     <label><span>Tasa de interés por período (%)</span><input id="rf_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._rf.tasa=filtrarDecimal(this.value); render()"></label>
@@ -3175,14 +3191,16 @@ function viewDetallePrestamo(){
   const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
 
   // El método Indefinido no tiene número de cuotas fijo, pero ahora sí se muestra un
-  // historial real: cada período (fila) aparece un día ANTES de que se cumpla, y se va
-  // quedando en la tabla ya como periodo pagado o pendiente — en vez de mostrar de una vez
-  // varias filas futuras que todavía no tocan, o esconder todo detrás de una sola fila fija.
+  // historial real: la fila de un período nuevo se crea el día DESPUÉS de la fecha de la
+  // cuota anterior (no espera hasta casi vencer ella misma) — así, en cuanto se resuelve un
+  // período, ya queda lista/visible la fila del que sigue. Se va quedando en la tabla ya
+  // como período pagado o pendiente, en vez de mostrar de una vez varias filas futuras que
+  // todavía no tocan, o esconder todo detrás de una sola fila fija.
   const esIndefDetalle = p.metodo === METODOS[5];
   const filasParaTabla = esIndefDetalle
     ? (function(){
-        const limite = addDays(hoyISO(), 1); // hoy + 1 día: así la fila ya aparece un día antes de vencer
-        const visibles = r.tabla.filter(f=>f.fecha <= limite);
+        const hoy = hoyISO();
+        const visibles = r.tabla.filter((f,i)=> i===0 || addDays(r.tabla[i-1].fecha,1) <= hoy);
         return visibles.length ? visibles : [r.tabla[0]];
       })()
     : r.tabla;
@@ -3265,12 +3283,12 @@ function viewDetallePrestamo(){
         <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarPago('${p.id}')">Pagar</button>
       </div>
       <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#666;">Fecha del pago</span><input type="date" id="fechaPago" value="${hoyISO()}" max="${hoyISO()}"></label>
-      <p class="hint">${nVenc>1 ? `El monto sugerido ya incluye las ${nVenc} cuotas vencidas${moraCalc>0?" y la mora":""}.` : (moraCalc>0 ? "El monto ya incluye la mora; desmarca la casilla para dejar solo la cuota." : "Déjalo vacío para pagar lo sugerido.")} Un monto menor queda como abono parcial a la cuota. Si pagas de más (después de completarla), el excedente se registra como <b>abono a capital</b> — se puede hacer cualquier día.</p>
+      <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint">${nVenc>1 ? `El monto sugerido ya incluye las ${nVenc} cuotas vencidas${moraCalc>0?" y la mora":""}.` : (moraCalc>0 ? "El monto ya incluye la mora; desmarca la casilla para dejar solo la cuota." : "Déjalo vacío para pagar lo sugerido.")} Un monto menor queda como abono parcial a la cuota. Si pagas de más (después de completarla), el excedente se registra como <b>abono a capital</b> — se puede hacer cualquier día.</p></details>
     </div>
     ${esBullet ? `
     <div class="row-card" style="display:block;">
       <p style="font-weight:600;margin:0 0 6px;">Liquidar anticipado</p>
-      <p class="hint" style="margin:0 0 10px;">Calcula el interés real, prorateado por los días que realmente pasaron, si cancelas antes de la fecha de la cuota.</p>
+      <details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:0 0 10px;">Calcula el interés real, prorateado por los días que realmente pasaron, si cancelas antes de la fecha de la cuota.</p></details>
       <label><span>Fecha de liquidación</span><input type="date" id="fechaLiquidacion" value="${hoyISO()}"></label>
       <button class="btn btn-outline" onclick="liquidarAnticipado('${p.id}')">Calcular y liquidar</button>
     </div>` : ""}` : ""}
@@ -3278,8 +3296,8 @@ function viewDetallePrestamo(){
       <p class="section-title" style="margin:0;">Tabla de amortización</p>
       <p style="font-size:12px;color:#666;margin:0;">Capital: <b class="monto-navy">${money(p.capital)}</b></p>
     </div>
-    ${esIndefDetalle ? `<p class="hint" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija. Cada fila nueva aparece un día antes de que se cumpla ese período.</p>` : ""}
-    ${filasConAjuste.size>0 ? `<p class="hint" style="margin:4px 0 10px;"><span style="color:#3B6D11;font-weight:700;">*</span> Las filas resaltadas en verde tuvieron un abono a capital extra además de su cuota normal.</p>` : ""}
+    ${esIndefDetalle ? `<details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija. Cada fila nueva aparece un día antes de que se cumpla ese período.</p></details>` : ""}
+    ${filasConAjuste.size>0 ? `<details class="nota-ayuda-details"><summary>Ayuda</summary><p class="hint" style="margin:4px 0 10px;"><span style="color:#3B6D11;font-weight:700;">*</span> Las filas resaltadas en verde tuvieron un abono a capital extra además de su cuota normal.</p></details>` : ""}
     <div id="tabla-imprimible" style="margin:0 -16px 16px;padding:16px 6px;">
       <h2 class="solo-imprimir">${nombreApp().toUpperCase()}</h2>
       <p class="hint solo-imprimir" style="margin:0 0 10px;">${p.codigo} · ${cli?cli.nombre:"—"} · Capital ${money(p.capital)} · Tasa ${p.tasa}% · ${p.periodo} · ${p.metodo}</p>
@@ -3351,8 +3369,8 @@ function generarAmortizacionPDF(p, cli, r){
   const esIndefPDF = p.metodo === METODOS[5];
   const filasBase = esIndefPDF
     ? (function(){
-        const limite = addDays(hoyISO(), 1);
-        const visibles = r.tabla.filter(f=>f.fecha <= limite);
+        const hoy = hoyISO();
+        const visibles = r.tabla.filter((f,i)=> i===0 || addDays(r.tabla[i-1].fecha,1) <= hoy);
         return visibles.length ? visibles : [r.tabla[0]];
       })()
     : r.tabla;
