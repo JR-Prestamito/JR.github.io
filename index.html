@@ -31,6 +31,10 @@
      (y por lo tanto saca al usuario de la pantalla en la que estaba). overscroll-behavior
      en html/body es lo que controla ese gesto a nivel de navegador. */
   html{overscroll-behavior-y:contain;}
+  #pull-refresh-indicator{position:fixed;top:0;left:50%;transform:translate(-50%,-100%);background:var(--navy);color:#fff;font-size:12.5px;font-weight:600;padding:8px 16px;border-radius:0 0 12px 12px;z-index:9999;display:flex;align-items:center;gap:8px;transition:transform .18s ease,opacity .18s ease;opacity:0;pointer-events:none;}
+  #pull-refresh-indicator.mostrando{transform:translate(-50%,0);opacity:1;}
+  #pull-refresh-indicator .spin{width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:pr-spin .7s linear infinite;}
+  @keyframes pr-spin{to{transform:rotate(360deg);}}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--cream);color:#222;overscroll-behavior-y:contain;}
   #app{max-width:420px;margin:0 auto;min-height:100vh;position:relative;padding-bottom:70px;background:var(--cream);overscroll-behavior-y:contain;}
   header{background:var(--navy);padding:calc(20px + env(safe-area-inset-top)) 16px 16px;}
@@ -2293,7 +2297,7 @@ function viewInicio(){
 }
 function abrirAjustes(){
   state.tab = "inicio";
-  state.vista = state.config.pin ? "ajustesClave" : "ajustes";
+  state.vista = (state.config.pin && state.config.pedirClaveEnAjustes!==false) ? "ajustesClave" : "ajustes";
   state._errorClaveAjustes = false;
   state._huellaAjustesYaIntentada = false;
   render();
@@ -2431,6 +2435,14 @@ function viewAjustes(){
     <p class="hint" style="margin:0 0 14px;">Si algún día olvidas la clave, la pantalla de acceso te pedirá este código en vez de dejarte entrar sin más — así nadie puede saltarse la clave con solo tocar un botón.</p>
     <button class="btn btn-gold" onclick="guardarClaveAcceso()">Guardar</button>
     ${state.config.pin ? `<button class="btn btn-danger" style="margin-top:10px;" onclick="quitarClaveAcceso()">Quitar clave</button>` : ""}
+    ${state.config.pin ? `
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #eee;">
+      <label style="display:flex;align-items:center;gap:10px;margin:0;cursor:pointer;">
+        <input type="checkbox" id="f_pedirClaveAjustes" ${state.config.pedirClaveEnAjustes!==false?"checked":""} onchange="state.config.pedirClaveEnAjustes=this.checked; save(); render();" style="width:18px;height:18px;flex:none;">
+        <span style="font-size:14px;">Pedir esta clave también al entrar a Ajustes</span>
+      </label>
+      <p class="hint" style="margin:6px 0 0;">Si la desactivas, la clave se te sigue pidiendo al abrir la app, pero ya no al entrar aquí a Ajustes.</p>
+    </div>` : ""}
     ${window.__esCopiaCompartida ? "" : `
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid #eee;">
       <p style="font-size:13px;font-weight:600;margin:0 0 4px;">Huella / Face ID</p>
@@ -3635,6 +3647,70 @@ window.addEventListener("beforeunload", function(e){
   e.returnValue = "";
   return "";
 });
+
+// --- "Deslizar hacia abajo para actualizar" hecho a mano (en vez del gesto nativo del
+// navegador) — así SÍ refresca (vuelve a leer los datos guardados y recalcula todo lo que
+// depende de la fecha de hoy: cartera vencida, próximos a vencer, etc.) pero se queda en la
+// misma pantalla en la que el usuario estaba, en vez de mandarlo siempre al inicio como
+// hacía el gesto nativo del navegador (que overscroll-behavior, arriba, ya bloquea).
+(function(){
+  let indicador = null;
+  function getIndicador(){
+    if(!indicador){
+      indicador = document.createElement("div");
+      indicador.id = "pull-refresh-indicator";
+      document.body.appendChild(indicador);
+    }
+    return indicador;
+  }
+  const UMBRAL = 70;
+  let startY = null, jalando = false, disparado = false;
+  document.addEventListener("touchstart", function(e){
+    if(window.scrollY > 0){ startY = null; return; }
+    if(e.touches.length !== 1) { startY = null; return; }
+    startY = e.touches[0].clientY;
+    jalando = false; disparado = false;
+  }, { passive: true });
+  document.addEventListener("touchmove", function(e){
+    if(startY===null) return;
+    const delta = e.touches[0].clientY - startY;
+    if(delta <= 0){ jalando = false; return; }
+    if(window.scrollY > 0){ startY = null; jalando = false; return; }
+    jalando = true;
+    if(!disparado){
+      const ind = getIndicador();
+      if(delta > UMBRAL){
+        disparado = true;
+        ind.classList.add("mostrando");
+        ind.innerHTML = `<span class="spin"></span> Actualizando…`;
+        refrescarSuave();
+      }
+    }
+  }, { passive: true });
+  document.addEventListener("touchend", function(){
+    startY = null; jalando = false;
+  }, { passive: true });
+})();
+function refrescarSuave(){
+  // No pisa datos con lo de la nube (eso requiere confirmación porque reemplaza todo); solo
+  // los vuelve a leer de este celular y recalcula/redibuja la pantalla actual con la fecha de
+  // hoy. Si además hay nube configurada, aprovecha para traer lo último en silencio, igual
+  // que al abrir la app.
+  try{
+    state.clientes = JSON.parse(localStorage.getItem(jrKey("jr_clientes")) || JSON.stringify(state.clientes));
+    state.prestamos = JSON.parse(localStorage.getItem(jrKey("jr_prestamos")) || JSON.stringify(state.prestamos));
+  }catch(e){}
+  render();
+  _autoCargaNubeHecha = false;
+  Promise.resolve(autoCargarNubeAlAbrir()).catch(()=>{}).finally(function(){
+    const ind = document.getElementById("pull-refresh-indicator");
+    if(ind){
+      setTimeout(function(){
+        ind.classList.remove("mostrando");
+      }, 350);
+    }
+  });
+}
 
 render();
 </script>
