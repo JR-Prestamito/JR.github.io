@@ -70,6 +70,7 @@
   .b-refinanciado{background:#EAF0FB;color:#2255A0;}
   .b-porcobrar{background:#FBF3E4;color:#8A6416;}
   input,select,textarea{width:100%;border:1px solid #d8d3c8;border-radius:10px;padding:9px 11px;font-size:15px;background:#fff;}
+  input:focus,select:focus,textarea:focus{outline:none;border:2px solid var(--navy);padding:8px 10px;}
   #claveInicio:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,151,62,.35);}
   @keyframes jrLogoIn{0%{opacity:0;transform:scale(.7) translateY(10px);}60%{opacity:1;transform:scale(1.05) translateY(0);}100%{opacity:1;transform:scale(1) translateY(0);}}
   @keyframes jrFadeUp{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
@@ -190,6 +191,9 @@
   [data-theme="dark"] input,
   [data-theme="dark"] select,
   [data-theme="dark"] textarea{background:#1B212C;border-color:rgba(255,255,255,.16);color:#E7E7EA;}
+  [data-theme="dark"] input:focus,
+  [data-theme="dark"] select:focus,
+  [data-theme="dark"] textarea:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,151,62,.35);}
   [data-theme="dark"] input::placeholder{color:rgba(255,255,255,.35);}
   [data-theme="dark"] label span{color:rgba(255,255,255,.55);}
   [data-theme="dark"] .btn-outline{background:#1B212C;border-color:rgba(255,255,255,.18);color:#E7E7EA;}
@@ -384,10 +388,47 @@ const _navPrevia = navGuardada();
 window._nf = (_navPrevia && _navPrevia._nf) || null;
 window._rf = (_navPrevia && _navPrevia._rf) || null;
 
+// La app "beta" (una rama separada de esta) guarda el historial de refinanciamientos y
+// modificaciones bajo el nombre p.historialModificaciones, en vez de p.modificaciones como
+// aquí. Si restauras aquí un respaldo hecho en la beta, esta traduce el nombre para no
+// perder ese historial. Además, la beta SÍ registra el enganche como un pago real dentro de
+// p.pagos (aquí, hasta ahora, solo vivía como el número p.engancheAlRefinanciar / m.enganche)
+// — si falta, se reconstruye aquí mismo, en el lugar exacto donde el código de esta app ya
+// lo habría puesto si hubiera existido desde el principio: en p.pagos si es el ciclo
+// vigente (todavía no hay una modificación después), o archivado junto con los demás pagos
+// de ese período si ya hubo una modificación posterior que lo habría archivado.
+function migrarPrestamosAntiguos(lista){
+  (lista||[]).forEach(p=>{
+    if((!p.modificaciones || !p.modificaciones.length) && p.historialModificaciones && p.historialModificaciones.length){
+      p.modificaciones = p.historialModificaciones;
+    }
+    p.pagos = p.pagos || [];
+    if(p.refinanciaDe && Number(p.engancheAlRefinanciar)>0 && !p.pagos.some(pg=>pg.tipo==="enganche")){
+      p.pagos.unshift({ id:uid(), fecha:p.fechaInicio, monto:Number(p.engancheAlRefinanciar)||0, mora:0, tipo:"enganche" });
+    }
+    const hist = p.modificaciones || [];
+    hist.forEach((m,idx)=>{
+      if(!(Number(m.enganche)>0)) return;
+      const esUltima = idx === hist.length-1;
+      if(esUltima){
+        if(!p.pagos.some(pg=>pg.tipo==="enganche" && pg.fecha===m.fecha)){
+          p.pagos.unshift({ id:uid(), fecha:m.fecha, monto:Number(m.enganche)||0, mora:0, tipo:"enganche" });
+        }
+      } else {
+        hist[idx+1].pagosPrevios = hist[idx+1].pagosPrevios || [];
+        if(!hist[idx+1].pagosPrevios.some(pg=>pg.tipo==="enganche" && pg.fecha===m.fecha)){
+          hist[idx+1].pagosPrevios.unshift({ id:uid(), fecha:m.fecha, monto:Number(m.enganche)||0, mora:0, tipo:"enganche" });
+        }
+      }
+    });
+  });
+  return lista||[];
+}
+
 let state = {
   tab: (_navPrevia && _navPrevia.tab) || "inicio",
   clientes: JSON.parse(localStorage.getItem(jrKey("jr_clientes")) || "[]"),
-  prestamos: JSON.parse(localStorage.getItem(jrKey("jr_prestamos")) || "[]"),
+  prestamos: migrarPrestamosAntiguos(JSON.parse(localStorage.getItem(jrKey("jr_prestamos")) || "[]")),
   config: JSON.parse(localStorage.getItem(jrKey("jr_config")) || '{"tasaMoraDiaria":0}'),
   vista: (_navPrevia && _navPrevia.vista) || "lista",
   seleccionId: (_navPrevia && _navPrevia.seleccionId) || null,
@@ -443,7 +484,7 @@ async function autoCargarNubeAlAbrir(){
     const data = await res.json();
     if(data.ok && data.datos){
       state.clientes = data.datos.clientes || state.clientes;
-      state.prestamos = data.datos.prestamos || state.prestamos;
+      state.prestamos = migrarPrestamosAntiguos(data.datos.prestamos || state.prestamos);
       if(data.datos.config && data.datos.config.tasaMoraDiaria!==undefined){
         state.config.tasaMoraDiaria = data.datos.config.tasaMoraDiaria;
       }
@@ -892,9 +933,16 @@ function resumen(p){
   const esIndef = p.metodo === METODOS[5];
   const capital = Number(p.capital)||0, tasa=(Number(p.tasa)||0)/100;
   const pagos = p.pagos || [];
+  // El enganche entregado al refinanciar/modificar ya se restó al calcular el capital nuevo
+  // de ESTA tabla (nuevoCapital = capitalPendiente - enganche + adicional, ver
+  // guardarRefinanciamiento). Se registra como un pago real para que se vea en "Pagos" y en
+  // "Total cobrado", pero si se contara AQUÍ también como un abono más, se descontaría dos
+  // veces y el capital pendiente / cuotas completadas saldrían mal — por eso se excluye del
+  // avance del cronograma (que sí sigue usando el resto de pagos con normalidad).
+  const pagosParaCronograma = pagos.filter(pg=>pg.tipo!=="enganche");
   // el capital/interés se acumula por separado de la mora: la mora no hace avanzar cuotas
-  const totalPagado = pagos.reduce((s,pg)=> s + (Number(pg.monto)||0), 0);
-  const moraTotal = pagos.reduce((s,pg)=> s + (Number(pg.mora)||0), 0);
+  const totalPagado = pagosParaCronograma.reduce((s,pg)=> s + (Number(pg.monto)||0), 0);
+  const moraTotal = pagosParaCronograma.reduce((s,pg)=> s + (Number(pg.mora)||0), 0);
 
   if(p.liquidadoAnticipado){
     return { cuota: tabla[0]?tabla[0].cuota:0, saldoPendiente:0, capitalPendiente:0, estado:"Pagado", proximaFecha:null,
@@ -1481,7 +1529,7 @@ function importarDatos(event){
     mostrarConfirmacion("Esto va a REEMPLAZAR todos los clientes y préstamos que tienes ahora en este celular por los del archivo. ¿Continuar?", function(ok){
       if(!ok) return;
       state.clientes = datos.clientes;
-      state.prestamos = datos.prestamos;
+      state.prestamos = migrarPrestamosAntiguos(datos.prestamos);
       if(datos.config){
         // Se combinan con lo que ya había en este celular en vez de reemplazar todo:
         // así, si restauras un respaldo viejo (de antes de poner tu clave, huella,
@@ -1559,7 +1607,7 @@ function generarReportePDF(){
   state.prestamos.forEach(p=>{
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
-    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p) + pagosPreviosDe(p);
+    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + pagosPreviosDe(p);
   });
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -1620,7 +1668,7 @@ function viewReportePDF(){
   state.prestamos.forEach(p=>{
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
-    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p) + pagosPreviosDe(p);
+    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + pagosPreviosDe(p);
   });
   const filas = state.prestamos.map(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
@@ -1678,13 +1726,14 @@ function capitalOriginalDesembolsado(p){
   return Number(p.capital)||0;
 }
 function enganchesDe(p){
-  // El enganche/abono que el cliente entrega al refinanciar o modificar un préstamo SÍ es
-  // dinero que efectivamente cobraste, igual que una cuota o un abono a capital — pero se
-  // guarda en el préstamo (engancheAlRefinanciar / modificaciones[].enganche), no en
-  // p.pagos, así que hay que sumarlo aparte para que no desaparezca de "Total cobrado".
-  let total = p.refinanciaDe ? (Number(p.engancheAlRefinanciar)||0) : 0;
-  (p.modificaciones||[]).forEach(m=>{ total += Number(m.enganche)||0; });
-  return total;
+  // El enganche VIGENTE (todavía en p.pagos, no archivado por una modificación posterior)
+  // se registra como un pago real (ver guardarRefinanciamiento), pero se excluye del reparto
+  // interés/capital en desglosePagado (no es ninguna de las dos cosas) — se suma aparte aquí
+  // para no perderlo del renglón de ingresos en el Estado de Resultados.
+  // OJO: no se recorre p.modificaciones para sumar enganches de modificaciones viejas — esos
+  // ya quedaron adentro de pagosPreviosDe(p) en el momento en que se archivaron (como pagos
+  // reales, no como el número suelto), así que sumarlos también aquí los duplicaría.
+  return (p.pagos||[]).filter(pg=>pg.tipo==="enganche").reduce((s,pg)=>s+(Number(pg.monto)||0),0);
 }
 function pagosPreviosDe(p){
   // Los pagos hechos ANTES de una modificación "no sustancial" (NIF C-19) se archivan en
@@ -2433,7 +2482,7 @@ async function _descargarNubeInterna(url, key){
     const data = await res.json();
     if(data.ok && data.datos){
       state.clientes = data.datos.clientes || [];
-      state.prestamos = data.datos.prestamos || [];
+      state.prestamos = migrarPrestamosAntiguos(data.datos.prestamos || []);
       if(data.datos.config && data.datos.config.tasaMoraDiaria!==undefined){
         state.config.tasaMoraDiaria = data.datos.config.tasaMoraDiaria;
       }
@@ -2464,7 +2513,7 @@ function viewInicio(){
     const r = resumen(p);
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
-    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p) + pagosPreviosDe(p);
+    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + pagosPreviosDe(p);
     capitalActual += Number(r.capitalPendiente)||0;
     if(r.estado==="Activo"){ activos++; if(r.proximaFecha && diasAtraso(r.proximaFecha)>0) vencidos++; }
   });
@@ -3033,7 +3082,7 @@ function viewNuevoPrestamo(){
 
   return `
     ${state.clientes.length===0 ? `<p style="color:#c0433b;font-size:13px;">Agrega un cliente primero en la pestaña Clientes.</p>` : ""}
-    <label><span>N° de ticket</span><input id="nf_codigo" type="text" value="${f.codigo||""}" ${editando?"disabled style='opacity:.6;background:#eee;'":""} oninput="window._nf.codigo=this.value.toUpperCase(); render()"></label>
+    <label><span>N° de préstamo</span><input id="nf_codigo" type="text" value="${f.codigo||""}" ${editando?"disabled style='opacity:.6;background:#eee;'":""} oninput="window._nf.codigo=this.value.toUpperCase(); render()"></label>
     <label><span>Cliente</span><select onchange="window._nf.clienteId=this.value; render()">${opts}</select></label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <label style="margin:0;"><span>Capital a financiar (L)</span><input id="nf_capital" type="text" inputmode="decimal" value="${f.capital}" oninput="window._nf.capital=filtrarDecimal(this.value); render()"></label>
@@ -3075,9 +3124,9 @@ function guardarPrestamo(){
   const esIndef = f.metodo === METODOS[5];
   if(!f.clienteId || !f.capital || !f.tasa || (!esIndef && !f.cuotas)) return;
   const codigoDeseado = (f.codigo||"").trim();
-  if(!codigoDeseado){ mostrarAlerta("Ponle un número de ticket al préstamo."); return; }
+  if(!codigoDeseado){ mostrarAlerta("Ponle un número de préstamo."); return; }
   const duplicado = state.prestamos.find(x=>x.codigo===codigoDeseado && x.id!==f.editId);
-  if(duplicado){ mostrarAlerta(`Ya existe el préstamo ${codigoDeseado}. Usa otro número de ticket.`); return; }
+  if(duplicado){ mostrarAlerta(`Ya existe el préstamo ${codigoDeseado}. Usa otro número de préstamo.`); return; }
   if(f.editId){
     const p = state.prestamos.find(x=>x.id===f.editId);
     Object.assign(p, {
@@ -3208,6 +3257,13 @@ function guardarRefinanciamiento(){
         tipoModificacionNIF: "sustancial",
         gananciaPerdidaModificacionNIF: 0
       };
+      // El enganche se registra también como un pago real (no solo como el número
+      // engancheAlRefinanciar) para que aparezca en "Pagos" y se sume en "Total cobrado" sin
+      // necesidad de sumarlo aparte en cada reporte. resumen() lo excluye del avance del
+      // cronograma (ya está descontado en nuevoCapital, arriba) para no acreditarlo dos veces.
+      if(enganche>0){
+        nuevo.pagos.push({ id:uid(), fecha:f.fechaInicio, monto:enganche, mora:0, tipo:"enganche" });
+      }
       state.prestamos.push(nuevo);
       window._rf = null;
       state.seleccionId = nuevo.id;
@@ -3237,6 +3293,12 @@ function guardarRefinanciamiento(){
       origen.fechaInicio = f.fechaInicio;
       origen.pagos = [];
       origen.ajustesCapital = [];
+      // Mismo criterio que en la rama "sustancial" de arriba: el enganche se registra como
+      // un pago real para que se vea en "Pagos"/"Total cobrado", y resumen() lo excluye del
+      // avance del cronograma (ya está descontado en nuevoCapital) para no contarlo dos veces.
+      if(enganche>0){
+        origen.pagos.push({ id:uid(), fecha:f.fechaInicio, monto:enganche, mora:0, tipo:"enganche" });
+      }
       window._rf = null;
       state.seleccionId = origen.id;
       state.vista = "detalle";
@@ -3687,7 +3749,7 @@ function liquidarAnticipado(id){
   const tasaDiaria = (Number(p.tasa)||0)/100/diasPeriodo;
   const fechaBase = r.pagosHechos>0 ? r.tabla[r.pagosHechos-1].fecha : p.fechaInicio;
   const diasReales = Math.max(0, Math.round((new Date(fechaLiq+"T00:00:00") - new Date(fechaBase+"T00:00:00"))/86400000));
-  const capitalPendiente = Number(p.capital)||0;
+  const capitalPendiente = r.capitalPendiente!=null ? r.capitalPendiente : Number(p.capital)||0;
   const interes = Math.round(capitalPendiente*tasaDiaria*diasReales*100)/100;
   const total = capitalPendiente + interes;
   mostrarConfirmacion(
@@ -3770,114 +3832,94 @@ function eliminarPrestamo(id){
 
 function viewPagos(){
   if(state.vista==="recibo") return viewRecibo();
-  let lista = [];
-  const previos = [];
-  const enganches = [];
-  state.prestamos.forEach(p=>{
+  // Una tarjeta POR PRÉSTAMO (no por cliente) — así cada una trae su propio resumen de
+  // capital prestado/pendiente/cobrado, igual que se ve en el detalle de ese préstamo.
+  const prestamosConMovs = state.prestamos.filter(p =>
+    (p.pagos&&p.pagos.length) || (p.modificaciones||[]).some(m=>(m.pagosPrevios||[]).length)
+  );
+  if(prestamosConMovs.length===0) return `<p class="empty">Aún no se han registrado pagos.</p>`;
+
+  const notaPago = (pg)=>{
+    if(pg.tipo==="enganche") return "Enganche al refinanciar";
+    if(pg.liquidacion) return "Liquidación anticipada";
+    if(pg.tipo==="abono_capital") return "Abono a capital";
+    if(pg.mora>0) return `Incluye mora ${money(pg.mora)}`;
+    return "";
+  };
+  const filaVigente = (p, pg)=>{
+    const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
+    const nota = notaPago(pg);
+    return `<div class="row-card">
+      <div style="cursor:pointer;min-width:0;" onclick="verRecibo('${p.id}','${pg.id||""}')">
+        <p class="name">${money(total)}</p>
+        <p class="sub">${fmtDate(pg.fecha)}${nota?" · "+nota:""}</p>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="printbtn" title="Ver recibo" onclick="verRecibo('${p.id}','${pg.id||""}')">🧾</button>
+        <button class="printbtn" title="Eliminar pago" onclick="eliminarPago('${p.id}','${pg.id||""}')">🗑</button>
+      </div>
+    </div>`;
+  };
+  const filaArchivada = (pg)=>{
+    const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
+    const nota = notaPago(pg);
+    return `<div class="row-card" style="opacity:.55;background:transparent;">
+      <div style="min-width:0;">
+        <p class="name">${money(total)}</p>
+        <p class="sub">${fmtDate(pg.fecha)}${nota?" · "+nota:""}</p>
+      </div>
+    </div>`;
+  };
+
+  const fechaMasReciente = (p)=>{
+    const fechas = [...(p.pagos||[]).map(pg=>pg.fecha), ...(p.modificaciones||[]).flatMap(m=>(m.pagosPrevios||[]).map(pg=>pg.fecha))];
+    return fechas.length ? fechas.sort().slice(-1)[0] : "";
+  };
+  prestamosConMovs.sort((a,b)=> fechaMasReciente(b).localeCompare(fechaMasReciente(a)));
+
+  const tarjetas = prestamosConMovs.map(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
-    (p.pagos||[]).forEach(pg=> lista.push({...pg, codigo:p.codigo, nombre:cli?cli.nombre:"—", prestamoId:p.id}));
-    // El enganche al refinanciar/modificar es dinero cobrado igual que un pago, aunque no
-    // vive en p.pagos — se muestra aparte, en su propia tarjeta desplegable (no es un pago
-    // vigente más ni un registro con recibo/borrado independiente).
-    if(p.refinanciaDe && Number(p.engancheAlRefinanciar)>0){
-      const origen = state.prestamos.find(x=>x.id===p.refinanciaDe);
-      enganches.push({
-        fecha: p.fechaInicio, monto: Number(p.engancheAlRefinanciar)||0,
-        etiqueta: `Enganche al refinanciar${origen?" (de "+origen.codigo+")":""}`,
-        codigo: p.codigo, nombre: cli?cli.nombre:"—"
-      });
-    }
-    (p.modificaciones||[]).forEach(m=>{
-      if(Number(m.enganche)>0){
-        enganches.push({
-          fecha: m.fecha, monto: Number(m.enganche)||0,
-          etiqueta: "Enganche al modificar", codigo: p.codigo, nombre: cli?cli.nombre:"—"
-        });
-      }
-      // Pagos hechos ANTES de una modificación "no sustancial" (NIF C-19): se archivan y ya
-      // no cuentan contra la tabla actual, pero siguen siendo dinero cobrado — se muestran
-      // aparte, en una lista desplegable, para no perderlos ni mezclarlos con lo vigente.
-      (m.pagosPrevios||[]).forEach(pg=>{
-        previos.push({...pg, codigo:p.codigo, nombre:cli?cli.nombre:"—", fechaModificacion:m.fecha});
-      });
-    });
-  });
-  lista.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
-  previos.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
-  enganches.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
-  // Tarjeta de fila reutilizable: el monto siempre a la derecha con un ancho mínimo fijo
-  // (para que todos los montos queden alineados en la misma columna, sin importar cuántas
-  // líneas ocupe el texto de la izquierda), y cada nota extra en su propia línea completa.
-  const filaMovimiento = (nombre, lineas, monto, acciones, onclick)=>{
-    const notas = lineas.filter(Boolean).map(l=>`<p class="sub">${l}</p>`).join("");
-    const nombreDiv = onclick
-      ? `<div style="cursor:pointer;min-width:0;" onclick="${onclick}"><p class="name">${nombre}</p>${notas}</div>`
-      : `<div style="min-width:0;"><p class="name">${nombre}</p>${notas}</div>`;
-    return `<div class="row-card" style="align-items:flex-start;">
-    ${nombreDiv}
-    <div style="text-align:right;display:flex;align-items:flex-start;gap:6px;flex-shrink:0;">
-      <p style="font-size:15px;font-weight:600;color:#3B6D11;margin:0;min-width:86px;">${money(monto)}</p>
-      ${acciones||""}
-    </div>
-  </div>`;
-  };
-  const filaPago = (pg)=>{
-    const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
-    let nota = null;
-    if(pg.liquidacion) nota = "Liquidación anticipada";
-    else if(pg.tipo === "abono_capital") nota = "Abono a capital";
-    else if(pg.mora>0) nota = `Incluye mora ${money(pg.mora)}`;
-    const acciones = `
-      <button class="printbtn" title="Ver recibo" onclick="verRecibo('${pg.prestamoId}','${pg.id||""}')">🧾</button>
-      <button class="printbtn" title="Eliminar pago" onclick="eliminarPago('${pg.prestamoId}','${pg.id||""}')">🗑</button>`;
-    return filaMovimiento(pg.nombre, [`${pg.codigo} · ${fmtDate(pg.fecha)}`, nota], total, acciones, `verRecibo('${pg.prestamoId}','${pg.id||""}')`);
-  };
-  if(lista.length===0 && previos.length===0 && enganches.length===0) return `<p class="empty">Aún no se han registrado pagos.</p>`;
-  const totalPrevios = previos.reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
-  const totalEnganches = enganches.reduce((s,e)=>s+(Number(e.monto)||0),0);
-  const desplegable = (id, titulo, cantidad, total, filasHtml)=> cantidad===0 ? "" : `
-    <details class="tabla-card" style="margin:0 -16px 8px;border-radius:0;">
-      <summary class="fila-header-desplegable" style="list-style:revert;padding:12px 16px;">
-        <span>${titulo} <span class="hint" style="font-weight:400;">(${cantidad})</span></span>
-        <span style="white-space:nowrap;">${money(total)}</span>
+    const nombre = cli?cli.nombre:"—";
+    const r = resumen(p);
+
+    const vigentes = (p.pagos||[]).slice().sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+    const totalVigente = vigentes.reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
+
+    const archivados = (p.modificaciones||[]).flatMap(m=>m.pagosPrevios||[])
+      .slice().sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+    const totalArchivado = archivados.reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
+
+    const totalGeneral = totalVigente + totalArchivado;
+    const numModificaciones = (p.modificaciones||[]).length;
+    const numPagosTotal = vigentes.length + archivados.length;
+    // Misma fórmula de "capital neto realmente desembolsado" que usan el Reporte general y
+    // el Estado de resultados: si viene de refinanciar, solo cuenta lo entregado en efectivo
+    // en ese momento; si tuvo modificaciones no sustanciales, suma también lo adicional de
+    // cada una.
+    const capitalNeto = (p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p))
+      + (p.modificaciones||[]).reduce((s,m)=>s+(Number(m.adicional)||0),0);
+
+    return `<details class="tabla-card" style="margin:0 -16px 10px;border-radius:0;">
+      <summary style="padding:12px 16px;">
+        <div style="min-width:0;">
+          <p style="font-size:15px;font-weight:700;margin:0;">${nombre}</p>
+          <p style="font-size:12.5px;color:#8a8680;margin:2px 0 0;">${p.codigo} · ${numPagosTotal} pago${numPagosTotal===1?"":"s"}${numModificaciones>0?` · ${numModificaciones} modificación${numModificaciones===1?"":"es"}`:""}</p>
+        </div>
+        <p style="font-size:16px;font-weight:700;color:#3B6D11;margin:0;white-space:nowrap;">${money(totalGeneral)}</p>
       </summary>
-      <div style="padding:8px 16px;">${filasHtml}</div>
+      <div style="padding:10px 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-bottom:1px solid #e5e1d8;">
+        <div><p class="hint" style="margin:0 0 2px;">Capital prestado (neto)</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(capitalNeto)}</p></div>
+        <div><p class="hint" style="margin:0 0 2px;">Capital pendiente hoy</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(r.capitalPendiente||0)}</p></div>
+        <div><p class="hint" style="margin:0 0 2px;">Total cobrado</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(totalGeneral)}</p></div>
+      </div>
+      <div style="padding:12px 16px;">
+        ${vigentes.length ? `<p class="hint" style="margin:0 0 6px;">Pagos vigentes (${vigentes.length}) · ${money(totalVigente)}</p>${vigentes.map(pg=>filaVigente(p,pg)).join("")}` : ""}
+        ${archivados.length ? `<p class="hint" style="margin:${vigentes.length?"10px":"0"} 0 6px;">De antes de modificar (${archivados.length})</p>${archivados.map(filaArchivada).join("")}` : ""}
+      </div>
     </details>`;
-  const filasPrevios = previos.map(pg=>{
-    const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
-    let nota = null;
-    if(pg.liquidacion) nota = "Liquidación anticipada";
-    else if(pg.tipo === "abono_capital") nota = "Abono a capital";
-    else if(pg.mora>0) nota = `Incluye mora ${money(pg.mora)}`;
-    return filaMovimiento(pg.nombre, [
-      `${pg.codigo} · ${fmtDate(pg.fecha)}`,
-      `Antes de modificar el ${fmtDateCompacto(pg.fechaModificacion)}`,
-      nota
-    ], total);
-  }).join("");
-  const filasEnganches = enganches.map(e=> filaMovimiento(e.nombre, [
-    `${e.codigo} · ${fmtDate(e.fecha)}`,
-    e.etiqueta
-  ], e.monto)).join("");
-  return `
-    ${lista.length===0 ? `<p class="empty">Aún no se han registrado pagos vigentes.</p>` : (()=>{
-      // Igual que Enganches y Pagos anteriores: se agrupan por préstamo en tarjetas
-      // desplegables, en vez de una sola lista plana que crece sin parar con el tiempo.
-      const grupos = {};
-      lista.forEach(pg=>{
-        if(!grupos[pg.prestamoId]) grupos[pg.prestamoId] = { codigo: pg.codigo, nombre: pg.nombre, pagos: [] };
-        grupos[pg.prestamoId].pagos.push(pg);
-      });
-      // "lista" ya viene ordenada de más reciente a más antiguo, así que el primer pago de
-      // cada grupo ya es el más reciente de ese préstamo — sirve para ordenar los grupos.
-      const gruposOrdenados = Object.values(grupos).sort((a,b)=> new Date(b.pagos[0].fecha) - new Date(a.pagos[0].fecha));
-      return gruposOrdenados.map(grupo=>{
-        const totalGrupo = grupo.pagos.reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
-        return desplegable(`prestamo-${grupo.codigo}`, `${grupo.codigo} · ${grupo.nombre}`, grupo.pagos.length, totalGrupo, grupo.pagos.map(filaPago).join(""));
-      }).join("");
-    })()}
-    ${desplegable("enganches", "Enganches", enganches.length, totalEnganches, filasEnganches)}
-    ${desplegable("previos", "Pagos anteriores a modificaciones", previos.length, totalPrevios, filasPrevios)}`;
+  });
+
+  return tarjetas.join("");
 }
 function eliminarPago(prestamoId, pagoId){
   const p = state.prestamos.find(x=>x.id===prestamoId);
