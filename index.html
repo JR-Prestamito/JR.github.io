@@ -44,6 +44,7 @@
   .section-title{font-size:13px;font-weight:600;color:#8a8680;margin:0 0 8px;}
   .row-card{border:1px solid #e5e1d8;border-radius:16px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;background:#fff;}
   .monto-navy{color:var(--navy);}
+  .preview-cuota{background:#EEF1F6;color:#1B2A4A;}
   .row-card .name{font-size:14px;font-weight:600;margin:0;}
   .row-card .sub{font-size:12px;color:#8a8680;margin:2px 0 0;}
   .badge{font-size:11px;padding:3px 9px;border-radius:99px;font-weight:600;white-space:nowrap;}
@@ -181,6 +182,7 @@
   [data-theme="dark"] .avatar{background:rgba(255,255,255,.08);color:#fff;}
   [data-theme="dark"] .card .lbl{color:rgba(255,255,255,.5);}
   [data-theme="dark"] .monto-navy{color:#8FB2E8;}
+  [data-theme="dark"] .preview-cuota{background:#1F2A3D;color:#E7E7EA;}
   [data-theme="dark"] .jr-modal-card{background:#1B212C;}
   [data-theme="dark"] .jr-modal-msg{color:#E7E7EA;}
   [data-theme="dark"] #recibo-imprimible,
@@ -1621,7 +1623,10 @@ function generarEstadoResultadosPDF(){
     capitalCobrado += d.capital;
     moraCobrada += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.mora)||0),0);
     if(p.refinanciaDe) enganches += Number(p.engancheAlRefinanciar)||0;
-    if(p.refinanciaDe && p.tipoModificacionNIF==="no_sustancial") gananciaPerdidaModificaciones += Number(p.gananciaPerdidaModificacionNIF)||0;
+    // Nota: una refinanciación SUSTANCIAL (la única que deja p.refinanciaDe en el
+    // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIF C-19 — esa
+    // columna solo aplica a modificaciones NO sustanciales, que van en p.modificaciones
+    // (ya sumadas más abajo). Por eso aquí no hay nada que sumar para ese caso.
     desembolsos += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{
       enganches += Number(m.enganche)||0;
@@ -1717,7 +1722,10 @@ function viewEstadoResultados(){
     capitalCobrado += d.capital;
     moraCobrada += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.mora)||0),0);
     if(p.refinanciaDe) enganches += Number(p.engancheAlRefinanciar)||0;
-    if(p.refinanciaDe && p.tipoModificacionNIF==="no_sustancial") gananciaPerdidaModificaciones += Number(p.gananciaPerdidaModificacionNIF)||0;
+    // Nota: una refinanciación SUSTANCIAL (la única que deja p.refinanciaDe en el
+    // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIF C-19 — esa
+    // columna solo aplica a modificaciones NO sustanciales, que van en p.modificaciones
+    // (ya sumadas más abajo). Por eso aquí no hay nada que sumar para ese caso.
     // Al refinanciar, el "nuevo capital" es en su mayoría el saldo pendiente del préstamo
     // anterior que se reacomoda — no es dinero que vuelve a salir de la caja. Lo único que
     // realmente sale como efectivo nuevo en ese momento es el "monto adicional" entregado
@@ -1829,23 +1837,43 @@ function generarReporteModificacionesPDF(){
   doc.text(nombreApp(), 14, 16);
   doc.setFontSize(9);
   doc.text(`Reporte de modificaciones y refinanciamientos (NIF C-19)  ·  ${fmtDate(hoyISO())}`, 14, 23);
+  // "Capital antes -> después" como un solo texto largo obligaba a hacer la hoja más ancha
+  // (landscape) para que no se partiera en dos líneas. Separando antes/después en columnas
+  // propias, cada dato es corto por sí solo y cabe en una línea en la hoja vertical normal.
   const filas = eventos.map(e=>[
     fmtDateCompacto(e.fecha),
     `${e.codigo}${e.tipo==="sustancial"&&e.codigoOrigen!=="—"?` (de ${e.codigoOrigen})`:""}`,
     e.cliente,
     e.tipo==="sustancial"?"Sustancial":"No sustancial",
-    `${e.capitalAntes!=null?money(e.capitalAntes):"—"} → ${money(e.capitalDespues)}`,
-    `${e.tasaAntes!=null?e.tasaAntes+"%":"—"} → ${e.tasaDespues}%`,
-    e.gananciaPerdida!==0?money(e.gananciaPerdida):"—"
+    e.capitalAntes!=null?money(e.capitalAntes):"—",
+    money(e.capitalDespues),
+    e.tasaAntes!=null?e.tasaAntes+"%":"—",
+    e.tasaDespues+"%",
+    Math.abs(e.gananciaPerdida)>=0.005?money(e.gananciaPerdida):"—"
   ]);
   doc.autoTable({
     startY: 28,
-    head: [["Fecha","Préstamo","Cliente","Clasificación","Capital antes→después","Tasa antes→después","Ganancia/(pérdida)"]],
-    body: filas.length?filas:[["—","—","Todavía no se ha refinanciado ni modificado ningún préstamo.","","","",""]],
-    styles: { fontSize: 7.5, cellPadding: 2 },
-    headStyles: { fillColor: [27,42,74] }
+    head: [["Fecha","Préstamo","Cliente","Clasif.","Capital antes","Capital después","Tasa antes","Tasa después","Ganancia/\n(pérdida)"]],
+    body: filas.length?filas:[["—","—","Todavía no se ha refinanciado ni modificado ningún préstamo.","","","","","",""]],
+    styles: { fontSize: 7, cellPadding: 2 },
+    headStyles: { fillColor: [27,42,74], fontSize: 6.5 },
+    // Los anchos se calculan según el largo de los DATOS de cada columna (no del encabezado)
+    // — así ningún dato se parte en dos líneas, aunque el encabezado sí pueda partirse (por
+    // ejemplo "Tasa antes" o "Ganancia/(pérdida)" en dos líneas) para dejarle espacio a los
+    // datos. Capital antes/después llevan más ancho de margen por si la cifra crece.
+    columnStyles: {
+      0: { cellWidth: 21 },
+      1: { cellWidth: 30 },
+      2: { cellWidth: 25 },
+      3: { cellWidth: 20 },
+      4: { cellWidth: 20, halign: "right" },
+      5: { cellWidth: 21, halign: "right" },
+      6: { cellWidth: 12, halign: "right" },
+      7: { cellWidth: 12, halign: "right" },
+      8: { cellWidth: 20, halign: "right" }
+    }
   });
-  let startY = doc.lastAutoTable.finalY + 10;
+  let startY = doc.lastAutoTable.finalY + 5;
   doc.autoTable({
     startY,
     body: [
@@ -1892,9 +1920,11 @@ function viewReporteModificaciones(){
       <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}${e.tipo==="sustancial"&&e.codigoOrigen!=="—"?` <span style="color:#888;font-size:11px;">(de ${e.codigoOrigen})</span>`:""}</td>
       <td style="padding:5px 6px;white-space:nowrap;">${e.cliente}</td>
       <td style="padding:5px 6px;white-space:nowrap;">${e.tipo==="sustancial"?"Sustancial":"No sustancial"}</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.capitalAntes!=null?money(e.capitalAntes):"—"} → ${money(e.capitalDespues)}</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.tasaAntes!=null?e.tasaAntes+"%":"—"} → ${e.tasaDespues}%</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;${e.gananciaPerdida>=0?"color:#3B6D11":"color:#c0433b"}">${e.gananciaPerdida!==0?money(e.gananciaPerdida):"—"}</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.capitalAntes!=null?money(e.capitalAntes):"—"}</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(e.capitalDespues)}</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.tasaAntes!=null?e.tasaAntes+"%":"—"}</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.tasaDespues}%</td>
+      <td style="padding:5px 6px;text-align:right;white-space:nowrap;${Math.abs(e.gananciaPerdida)>=0.005?(e.gananciaPerdida>=0?"color:#3B6D11":"color:#c0433b"):""}">${Math.abs(e.gananciaPerdida)>=0.005?money(e.gananciaPerdida):"—"}</td>
     </tr>`).join("");
   return `
     <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
@@ -1903,11 +1933,12 @@ function viewReporteModificaciones(){
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha refinanciado ni modificado ningún préstamo.</p>` : `
       <div class="tabla-card">
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-      <table style="width:100%;min-width:680px;border-collapse:collapse;font-size:12px;">
+      <table style="width:100%;min-width:780px;border-collapse:collapse;font-size:12px;">
         <thead><tr style="background:#F5F3EE;">
-          <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Préstamo</th><th style="padding:5px 6px;text-align:left;">Cliente</th>
-          <th style="padding:5px 6px;text-align:left;">Clasificación</th><th style="padding:5px 6px;text-align:right;">Capital antes → después</th>
-          <th style="padding:5px 6px;text-align:right;">Tasa antes → después</th><th style="padding:5px 6px;text-align:right;">Ganancia/(pérdida)</th>
+          <th style="padding:5px 6px;text-align:left;white-space:nowrap;">Fecha</th><th style="padding:5px 6px;text-align:left;white-space:nowrap;">Préstamo</th><th style="padding:5px 6px;text-align:left;white-space:nowrap;">Cliente</th>
+          <th style="padding:5px 6px;text-align:left;white-space:nowrap;">Clasificación</th><th style="padding:5px 6px;text-align:right;white-space:nowrap;min-width:110px;">Capital antes</th>
+          <th style="padding:5px 6px;text-align:right;white-space:nowrap;min-width:110px;">Capital después</th><th style="padding:5px 6px;text-align:right;white-space:nowrap;">Tasa antes</th>
+          <th style="padding:5px 6px;text-align:right;white-space:nowrap;">Tasa después</th><th style="padding:5px 6px;text-align:right;white-space:normal;line-height:1.25;min-width:90px;">Ganancia/<br>(pérdida)</th>
         </tr></thead>
         <tbody>${filas}</tbody>
       </table>
@@ -2597,17 +2628,36 @@ function viewPrestamos(){
   });
   if(state.prestamos.length===0) html += `<p class="empty">Todavía no tienes préstamos.</p>`;
   else if(filtrados.length===0) html += `<p class="empty">No hay préstamos que coincidan con la búsqueda.</p>`;
-  filtrados.forEach(p=>{
+
+  const filaPrestamo = (p)=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
     const r = resumen(p);
     const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
     const nVenc = atraso>0 ? cuotasVencidas(r) : 0;
-    html += `<div class="row-card" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
+    return `<div class="row-card" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
       <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
       <p class="sub">${p.codigo} · ${p.metodo.split(" (")[0]}</p>
       <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(r.saldoPendiente)}</p></div>
       <div style="text-align:right;">${badge(atraso>0?"Vencido":r.estado)}${atraso>0?`<p class="hint" style="margin:2px 0 0;color:#A32D2D;">${nVenc} cuota${nVenc===1?"":"s"}</p>`:""}</div>
     </div>`;
+  };
+  // Se agrupan por estado (en vez de una sola lista mezclada) para que sea más fácil ver de
+  // un vistazo cuáles préstamos siguen activos y cuáles ya están cerrados de una forma u
+  // otra. Se calcula el estado de cada uno una sola vez aquí, no dentro de cada grupo, para
+  // no llamar resumen() dos veces por préstamo.
+  const conEstado = filtrados.map(p=>({p, estado: resumen(p).estado}));
+  const activos = conEstado.filter(x=>x.estado==="Activo").map(x=>x.p);
+  const pagados = conEstado.filter(x=>x.estado==="Pagado").map(x=>x.p);
+  const refinanciados = conEstado.filter(x=>x.estado==="Refinanciado").map(x=>x.p);
+  const grupos = [
+    { label:"Activos", lista:activos },
+    { label:"Pagados", lista:pagados },
+    { label:"Refinanciados", lista:refinanciados }
+  ];
+  grupos.forEach(g=>{
+    if(g.lista.length===0) return;
+    html += `<p class="section-title" style="margin-top:16px;">${g.label.toUpperCase()} (${g.lista.length})</p>`;
+    g.lista.forEach(p=>{ html += filaPrestamo(p); });
   });
   return html;
 }
@@ -2754,7 +2804,7 @@ function viewNuevoPrestamo(){
     const tabla = generarTabla({...f, cuotas: esIndef?1:f.cuotas});
     const esAmericano = f.metodo === METODOS[4];
     if(tabla.length){
-      previewHtml = `<div class="card" style="background:#EEF1F6;margin-bottom:16px;color:#1B2A4A;">
+      previewHtml = `<div class="card preview-cuota" style="margin-bottom:16px;">
         ${esAmericano
           ? `<p style="font-size:13px;margin:0 0 4px;">Durante el plazo no se cobra nada; todo el interés se acumula.</p>
              <p style="font-size:13px;margin:0;">Pago único al final (capital + interés): <b>${money(tabla[tabla.length-1].cuota)}</b></p>`
@@ -2851,7 +2901,7 @@ function viewRefinanciar(){
     const esAmericano = f.metodo === METODOS[4];
     if(tabla.length){
       evalNIF = evaluarModificacionNIF(origen, nuevoCapital, tabla.map(x=>x.cuota), {esIndefinidoNuevo: esIndef});
-      previewHtml = `<div class="card" style="background:#EEF1F6;margin-bottom:16px;color:#1B2A4A;">
+      previewHtml = `<div class="card preview-cuota" style="margin-bottom:16px;">
         <p style="font-size:13px;margin:0 0 4px;">Nuevo capital financiado: <b>${money(nuevoCapital)}</b></p>
         ${esAmericano
           ? `<p style="font-size:13px;margin:0 0 4px;">Durante el plazo no se cobra nada; todo el interés se acumula.</p>
