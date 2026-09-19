@@ -52,6 +52,14 @@
      estilo) se ocultan por defecto — casi nadie las necesita leer cada vez. Se pueden volver
      a mostrar desde Ajustes ("Mostrar notas de ayuda"), que pone [data-ayudas="on"] en <html>. */
   [data-ayudas="off"] .nota-ayuda{display:none;}
+  /* Aun con las notas activadas, las que ocupan más de 2 líneas completas empiezan
+     recortadas (con "…") y con un icono ⓘ al lado — se leen completas solo si el usuario le
+     da clic al icono. prepararNotasLargas(), llamada al final de render(), decide cuáles son
+     lo bastante largas para esto y les agrega el icono; las cortas quedan igual que siempre. */
+  .nota-ayuda.colapsable{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;}
+  .nota-ayuda.colapsable.expandida{display:block;-webkit-line-clamp:unset;overflow:visible;}
+  .nota-ayuda-toggle{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;border:1px solid #ccc;background:transparent;color:#999;font-size:11px;font-weight:700;line-height:1;margin-left:4px;cursor:pointer;flex:none;vertical-align:-3px;padding:0;}
+  [data-theme="dark"] .nota-ayuda-toggle{border-color:#555;color:#aaa;}
   .preview-cuota{background:#EEF1F6;color:#1B2A4A;}
   .row-card .name{font-size:14px;font-weight:600;margin:0;}
   .row-card .sub{font-size:12px;color:#8a8680;margin:2px 0 0;}
@@ -1267,6 +1275,30 @@ function render(){
     }
   }
   window.scrollTo(0, mismaVista ? scrollY : 0);
+  prepararNotasLargas();
+}
+// Recorta a 2 líneas (con "…" y un icono ⓘ) cualquier .nota-ayuda cuyo texto sea más largo
+// que eso, y le agrega el icono para expandirla/colapsarla con un clic. Las notas que ya
+// caben en 2 líneas se dejan tal cual, sin icono (no hay nada que expandir). Se vuelve a
+// correr en cada render() porque el DOM se reconstruye entero cada vez.
+function prepararNotasLargas(){
+  document.querySelectorAll(".nota-ayuda").forEach(function(el){
+    el.classList.add("colapsable");
+    if(el.scrollHeight - el.clientHeight > 4){
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "nota-ayuda-toggle";
+      btn.textContent = "ⓘ";
+      btn.setAttribute("aria-label", "Mostrar nota completa");
+      btn.onclick = function(){
+        el.classList.toggle("expandida");
+        btn.textContent = el.classList.contains("expandida") ? "✕" : "ⓘ";
+      };
+      el.insertAdjacentElement("afterend", btn);
+    } else {
+      el.classList.remove("colapsable");
+    }
+  });
 }
 
 function exportarDatos(){
