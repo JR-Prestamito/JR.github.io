@@ -110,6 +110,13 @@
   .fila-amort{border-top:1px solid #f0ede6;}
   .fila-ajuste{background:#F3F8EE;}
   .fila-total-amort{border-top:2px solid #d8d3c8;background:#F5F3EE;}
+  .fila-header-desplegable{background:#F5F3EE;}
+  [data-theme="dark"] .fila-header-desplegable{background:#20283A;}
+  summary{cursor:pointer;padding:10px 12px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px;list-style:revert;}
+  #reporte-imprimible details[open] summary{border-bottom:1px solid #e5e1d8;}
+  [data-theme="dark"] #reporte-imprimible details[open] summary{border-bottom-color:rgba(255,255,255,.08);}
+  .tabla-card details[open] summary{border-bottom:1px solid #e5e1d8;}
+  [data-theme="dark"] .tabla-card details[open] summary{border-bottom-color:rgba(255,255,255,.08);}
   .solo-imprimir{display:none;}
   @page{ size: A4; margin: 14mm; }
   @page recibo{ size: 80mm 170mm; margin: 6mm; }
@@ -1499,7 +1506,7 @@ function generarReportePDF(){
   state.prestamos.forEach(p=>{
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
-    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p);
+    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p) + pagosPreviosDe(p);
   });
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -1560,7 +1567,7 @@ function viewReportePDF(){
   state.prestamos.forEach(p=>{
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
-    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p);
+    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p) + pagosPreviosDe(p);
   });
   const filas = state.prestamos.map(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
@@ -1626,6 +1633,17 @@ function enganchesDe(p){
   (p.modificaciones||[]).forEach(m=>{ total += Number(m.enganche)||0; });
   return total;
 }
+function pagosPreviosDe(p){
+  // Los pagos hechos ANTES de una modificación "no sustancial" (NIF C-19) se archivan en
+  // modificaciones[].pagosPrevios y ya NO viven en p.pagos (se limpia al modificar) — pero
+  // ese dinero sí se cobró de verdad. Si no se suma aquí, "Total cobrado" queda por debajo
+  // de lo que muestra el Historial de pagos (que sí los incluye), y el cuadre no da.
+  let total = 0;
+  (p.modificaciones||[]).forEach(m=>{
+    (m.pagosPrevios||[]).forEach(pg=>{ total += (Number(pg.monto)||0) + (Number(pg.mora)||0); });
+  });
+  return total;
+}
 function desglosePagado(p){
   // Reparte lo realmente cobrado en un préstamo entre interés y capital,
   // recorriendo la tabla de amortización cuota por cuota (igual proporción que cada fila).
@@ -1650,13 +1668,14 @@ function abrirEstadoResultados(){
   render();
 }
 function generarEstadoResultadosPDF(){
-  let interesesCobrados=0, capitalCobrado=0, moraCobrada=0, enganches=0, desembolsos=0, gananciaPerdidaModificaciones=0;
+  let interesesCobrados=0, capitalCobrado=0, moraCobrada=0, enganches=0, pagosPrevios=0, desembolsos=0, gananciaPerdidaModificaciones=0;
   state.prestamos.forEach(p=>{
     const d = desglosePagado(p);
     interesesCobrados += d.interes;
     capitalCobrado += d.capital;
     moraCobrada += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.mora)||0),0);
     enganches += enganchesDe(p);
+    pagosPrevios += pagosPreviosDe(p);
     // Nota: una refinanciación SUSTANCIAL (la única que deja p.refinanciaDe en el
     // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIF C-19 — esa
     // columna solo aplica a modificaciones NO sustanciales, que van en p.modificaciones
@@ -1667,7 +1686,7 @@ function generarEstadoResultadosPDF(){
       gananciaPerdidaModificaciones += Number(m.gananciaPerdida)||0;
     });
   });
-  const ingresos = interesesCobrados + capitalCobrado + moraCobrada + enganches;
+  const ingresos = interesesCobrados + capitalCobrado + moraCobrada + enganches + pagosPrevios;
   const utilidad = ingresos - desembolsos + gananciaPerdidaModificaciones;
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -1683,7 +1702,8 @@ function generarEstadoResultadosPDF(){
       ["Intereses cobrados", money(interesesCobrados)],
       ["Abonos a capital cobrados", money(capitalCobrado)],
       ["Mora cobrada", money(moraCobrada)],
-      ["Enganches al refinanciar", money(enganches)]
+      ["Enganches al refinanciar", money(enganches)],
+      ["Pagos antes de modificaciones (histórico)", money(pagosPrevios)]
     ],
     foot: [["Total ingresos", money(ingresos)]],
     columnStyles: { 1: { halign: "right" } },
@@ -1748,13 +1768,14 @@ function compartirEstadoResultadosPDF(){
   });
 }
 function viewEstadoResultados(){
-  let interesesCobrados=0, capitalCobrado=0, moraCobrada=0, enganches=0, desembolsos=0, gananciaPerdidaModificaciones=0;
+  let interesesCobrados=0, capitalCobrado=0, moraCobrada=0, enganches=0, pagosPrevios=0, desembolsos=0, gananciaPerdidaModificaciones=0;
   state.prestamos.forEach(p=>{
     const d = desglosePagado(p);
     interesesCobrados += d.interes;
     capitalCobrado += d.capital;
     moraCobrada += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.mora)||0),0);
     enganches += enganchesDe(p);
+    pagosPrevios += pagosPreviosDe(p);
     // Nota: una refinanciación SUSTANCIAL (la única que deja p.refinanciaDe en el
     // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIF C-19 — esa
     // columna solo aplica a modificaciones NO sustanciales, que van en p.modificaciones
@@ -1772,7 +1793,7 @@ function viewEstadoResultados(){
       gananciaPerdidaModificaciones += Number(m.gananciaPerdida)||0;
     });
   });
-  const ingresos = interesesCobrados + capitalCobrado + moraCobrada + enganches;
+  const ingresos = interesesCobrados + capitalCobrado + moraCobrada + enganches + pagosPrevios;
   const utilidad = ingresos - desembolsos + gananciaPerdidaModificaciones;
   const fila = (label, valor, negrita)=>`<tr class="${negrita?"fila-total-amort":"fila-amort"}">
       <td style="padding:${negrita?"6px 6px":"4px 6px"};${negrita?"font-weight:700;":""}">${label}</td>
@@ -1789,6 +1810,7 @@ function viewEstadoResultados(){
         ${fila("Abonos a capital cobrados", capitalCobrado)}
         ${fila("Mora cobrada", moraCobrada)}
         ${fila("Enganches al refinanciar", enganches)}
+        ${fila("Pagos antes de modificaciones (histórico)", pagosPrevios)}
         ${fila("Total ingresos", ingresos, true)}
       </table>
       </div>
@@ -2103,35 +2125,41 @@ function viewReporteDesembolsos(){
     <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirReporteDesembolsosPDF()">Compartir en PDF</button>`;
 }
 
-// Junta en una sola lista, ordenada por fecha, todos los pagos registrados en todos los
-// préstamos (cuotas, abonos a capital y liquidaciones anticipadas).
+// Separa el historial de pagos en dos partes:
+// - actuales: los pagos y enganches vigentes (los que sí cuentan contra la tabla actual de
+//   cada préstamo), en una sola lista ordenada por fecha.
+// - grupos: los pagos hechos ANTES de cada modificación "no sustancial" (NIF C-19), que ya
+//   no cuentan contra la tabla recalculada pero tampoco deben desaparecer del historial —
+//   se agrupan por préstamo/modificación para mostrarse aparte, en una tarjeta desplegable.
 function listaHistorialPagos(){
-  const eventos = [];
+  const actuales = [];
+  const grupos = [];
   state.prestamos.forEach(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
-    // Los pagos hechos ANTES de una modificación "no sustancial" (NIF C-19) se archivan
-    // dentro de esa modificación (pagosPrevios) para no volver a contarlos en la tabla
-    // recalculada — pero eso no debe significar que desaparecen del historial que ve el
-    // usuario. Se muestran aquí también, marcados como de antes de esa modificación.
     (p.modificaciones||[]).forEach(m=>{
-      (m.pagosPrevios||[]).forEach(pg=>{
-        let concepto = "Cuota";
-        if(pg.liquidacion) concepto = "Liquidación anticipada";
-        else if(pg.tipo === "abono_capital") concepto = "Abono a capital";
-        else if(pg.mora>0) concepto = "Cuota + mora";
-        eventos.push({
-          fecha: pg.fecha, codigo: p.codigo, cliente: cli?cli.nombre:"—",
-          concepto: `${concepto} (antes de modif. del ${fmtDateCompacto(m.fecha)})`,
-          monto: Number(pg.monto)||0, mora: Number(pg.mora)||0
+      if((m.pagosPrevios||[]).length){
+        const pagosGrupo = m.pagosPrevios.map(pg=>{
+          let concepto = "Cuota";
+          if(pg.liquidacion) concepto = "Liquidación anticipada";
+          else if(pg.tipo === "abono_capital") concepto = "Abono a capital";
+          else if(pg.mora>0) concepto = "Cuota + mora";
+          return { fecha: pg.fecha, concepto, monto: Number(pg.monto)||0, mora: Number(pg.mora)||0 };
         });
-      });
+        pagosGrupo.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||""));
+        grupos.push({
+          codigo: p.codigo, cliente: cli?cli.nombre:"—", fechaModificacion: m.fecha,
+          pagos: pagosGrupo,
+          subtotalMonto: pagosGrupo.reduce((s,x)=>s+x.monto,0),
+          subtotalMora: pagosGrupo.reduce((s,x)=>s+x.mora,0)
+        });
+      }
     });
     (p.pagos||[]).forEach(pg=>{
       let concepto = "Cuota";
       if(pg.liquidacion) concepto = "Liquidación anticipada";
       else if(pg.tipo === "abono_capital") concepto = "Abono a capital";
       else if(pg.mora>0) concepto = "Cuota + mora";
-      eventos.push({
+      actuales.push({
         fecha: pg.fecha, codigo: p.codigo, cliente: cli?cli.nombre:"—",
         concepto, monto: Number(pg.monto)||0, mora: Number(pg.mora)||0
       });
@@ -2141,7 +2169,7 @@ function listaHistorialPagos(){
     // hay que mostrarlo aquí también o desaparece del historial de pagos del usuario.
     if(p.refinanciaDe && Number(p.engancheAlRefinanciar)>0){
       const origen = state.prestamos.find(x=>x.id===p.refinanciaDe);
-      eventos.push({
+      actuales.push({
         fecha: p.fechaInicio, codigo: p.codigo, cliente: cli?cli.nombre:"—",
         concepto: `Enganche al refinanciar${origen?" (de "+origen.codigo+")":""}`,
         monto: Number(p.engancheAlRefinanciar)||0, mora: 0
@@ -2149,15 +2177,34 @@ function listaHistorialPagos(){
     }
     (p.modificaciones||[]).forEach(m=>{
       if(Number(m.enganche)>0){
-        eventos.push({
+        actuales.push({
           fecha: m.fecha, codigo: p.codigo, cliente: cli?cli.nombre:"—",
           concepto: "Enganche al modificar", monto: Number(m.enganche)||0, mora: 0
         });
       }
     });
   });
-  eventos.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||""));
-  return eventos;
+  actuales.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||""));
+  grupos.sort((a,b)=> (b.fechaModificacion||"").localeCompare(a.fechaModificacion||""));
+  return { actuales, grupos };
+}
+// Lista plana con TODO (actuales + previos), para el PDF y para cualquier cálculo que
+// necesite el histórico completo sin la separación visual de la pantalla.
+function todosLosEventosPago(){
+  const { actuales, grupos } = listaHistorialPagos();
+  const previos = [];
+  grupos.forEach(g=>{
+    g.pagos.forEach(pg=>{
+      previos.push({
+        fecha: pg.fecha, codigo: g.codigo, cliente: g.cliente,
+        concepto: `${pg.concepto} (antes de modif. del ${fmtDateCompacto(g.fechaModificacion)})`,
+        monto: pg.monto, mora: pg.mora
+      });
+    });
+  });
+  const todos = actuales.concat(previos);
+  todos.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||""));
+  return todos;
 }
 function abrirReporteHistorialPagos(){
   state.tab = "inicio";
@@ -2165,7 +2212,7 @@ function abrirReporteHistorialPagos(){
   render();
 }
 function generarHistorialPagosPDF(){
-  const eventos = listaHistorialPagos();
+  const eventos = todosLosEventosPago();
   const totalMonto = eventos.reduce((s,e)=>s+e.monto,0);
   const totalMora = eventos.reduce((s,e)=>s+e.mora,0);
   const { jsPDF } = window.jspdf;
@@ -2205,10 +2252,12 @@ function compartirHistorialPagosPDF(){
   });
 }
 function viewReporteHistorialPagos(){
-  const eventos = listaHistorialPagos();
-  const totalMonto = eventos.reduce((s,e)=>s+e.monto,0);
-  const totalMora = eventos.reduce((s,e)=>s+e.mora,0);
-  const filas = eventos.map(e=>`<tr class="fila-amort">
+  const { actuales, grupos } = listaHistorialPagos();
+  const totalPreviosMonto = grupos.reduce((s,g)=>s+g.subtotalMonto,0);
+  const totalPreviosMora = grupos.reduce((s,g)=>s+g.subtotalMora,0);
+  const totalMonto = actuales.reduce((s,e)=>s+e.monto,0) + totalPreviosMonto;
+  const totalMora = actuales.reduce((s,e)=>s+e.mora,0) + totalPreviosMora;
+  const filas = actuales.map(e=>`<tr class="fila-amort">
       <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
       <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}</td>
       <td style="padding:5px 6px;white-space:nowrap;">${e.cliente}</td>
@@ -2217,11 +2266,35 @@ function viewReporteHistorialPagos(){
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.mora>0?money(e.mora):"—"}</td>
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;font-weight:600;">${money(e.monto+e.mora)}</td>
     </tr>`).join("");
+  const gruposHtml = grupos.map(g=>`
+      <details class="tabla-card">
+        <summary class="fila-header-desplegable">
+          <span>Pagos anteriores · ${g.codigo} <span class="hint" style="font-weight:400;">(antes de modificar el ${fmtDateCompacto(g.fechaModificacion)})</span></span>
+          <span style="white-space:nowrap;">${money(g.subtotalMonto+g.subtotalMora)}</span>
+        </summary>
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+        <table style="width:100%;min-width:480px;border-collapse:collapse;font-size:12px;">
+          <thead><tr style="background:#F5F3EE;">
+            <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Concepto</th>
+            <th style="padding:5px 6px;text-align:right;">Monto</th><th style="padding:5px 6px;text-align:right;">Mora</th>
+            <th style="padding:5px 6px;text-align:right;">Total</th>
+          </tr></thead>
+          <tbody>${g.pagos.map(pg=>`<tr class="fila-amort">
+              <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(pg.fecha)}</td>
+              <td style="padding:5px 6px;white-space:nowrap;">${pg.concepto}</td>
+              <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(pg.monto)}</td>
+              <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${pg.mora>0?money(pg.mora):"—"}</td>
+              <td style="padding:5px 6px;text-align:right;white-space:nowrap;font-weight:600;">${money(pg.monto+pg.mora)}</td>
+            </tr>`).join("")}</tbody>
+        </table>
+        </div>
+      </details>`).join("");
   return `
     <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Historial de pagos · ${fmtDate(hoyISO())}</p>
-      ${eventos.length===0 ? `<p class="hint">Todavía no se ha registrado ningún pago.</p>` : `
+      ${actuales.length===0 && grupos.length===0 ? `<p class="hint">Todavía no se ha registrado ningún pago.</p>` : `
+      ${actuales.length ? `
       <div class="tabla-card">
       <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <table style="width:100%;min-width:660px;border-collapse:collapse;font-size:12px;">
@@ -2234,7 +2307,8 @@ function viewReporteHistorialPagos(){
         <tbody>${filas}</tbody>
       </table>
       </div>
-      </div>
+      </div>` : `<p class="hint">Todavía no se ha registrado ningún pago vigente.</p>`}
+      ${gruposHtml}
       <div class="tabla-card" style="margin-bottom:0;">
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <tr class="fila-amort"><td style="padding:8px 6px;">Total en cuotas/abonos</td><td style="padding:8px 6px;text-align:right;">${money(totalMonto)}</td></tr>
@@ -2243,7 +2317,7 @@ function viewReporteHistorialPagos(){
         <td style="padding:8px 6px;text-align:right;font-weight:700;">${money(totalMonto+totalMora)}</td></tr>
       </table>
       </div>`}
-      <p class="hint" style="margin-top:14px;">Incluye todos los pagos registrados en todos los préstamos: cuotas, abonos a capital y liquidaciones anticipadas, con su mora cobrada cuando aplica.</p>
+      <p class="hint" style="margin-top:14px;">Incluye todos los pagos registrados en todos los préstamos: cuotas, abonos a capital y liquidaciones anticipadas, con su mora cobrada cuando aplica. Los pagos hechos antes de una modificación de préstamo se agrupan aparte, en "Pagos anteriores".</p>
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
@@ -2328,7 +2402,7 @@ function viewInicio(){
     const r = resumen(p);
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
-    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p);
+    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p) + pagosPreviosDe(p);
     capitalActual += Number(r.capitalPendiente)||0;
     if(r.estado==="Activo"){ activos++; if(r.proximaFecha && diasAtraso(r.proximaFecha)>0) vencidos++; }
   });
@@ -3617,27 +3691,98 @@ function eliminarPrestamo(id){
 function viewPagos(){
   if(state.vista==="recibo") return viewRecibo();
   let lista = [];
+  const previos = [];
+  const enganches = [];
   state.prestamos.forEach(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
     (p.pagos||[]).forEach(pg=> lista.push({...pg, codigo:p.codigo, nombre:cli?cli.nombre:"—", prestamoId:p.id}));
+    // El enganche al refinanciar/modificar es dinero cobrado igual que un pago, aunque no
+    // vive en p.pagos — se muestra aparte, en su propia tarjeta desplegable (no es un pago
+    // vigente más ni un registro con recibo/borrado independiente).
+    if(p.refinanciaDe && Number(p.engancheAlRefinanciar)>0){
+      const origen = state.prestamos.find(x=>x.id===p.refinanciaDe);
+      enganches.push({
+        fecha: p.fechaInicio, monto: Number(p.engancheAlRefinanciar)||0,
+        etiqueta: `Enganche al refinanciar${origen?" (de "+origen.codigo+")":""}`,
+        codigo: p.codigo, nombre: cli?cli.nombre:"—"
+      });
+    }
+    (p.modificaciones||[]).forEach(m=>{
+      if(Number(m.enganche)>0){
+        enganches.push({
+          fecha: m.fecha, monto: Number(m.enganche)||0,
+          etiqueta: "Enganche al modificar", codigo: p.codigo, nombre: cli?cli.nombre:"—"
+        });
+      }
+      // Pagos hechos ANTES de una modificación "no sustancial" (NIF C-19): se archivan y ya
+      // no cuentan contra la tabla actual, pero siguen siendo dinero cobrado — se muestran
+      // aparte, en una lista desplegable, para no perderlos ni mezclarlos con lo vigente.
+      (m.pagosPrevios||[]).forEach(pg=>{
+        previos.push({...pg, codigo:p.codigo, nombre:cli?cli.nombre:"—", fechaModificacion:m.fecha});
+      });
+    });
   });
   lista.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
-  if(lista.length===0) return `<p class="empty">Aún no se han registrado pagos.</p>`;
-  return lista.map(pg=>{
-    const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
-    let sub = `${pg.codigo} · ${fmtDate(pg.fecha)}`;
-    if(pg.liquidacion) sub += " · Liquidación anticipada";
-    else if(pg.tipo === "abono_capital") sub += " · Abono a capital";
-    else if(pg.mora>0) sub += ` · incluye mora ${money(pg.mora)}`;
-    return `<div class="row-card">
-    <div style="cursor:pointer;" onclick="verRecibo('${pg.prestamoId}','${pg.id||""}')"><p class="name">${pg.nombre}</p><p class="sub">${sub}</p></div>
-    <div style="text-align:right;display:flex;align-items:center;gap:6px;">
-      <p style="font-size:15px;font-weight:600;color:#3B6D11;margin:0;">${money(total)}</p>
-      <button class="printbtn" title="Ver recibo" onclick="verRecibo('${pg.prestamoId}','${pg.id||""}')">🧾</button>
-      <button class="printbtn" title="Eliminar pago" onclick="eliminarPago('${pg.prestamoId}','${pg.id||""}')">🗑</button>
+  previos.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+  enganches.sort((a,b)=> new Date(b.fecha)-new Date(a.fecha));
+  // Tarjeta de fila reutilizable: el monto siempre a la derecha con un ancho mínimo fijo
+  // (para que todos los montos queden alineados en la misma columna, sin importar cuántas
+  // líneas ocupe el texto de la izquierda), y cada nota extra en su propia línea completa.
+  const filaMovimiento = (nombre, lineas, monto, acciones, onclick)=>{
+    const notas = lineas.filter(Boolean).map(l=>`<p class="sub">${l}</p>`).join("");
+    const nombreDiv = onclick
+      ? `<div style="cursor:pointer;min-width:0;" onclick="${onclick}"><p class="name">${nombre}</p>${notas}</div>`
+      : `<div style="min-width:0;"><p class="name">${nombre}</p>${notas}</div>`;
+    return `<div class="row-card" style="align-items:flex-start;">
+    ${nombreDiv}
+    <div style="text-align:right;display:flex;align-items:flex-start;gap:6px;flex-shrink:0;">
+      <p style="font-size:15px;font-weight:600;color:#3B6D11;margin:0;min-width:86px;">${money(monto)}</p>
+      ${acciones||""}
     </div>
   </div>`;
+  };
+  const filaPago = (pg)=>{
+    const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
+    let nota = null;
+    if(pg.liquidacion) nota = "Liquidación anticipada";
+    else if(pg.tipo === "abono_capital") nota = "Abono a capital";
+    else if(pg.mora>0) nota = `Incluye mora ${money(pg.mora)}`;
+    const acciones = `
+      <button class="printbtn" title="Ver recibo" onclick="verRecibo('${pg.prestamoId}','${pg.id||""}')">🧾</button>
+      <button class="printbtn" title="Eliminar pago" onclick="eliminarPago('${pg.prestamoId}','${pg.id||""}')">🗑</button>`;
+    return filaMovimiento(pg.nombre, [`${pg.codigo} · ${fmtDate(pg.fecha)}`, nota], total, acciones, `verRecibo('${pg.prestamoId}','${pg.id||""}')`);
+  };
+  if(lista.length===0 && previos.length===0 && enganches.length===0) return `<p class="empty">Aún no se han registrado pagos.</p>`;
+  const totalPrevios = previos.reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
+  const totalEnganches = enganches.reduce((s,e)=>s+(Number(e.monto)||0),0);
+  const desplegable = (id, titulo, cantidad, total, filasHtml)=> cantidad===0 ? "" : `
+    <details class="tabla-card" style="margin:0 -16px 8px;border-radius:0;">
+      <summary class="fila-header-desplegable" style="list-style:revert;padding:12px 16px;">
+        <span>${titulo} <span class="hint" style="font-weight:400;">(${cantidad})</span></span>
+        <span style="white-space:nowrap;">${money(total)}</span>
+      </summary>
+      <div style="padding:8px 16px;">${filasHtml}</div>
+    </details>`;
+  const filasPrevios = previos.map(pg=>{
+    const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
+    let nota = null;
+    if(pg.liquidacion) nota = "Liquidación anticipada";
+    else if(pg.tipo === "abono_capital") nota = "Abono a capital";
+    else if(pg.mora>0) nota = `Incluye mora ${money(pg.mora)}`;
+    return filaMovimiento(pg.nombre, [
+      `${pg.codigo} · ${fmtDate(pg.fecha)}`,
+      `Antes de modificar el ${fmtDateCompacto(pg.fechaModificacion)}`,
+      nota
+    ], total);
   }).join("");
+  const filasEnganches = enganches.map(e=> filaMovimiento(e.nombre, [
+    `${e.codigo} · ${fmtDate(e.fecha)}`,
+    e.etiqueta
+  ], e.monto)).join("");
+  return `
+    ${lista.length===0 ? `<p class="empty">Aún no se han registrado pagos vigentes.</p>` : lista.map(filaPago).join("")}
+    ${desplegable("enganches", "Enganches", enganches.length, totalEnganches, filasEnganches)}
+    ${desplegable("previos", "Pagos anteriores a modificaciones", previos.length, totalPrevios, filasPrevios)}`;
 }
 function eliminarPago(prestamoId, pagoId){
   const p = state.prestamos.find(x=>x.id===prestamoId);
