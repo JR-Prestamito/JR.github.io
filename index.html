@@ -3780,7 +3780,22 @@ function viewPagos(){
     e.etiqueta
   ], e.monto)).join("");
   return `
-    ${lista.length===0 ? `<p class="empty">Aún no se han registrado pagos vigentes.</p>` : lista.map(filaPago).join("")}
+    ${lista.length===0 ? `<p class="empty">Aún no se han registrado pagos vigentes.</p>` : (()=>{
+      // Igual que Enganches y Pagos anteriores: se agrupan por préstamo en tarjetas
+      // desplegables, en vez de una sola lista plana que crece sin parar con el tiempo.
+      const grupos = {};
+      lista.forEach(pg=>{
+        if(!grupos[pg.prestamoId]) grupos[pg.prestamoId] = { codigo: pg.codigo, nombre: pg.nombre, pagos: [] };
+        grupos[pg.prestamoId].pagos.push(pg);
+      });
+      // "lista" ya viene ordenada de más reciente a más antiguo, así que el primer pago de
+      // cada grupo ya es el más reciente de ese préstamo — sirve para ordenar los grupos.
+      const gruposOrdenados = Object.values(grupos).sort((a,b)=> new Date(b.pagos[0].fecha) - new Date(a.pagos[0].fecha));
+      return gruposOrdenados.map(grupo=>{
+        const totalGrupo = grupo.pagos.reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
+        return desplegable(`prestamo-${grupo.codigo}`, `${grupo.codigo} · ${grupo.nombre}`, grupo.pagos.length, totalGrupo, grupo.pagos.map(filaPago).join(""));
+      }).join("");
+    })()}
     ${desplegable("enganches", "Enganches", enganches.length, totalEnganches, filasEnganches)}
     ${desplegable("previos", "Pagos anteriores a modificaciones", previos.length, totalPrevios, filasPrevios)}`;
 }
