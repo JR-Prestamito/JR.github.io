@@ -303,6 +303,22 @@ function mostrarPrompt(mensaje, cb, opciones){
     </div>`;
   setTimeout(function(){ const el=document.getElementById("jr-modal-input"); if(el) el.focus(); }, 30);
 }
+// Pide la confirmación normal (con su mensaje/botones de siempre) y, si la app tiene una
+// clave configurada, agrega un segundo paso pidiendo esa clave antes de ejecutar la acción
+// — pensado para acciones destructivas (eliminar préstamo, pago o cliente) que conviene
+// proteger un poco más, sin mandar al usuario a la pantalla de login completa: es un
+// candado rápido dentro de la misma pantalla donde está trabajando.
+function confirmarConClave(mensaje, cb, opciones){
+  mostrarConfirmacion(mensaje, function(ok){
+    if(!ok){ if(cb) cb(false); return; }
+    if(!state.config.pin){ if(cb) cb(true); return; }
+    mostrarPrompt("Para confirmar, escribe tu clave de la app:", function(valor){
+      if(valor === null){ if(cb) cb(false); return; }
+      if(valor === state.config.pin){ if(cb) cb(true); }
+      else{ mostrarAlerta("Clave incorrecta. No se realizó la acción."); if(cb) cb(false); }
+    }, { tipo:"password", textoAceptar:"Confirmar" });
+  }, opciones);
+}
 const METODOS = ["Francés (cuota fija)","Alemán (cuota decreciente)","Tasa plana (interés fijo)","Capital al final (bullet)","Sistema Americano (puro)","Indefinido (solo interés)"];
 const PERIODOS = ["Semanal","Quincenal","Mensual"];
 const DIAS_PERIODO = { Semanal:7, Quincenal:15, Mensual:30 };
@@ -576,8 +592,13 @@ function filtrarEntero(v){ return (v||"").toString().replace(/[^0-9]/g, ""); }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function nextCode(prefix, list){
   const nums = list.map(x => parseInt((x.codigo||"").split("-")[1],10)).filter(n=>!isNaN(n));
-  const next = (nums.length ? Math.max(...nums) : 0) + 1;
-  return prefix + "-" + String(next).padStart(4,"0");
+  const usados = new Set(nums);
+  // En vez de siempre tomar "el máximo + 1", se busca el primer número libre de la
+  // secuencia empezando en 1. Así, si se elimina un préstamo/cliente (dejando un hueco,
+  // p. ej. P-0003), el próximo que se cree ocupa ese mismo número en vez de saltarlo.
+  let n = 1;
+  while(usados.has(n)) n++;
+  return prefix + "-" + String(n).padStart(4,"0");
 }
 function money(n){
   n = Number(n);
@@ -2081,6 +2102,23 @@ function listaHistorialPagos(){
   const eventos = [];
   state.prestamos.forEach(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
+    // Los pagos hechos ANTES de una modificación "no sustancial" (NIF C-19) se archivan
+    // dentro de esa modificación (pagosPrevios) para no volver a contarlos en la tabla
+    // recalculada — pero eso no debe significar que desaparecen del historial que ve el
+    // usuario. Se muestran aquí también, marcados como de antes de esa modificación.
+    (p.modificaciones||[]).forEach(m=>{
+      (m.pagosPrevios||[]).forEach(pg=>{
+        let concepto = "Cuota";
+        if(pg.liquidacion) concepto = "Liquidación anticipada";
+        else if(pg.tipo === "abono_capital") concepto = "Abono a capital";
+        else if(pg.mora>0) concepto = "Cuota + mora";
+        eventos.push({
+          fecha: pg.fecha, codigo: p.codigo, cliente: cli?cli.nombre:"—",
+          concepto: `${concepto} (antes de modif. del ${fmtDateCompacto(m.fecha)})`,
+          monto: Number(pg.monto)||0, mora: Number(pg.mora)||0
+        });
+      });
+    });
     (p.pagos||[]).forEach(pg=>{
       let concepto = "Cuota";
       if(pg.liquidacion) concepto = "Liquidación anticipada";
@@ -2614,7 +2652,7 @@ function eliminarCliente(id){
       `Si lo eliminas, esos préstamos quedarán sin cliente asignado, pero NO se borran automáticamente.\n\n`+
       `¿Seguro que quieres eliminar a "${c.nombre}"? Esta acción no se puede deshacer.`;
   }
-  mostrarConfirmacion(msg, function(ok){
+  confirmarConClave(msg, function(ok){
     if(!ok) return;
     state.clientes = state.clientes.filter(x=>x.id!==id);
     save(); render();
@@ -3001,7 +3039,7 @@ function guardarRefinanciamiento(){
       origen.modificaciones.push({
         fecha: f.fechaInicio,
         capitalAnterior: origen.capital, tasaAnterior: origen.tasa, periodoAnterior: origen.periodo,
-        metodoAnterior: origen.metodo, cuotasAnterior: origen.cuotas,
+        metodoAnterior: origen.metodo, cuotasAnterior: origen.cuotas, fechaInicioAnterior: origen.fechaInicio,
         capitalNuevo: nuevoCapital, tasaNueva: f.tasa, periodoNuevo: f.periodo,
         metodoNuevo: f.metodo, cuotasNuevo: esIndef?0:Number(f.cuotas),
         enganche, adicional, diffPct: evalNIF.diffPct, gananciaPerdida: evalNIF.gananciaPerdida,
@@ -3165,7 +3203,8 @@ function viewDetallePrestamo(){
     </div>
     ${r.estado==="Activo" ? `<button class="btn btn-outline" style="margin-bottom:10px;" onclick="abrirRefinanciar('${p.id}')">Refinanciar este préstamo</button>` : ""}
     ${p.refinanciaDe ? `<p class="hint" style="margin-bottom:10px;">Este préstamo nació de un refinanciamiento.</p>` : ""}
-    ${(p.modificaciones && p.modificaciones.length) ? `<p class="hint" style="margin-bottom:10px;">Este préstamo ha tenido ${p.modificaciones.length} modificación(es) de condiciones sin crear un préstamo nuevo (NIF C-19, no sustancial). Última: ${fmtDate(p.modificaciones[p.modificaciones.length-1].fecha)}.</p>` : ""}
+    ${(p.modificaciones && p.modificaciones.length) ? `<p class="hint" style="margin-bottom:6px;">Este préstamo ha tenido ${p.modificaciones.length} modificación(es) de condiciones sin crear un préstamo nuevo (NIF C-19, no sustancial). Última: ${fmtDate(p.modificaciones[p.modificaciones.length-1].fecha)}.</p>
+    <button class="btn btn-outline" style="margin-bottom:10px;" onclick="deshacerUltimaModificacion('${p.id}')">Deshacer última modificación</button>` : ""}
     <div class="flexrow">
       <button class="btn btn-outline" onclick="abrirEditarPrestamo('${p.id}')">Editar préstamo</button>
       <button class="btn btn-danger" onclick="eliminarPrestamo('${p.id}')">Eliminar</button>
@@ -3488,6 +3527,38 @@ function liquidarAnticipado(id){
     { textoAceptar:"Registrar y cerrar" }
   );
 }
+// Deshace la ÚLTIMA modificación "no sustancial" (NIF C-19) aplicada a este préstamo —
+// la que ajustó sus condiciones EN EL MISMO préstamo (sin crear uno nuevo). Restaura
+// capital, tasa, periodo, método, cuotas, fecha de inicio y el historial de pagos/abonos
+// que tenía justo antes de esa modificación, y quita esa entrada del historial.
+// Esto es lo que hay que usar para "deshacer" una modificación no sustancial — eliminar
+// el préstamo por completo NO la deshace, porque no se creó un préstamo nuevo aparte.
+function deshacerUltimaModificacion(id){
+  const p = state.prestamos.find(x=>x.id===id);
+  if(!p || !p.modificaciones || !p.modificaciones.length) return;
+  const m = p.modificaciones[p.modificaciones.length-1];
+  const numPagosDesdeModificacion = (p.pagos||[]).length;
+  let msg = `¿Deshacer la última modificación de ${p.codigo} (del ${fmtDate(m.fecha)})?\n\n`+
+    `Volverá a quedar así:\nCapital: ${money(m.capitalAnterior)}\nTasa: ${m.tasaAnterior}%\n`+
+    `${m.periodoAnterior} · ${m.metodoAnterior}${m.cuotasAnterior?` · ${m.cuotasAnterior} cuotas`:""}`;
+  if(numPagosDesdeModificacion>0){
+    msg += `\n\nOjo: tiene ${numPagosDesdeModificacion} pago(s) registrado(s) DESPUÉS de esa modificación — se perderán, porque vuelven a quedar sin sentido con las condiciones anteriores.`;
+  }
+  mostrarConfirmacion(msg, function(ok){
+    if(!ok) return;
+    p.capital = m.capitalAnterior;
+    p.tasa = m.tasaAnterior;
+    p.periodo = m.periodoAnterior;
+    p.metodo = m.metodoAnterior;
+    p.cuotas = m.cuotasAnterior;
+    if(m.fechaInicioAnterior) p.fechaInicio = m.fechaInicioAnterior;
+    p.pagos = m.pagosPrevios || [];
+    p.ajustesCapital = m.ajustesPrevios || [];
+    p.modificaciones.pop();
+    save(); render();
+    mostrarAlerta(`Listo, ${p.codigo} volvió a las condiciones que tenía antes de esa modificación.`);
+  }, { textoAceptar:"Deshacer modificación", peligro:true });
+}
 function eliminarPrestamo(id){
   const p = state.prestamos.find(x=>x.id===id);
   if(!p) return;
@@ -3502,7 +3573,10 @@ function eliminarPrestamo(id){
   if(origen){
     msg += `\n\nEste préstamo nació de refinanciar ${origen.codigo}. Al eliminarlo, ${origen.codigo} volverá a quedar Activo con el saldo e historial que tenía justo antes de ese refinanciamiento.`;
   }
-  mostrarConfirmacion(msg, function(ok){
+  if(p.modificaciones && p.modificaciones.length){
+    msg += `\n\nOjo: este préstamo tiene ${p.modificaciones.length} modificación(es) de condiciones (NIF C-19, no sustancial) guardadas en su propio historial. Eliminar el préstamo borra ese historial para siempre — si lo que quieres es volver a las condiciones anteriores a la última modificación, usa "Deshacer última modificación" en vez de eliminar.`;
+  }
+  confirmarConClave(msg, function(ok){
     if(!ok) return;
     if(origen){
       origen.refinanciado = false;
@@ -3551,7 +3625,7 @@ function eliminarPago(prestamoId, pagoId){
   let msg = `¿Eliminar el pago de ${money(total)} del ${fmtDate(pg.fecha)} (${p.codigo}${cli?" · "+cli.nombre:""})?\n\n`+
     `El préstamo recalculará sus cuotas pendientes sin este pago. Esta acción no se puede deshacer.`;
   if(pg.tipo==="abono_capital") msg += `\n\nEste pago incluye un abono a capital — la tabla de amortización también se actualizará, quitando el efecto de ese abono.`;
-  mostrarConfirmacion(msg, function(ok){
+  confirmarConClave(msg, function(ok){
     if(!ok) return;
     if(pg.liquidacion) p.liquidadoAnticipado = false;
     if(pg.tipo==="abono_capital" && (p.ajustesCapital||[]).length){
