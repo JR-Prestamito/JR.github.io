@@ -1499,7 +1499,7 @@ function generarReportePDF(){
   state.prestamos.forEach(p=>{
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
-    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
+    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p);
   });
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
@@ -1560,7 +1560,7 @@ function viewReportePDF(){
   state.prestamos.forEach(p=>{
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
-    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
+    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p);
   });
   const filas = state.prestamos.map(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
@@ -1617,6 +1617,15 @@ function capitalOriginalDesembolsado(p){
   }
   return Number(p.capital)||0;
 }
+function enganchesDe(p){
+  // El enganche/abono que el cliente entrega al refinanciar o modificar un préstamo SÍ es
+  // dinero que efectivamente cobraste, igual que una cuota o un abono a capital — pero se
+  // guarda en el préstamo (engancheAlRefinanciar / modificaciones[].enganche), no en
+  // p.pagos, así que hay que sumarlo aparte para que no desaparezca de "Total cobrado".
+  let total = p.refinanciaDe ? (Number(p.engancheAlRefinanciar)||0) : 0;
+  (p.modificaciones||[]).forEach(m=>{ total += Number(m.enganche)||0; });
+  return total;
+}
 function desglosePagado(p){
   // Reparte lo realmente cobrado en un préstamo entre interés y capital,
   // recorriendo la tabla de amortización cuota por cuota (igual proporción que cada fila).
@@ -1647,14 +1656,13 @@ function generarEstadoResultadosPDF(){
     interesesCobrados += d.interes;
     capitalCobrado += d.capital;
     moraCobrada += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.mora)||0),0);
-    if(p.refinanciaDe) enganches += Number(p.engancheAlRefinanciar)||0;
+    enganches += enganchesDe(p);
     // Nota: una refinanciación SUSTANCIAL (la única que deja p.refinanciaDe en el
     // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIF C-19 — esa
     // columna solo aplica a modificaciones NO sustanciales, que van en p.modificaciones
     // (ya sumadas más abajo). Por eso aquí no hay nada que sumar para ese caso.
     desembolsos += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{
-      enganches += Number(m.enganche)||0;
       desembolsos += Number(m.adicional)||0;
       gananciaPerdidaModificaciones += Number(m.gananciaPerdida)||0;
     });
@@ -1746,7 +1754,7 @@ function viewEstadoResultados(){
     interesesCobrados += d.interes;
     capitalCobrado += d.capital;
     moraCobrada += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.mora)||0),0);
-    if(p.refinanciaDe) enganches += Number(p.engancheAlRefinanciar)||0;
+    enganches += enganchesDe(p);
     // Nota: una refinanciación SUSTANCIAL (la única que deja p.refinanciaDe en el
     // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIF C-19 — esa
     // columna solo aplica a modificaciones NO sustanciales, que van en p.modificaciones
@@ -1760,7 +1768,6 @@ function viewEstadoResultados(){
     // monto adicional y ganancia/pérdida quedan guardados dentro del mismo préstamo en
     // "modificaciones" — hay que sumarlos aquí para que no se pierdan del reporte.
     (p.modificaciones||[]).forEach(m=>{
-      enganches += Number(m.enganche)||0;
       desembolsos += Number(m.adicional)||0;
       gananciaPerdidaModificaciones += Number(m.gananciaPerdida)||0;
     });
@@ -2129,6 +2136,25 @@ function listaHistorialPagos(){
         concepto, monto: Number(pg.monto)||0, mora: Number(pg.mora)||0
       });
     });
+    // El enganche/abono que el cliente entrega al refinanciar o modificar un préstamo es
+    // dinero cobrado igual que una cuota, aunque no vive en p.pagos (ver enganchesDe) —
+    // hay que mostrarlo aquí también o desaparece del historial de pagos del usuario.
+    if(p.refinanciaDe && Number(p.engancheAlRefinanciar)>0){
+      const origen = state.prestamos.find(x=>x.id===p.refinanciaDe);
+      eventos.push({
+        fecha: p.fechaInicio, codigo: p.codigo, cliente: cli?cli.nombre:"—",
+        concepto: `Enganche al refinanciar${origen?" (de "+origen.codigo+")":""}`,
+        monto: Number(p.engancheAlRefinanciar)||0, mora: 0
+      });
+    }
+    (p.modificaciones||[]).forEach(m=>{
+      if(Number(m.enganche)>0){
+        eventos.push({
+          fecha: m.fecha, codigo: p.codigo, cliente: cli?cli.nombre:"—",
+          concepto: "Enganche al modificar", monto: Number(m.enganche)||0, mora: 0
+        });
+      }
+    });
   });
   eventos.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||""));
   return eventos;
@@ -2302,7 +2328,7 @@ function viewInicio(){
     const r = resumen(p);
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
-    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0);
+    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + enganchesDe(p);
     capitalActual += Number(r.capitalPendiente)||0;
     if(r.estado==="Activo"){ activos++; if(r.proximaFecha && diasAtraso(r.proximaFecha)>0) vencidos++; }
   });
