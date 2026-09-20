@@ -50,16 +50,16 @@
   .monto-navy{color:var(--navy);}
   /* Las notas de ayuda/instrucciones (.nota-ayuda, siempre además de .hint para el mismo
      estilo) se ocultan por defecto — casi nadie las necesita leer cada vez. Se pueden volver
-     a mostrar desde Ajustes ("Mostrar notas de ayuda"), que pone [data-ayudas="on"] en <html>. */
+     a mostrar desde Ajustes ("Mostrar notas de ayuda"), que pone [data-ayudas="on"] en <html>.
+     Cuando están apagadas, desaparecen del todo (ni texto ni espacio reservado). */
   [data-ayudas="off"] .nota-ayuda{display:none;}
   /* Aun con las notas activadas, las que ocupan más de 2 líneas completas empiezan
-     recortadas (con "…") y con un icono ⓘ al lado — se leen completas solo si el usuario le
-     da clic al icono. prepararNotasLargas(), llamada al final de render(), decide cuáles son
-     lo bastante largas para esto y les agrega el icono; las cortas quedan igual que siempre. */
-  .nota-ayuda.colapsable{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;}
+     recortadas (con "…") — se leen completas tocando la nota misma (sin icono aparte, para
+     no quitarle espacio a nada). prepararNotasLargas(), llamada al final de render(), decide
+     cuáles son lo bastante largas para esto y las marca como "tocables"; las cortas quedan
+     igual que siempre, sin recorte ni reacción al toque. */
+  .nota-ayuda.colapsable{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;cursor:pointer;}
   .nota-ayuda.colapsable.expandida{display:block;-webkit-line-clamp:unset;overflow:visible;}
-  .nota-ayuda-toggle{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;border:1px solid #ccc;background:transparent;color:#999;font-size:11px;font-weight:700;line-height:1;margin-left:4px;cursor:pointer;flex:none;vertical-align:-3px;padding:0;}
-  [data-theme="dark"] .nota-ayuda-toggle{border-color:#555;color:#aaa;}
   .preview-cuota{background:#EEF1F6;color:#1B2A4A;}
   .row-card .name{font-size:14px;font-weight:600;margin:0;}
   .row-card .sub{font-size:12px;color:#8a8680;margin:2px 0 0;}
@@ -123,6 +123,11 @@
   .fila-amort{border-top:1px solid #f0ede6;}
   .fila-ajuste{background:#F3F8EE;}
   .fila-total-amort{border-top:2px solid #d8d3c8;background:#F5F3EE;}
+  /* Cuadrícula compacta para la tabla de amortización: borde alrededor de cada celda (no
+     solo entre filas), como una hoja de cálculo, en vez de líneas sueltas por fila. */
+  .amort-grid th, .amort-grid td{border:1px solid #e5e1d8;}
+  .amort-grid{border-collapse:collapse;}
+  [data-theme="dark"] .amort-grid th, [data-theme="dark"] .amort-grid td{border-color:rgba(255,255,255,.1);}
   .fila-header-desplegable{background:#F5F3EE;}
   [data-theme="dark"] .fila-header-desplegable{background:#20283A;}
   summary{cursor:pointer;padding:10px 12px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px;list-style:revert;}
@@ -772,7 +777,14 @@ function generarTabla(p){
     }
   } else if(p.metodo === METODOS[5]){ // Indefinido (solo interés)
     const interesFijo = round2(capital*tasa);
-    const hechas = (p.pagos||[]).length, total = Math.max(hechas+4,6);
+    // No basta con contar cuántos pagos hay: un préstamo indefinido atrasado y sin pagos
+    // igual necesita filas hasta el día de hoy. Por eso también se calculan los períodos
+    // que ya pasaron según la fecha real, y se usa el que sea más grande de los dos (esto
+    // antes solo se hacía en generarTablaDinamica, así que un préstamo SIN abonos a capital
+    // —que usa este generador directo— se quedaba pegado en un máximo de 6 filas).
+    const diasTranscurridos = Math.max(0, Math.floor((new Date(hoyISO()+"T00:00:00") - new Date(p.fechaInicio+"T00:00:00")) / 86400000));
+    const periodosTranscurridos = dias>0 ? Math.floor(diasTranscurridos/dias) : 0;
+    const hechas = (p.pagos||[]).length, total = Math.max(hechas+4, periodosTranscurridos+4, 6);
     for(let i=1;i<=total;i++){
       filas.push({n:i, fecha:fechaCuota(i), saldoInicial:capital, cuota:interesFijo, interes:interesFijo, abono:0, saldo:capital});
     }
@@ -1340,24 +1352,22 @@ function render(){
   window.scrollTo(0, mismaVista ? scrollY : 0);
   prepararNotasLargas();
 }
-// Recorta a 2 líneas (con "…" y un icono ⓘ) cualquier .nota-ayuda cuyo texto sea más largo
-// que eso, y le agrega el icono para expandirla/colapsarla con un clic. Las notas que ya
-// caben en 2 líneas se dejan tal cual, sin icono (no hay nada que expandir). Se vuelve a
-// correr en cada render() porque el DOM se reconstruye entero cada vez.
+// Recorta a 2 líneas (con "…" nativo del recorte) cualquier .nota-ayuda cuyo texto sea más
+// largo que eso, y hace que tocar la nota misma la expanda/colapse — sin icono ni botón
+// aparte, para no quitarle espacio a nada. Las notas que ya caben en 2 líneas se dejan tal
+// cual, sin recorte ni reacción al toque (no hay nada que expandir). Se vuelve a correr en
+// cada render() porque el DOM se reconstruye entero cada vez.
 function prepararNotasLargas(){
+  // Si las notas están apagadas ya quedan display:none por CSS (cero espacio), pero no vale
+  // la pena ni procesarlas: sin esto, tocarlas (o cualquier resto de estado "expandida" de
+  // antes de apagar el interruptor) no tiene ningún efecto visible mientras estén ocultas.
+  if(!state.config.mostrarAyudas) return;
   document.querySelectorAll(".nota-ayuda").forEach(function(el){
     el.classList.add("colapsable");
     if(el.scrollHeight - el.clientHeight > 4){
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "nota-ayuda-toggle";
-      btn.textContent = "ⓘ";
-      btn.setAttribute("aria-label", "Mostrar nota completa");
-      btn.onclick = function(){
-        el.classList.toggle("expandida");
-        btn.textContent = el.classList.contains("expandida") ? "✕" : "ⓘ";
-      };
-      el.insertAdjacentElement("afterend", btn);
+      el.setAttribute("role", "button");
+      el.setAttribute("aria-label", "Tocar para ver la nota completa");
+      el.onclick = function(){ el.classList.toggle("expandida"); };
     } else {
       el.classList.remove("colapsable");
     }
@@ -2253,6 +2263,7 @@ function listaHistorialPagos(){
           let concepto = "Cuota";
           if(pg.liquidacion) concepto = "Liquidación anticipada";
           else if(pg.tipo === "abono_capital") concepto = "Abono a capital";
+          else if(pg.tipo === "enganche") concepto = "Enganche al refinanciar/modificar";
           else if(pg.mora>0) concepto = "Cuota + mora";
           return { fecha: pg.fecha, concepto, monto: Number(pg.monto)||0, mora: Number(pg.mora)||0 };
         });
@@ -2269,31 +2280,18 @@ function listaHistorialPagos(){
       let concepto = "Cuota";
       if(pg.liquidacion) concepto = "Liquidación anticipada";
       else if(pg.tipo === "abono_capital") concepto = "Abono a capital";
+      else if(pg.tipo === "enganche") concepto = "Enganche al refinanciar/modificar";
       else if(pg.mora>0) concepto = "Cuota + mora";
       actuales.push({
         fecha: pg.fecha, codigo: p.codigo, cliente: cli?cli.nombre:"—",
         concepto, monto: Number(pg.monto)||0, mora: Number(pg.mora)||0
       });
     });
-    // El enganche/abono que el cliente entrega al refinanciar o modificar un préstamo es
-    // dinero cobrado igual que una cuota, aunque no vive en p.pagos (ver enganchesDe) —
-    // hay que mostrarlo aquí también o desaparece del historial de pagos del usuario.
-    if(p.refinanciaDe && Number(p.engancheAlRefinanciar)>0){
-      const origen = state.prestamos.find(x=>x.id===p.refinanciaDe);
-      actuales.push({
-        fecha: p.fechaInicio, codigo: p.codigo, cliente: cli?cli.nombre:"—",
-        concepto: `Enganche al refinanciar${origen?" (de "+origen.codigo+")":""}`,
-        monto: Number(p.engancheAlRefinanciar)||0, mora: 0
-      });
-    }
-    (p.modificaciones||[]).forEach(m=>{
-      if(Number(m.enganche)>0){
-        actuales.push({
-          fecha: m.fecha, codigo: p.codigo, cliente: cli?cli.nombre:"—",
-          concepto: "Enganche al modificar", monto: Number(m.enganche)||0, mora: 0
-        });
-      }
-    });
+    // OJO: el enganche/abono al refinanciar o modificar YA se registra como un pago real en
+    // p.pagos (tipo:"enganche", ver guardarRefinanciamiento) y se acaba de contar arriba —
+    // antes también se volvía a sumar aquí usando engancheAlRefinanciar/m.enganche, lo que
+    // duplicaba ese monto en el total del reporte (por eso no cuadraba contra otras
+    // pantallas, como el total por préstamo en Pagos, que solo lo cuenta una vez).
   });
   actuales.sort((a,b)=> (b.fecha||"").localeCompare(a.fecha||""));
   grupos.sort((a,b)=> (b.fechaModificacion||"").localeCompare(a.fechaModificacion||""));
@@ -3326,17 +3324,27 @@ function viewDetallePrestamo(){
     const i = inicioPagina + iRel;
     let estadoCelda;
     if(i < r.pagosHechos) estadoCelda = '<span style="color:#3B6D11">✓ Pagada</span>';
-    else if(i === r.pagosHechos && r.abonadoEnCuotaActual>0) estadoCelda = `<span style="color:${GOLD};">Abono ${money(r.abonadoEnCuotaActual)}</span>`;
-    else estadoCelda = '<span style="color:#bbb">—</span>';
+    else {
+      // "Pendiente" antes se usaba para cualquier cuota sin pagar, ya fuera futura o ya
+      // vencida — ahora se distingue de verdad comparando la fecha de la fila contra hoy.
+      const vencida = f.fecha < hoyISO();
+      if(i === r.pagosHechos && r.abonadoEnCuotaActual>0){
+        estadoCelda = `<span style="color:${vencida?'#c0433b':GOLD};font-weight:${vencida?'700':'400'};">${vencida?'Vencida · ':''}Abono ${money(r.abonadoEnCuotaActual)}</span>`;
+      } else if(vencida){
+        estadoCelda = '<span style="color:#c0433b;font-weight:700;">Vencida</span>';
+      } else {
+        estadoCelda = '<span style="color:#bbb">Pendiente</span>';
+      }
+    }
     const tieneAjuste = filasConAjuste.has(f.n);
     return `<tr class="fila-amort${tieneAjuste?' fila-ajuste':''}">
-      <td style="padding:3px 5px;">${f.n}${tieneAjuste?' <span title="Incluye abono a capital" style="color:#3B6D11;font-weight:700;">*</span>':''}</td>
+      <td style="padding:3px 5px;white-space:nowrap;">${f.n}${tieneAjuste?' <span title="Incluye abono a capital" style="color:#3B6D11;font-weight:700;">*</span>':''}</td>
       <td style="padding:3px 5px;white-space:nowrap;">${fmtDateCompacto(f.fecha)}</td>
-      <td style="padding:3px 5px;text-align:right">${money(f.saldoInicial)}</td>
-      <td style="padding:3px 5px;text-align:right">${money(f.cuota)}</td>
-      <td style="padding:3px 5px;text-align:right">${money(f.interes)}</td>
-      <td style="padding:3px 5px;text-align:right${tieneAjuste?';color:#3B6D11;font-weight:700;':''}">${money(f.abono)}</td>
-      <td style="padding:3px 5px;text-align:right">${money(f.saldo)}</td>
+      <td style="padding:3px 5px;text-align:right;white-space:nowrap;">${money(f.saldoInicial)}</td>
+      <td style="padding:3px 5px;text-align:right;white-space:nowrap;font-weight:700;">${money(f.cuota)}</td>
+      <td style="padding:3px 5px;text-align:right;white-space:nowrap;">${money(f.interes)}</td>
+      <td style="padding:3px 5px;text-align:right;white-space:nowrap;${tieneAjuste?'color:#3B6D11;font-weight:700;':''}">${money(f.abono)}</td>
+      <td style="padding:3px 5px;text-align:right;white-space:nowrap;">${money(f.saldo)}</td>
       <td style="padding:3px 5px;white-space:nowrap;">${estadoCelda}</td>
     </tr>`;
   }).join("");
@@ -3345,10 +3353,10 @@ function viewDetallePrestamo(){
   const totalInteres = filasParaTabla.reduce((s,f)=>s+(Number(f.interes)||0),0);
   const totalAbono = filasParaTabla.reduce((s,f)=>s+(Number(f.abono)||0),0);
   const filaTotales = `<tr class="fila-total-amort" style="font-weight:700;">
-    <td colspan="3" style="padding:4px 5px;">Total</td>
-    <td style="padding:4px 5px;text-align:right">${money(totalCuota)}</td>
-    <td style="padding:4px 5px;text-align:right">${money(totalInteres)}</td>
-    <td style="padding:4px 5px;text-align:right">${money(totalAbono)}</td>
+    <td colspan="3" style="padding:4px 5px;white-space:nowrap;">Total</td>
+    <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(totalCuota)}</td>
+    <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(totalInteres)}</td>
+    <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(totalAbono)}</td>
     <td></td><td></td>
   </tr>`;
   const paginadorAmort = totalPaginasAmort<=1 ? "" : `
@@ -3424,19 +3432,19 @@ function viewDetallePrestamo(){
       <p class="section-title" style="margin:0;">Tabla de amortización</p>
       <p style="font-size:12px;color:#666;margin:0;">Capital: <b class="monto-navy">${money(p.capital)}</b></p>
     </div>
-    ${esIndefDetalle ? `<p class="hint nota-ayuda" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija. Cada fila nueva aparece un día antes de que se cumpla ese período.</p>` : ""}
+    ${esIndefDetalle ? `<p class="hint nota-ayuda" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija. La siguiente cuota aparece sola en la tabla un día después de la fecha de la anterior, se haya pagado o no — así siempre hay una cuota pendiente esperando, sin importar cuánto tiempo lleve el cliente sin pagar.</p>` : ""}
     ${filasConAjuste.size>0 ? `<p class="hint nota-ayuda" style="margin:4px 0 10px;"><span style="color:#3B6D11;font-weight:700;">*</span> Las filas resaltadas en verde tuvieron un abono a capital extra además de su cuota normal.</p>` : ""}
     <div id="tabla-imprimible" style="margin:0 -16px 16px;padding:16px 6px;">
       <h2 class="solo-imprimir">${nombreApp().toUpperCase()}</h2>
       <p class="hint solo-imprimir" style="margin:0 0 10px;">${p.codigo} · ${cli?cli.nombre:"—"} · Capital ${money(p.capital)} · Tasa ${p.tasa}% · ${p.periodo} · ${p.metodo}</p>
       <div class="tabla-card" style="margin-bottom:0;">
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-        <table style="width:auto;min-width:640px;font-size:11px;border-collapse:collapse;">
+        <table class="amort-grid" style="width:auto;font-size:11px;border-collapse:collapse;">
           <thead><tr style="background:#F5F3EE;">
-            <th style="padding:4px 5px;text-align:left;">N°</th><th style="padding:4px 5px;text-align:left;">Fecha</th>
-            <th style="padding:4px 5px;text-align:right">Saldo ini.</th><th style="padding:4px 5px;text-align:right">Cuota</th>
-            <th style="padding:4px 5px;text-align:right">Interés</th><th style="padding:4px 5px;text-align:right">Abono</th>
-            <th style="padding:4px 5px;text-align:right">Pendiente</th><th style="padding:4px 5px;text-align:left;">Estado</th>
+            <th style="padding:4px 5px;text-align:left;white-space:nowrap;">N°</th><th style="padding:4px 5px;text-align:left;white-space:nowrap;">Fecha</th>
+            <th style="padding:4px 5px;text-align:right;white-space:nowrap;">Saldo ini.</th><th style="padding:4px 5px;text-align:right;white-space:nowrap;">Cuota</th>
+            <th style="padding:4px 5px;text-align:right;white-space:nowrap;">Interés</th><th style="padding:4px 5px;text-align:right;white-space:nowrap;">Abono</th>
+            <th style="padding:4px 5px;text-align:right;white-space:nowrap;">Pendiente</th><th style="padding:4px 5px;text-align:left;white-space:nowrap;">Estado</th>
           </tr></thead>
           <tbody>${filasHtml}${filaTotales}</tbody>
         </table>
@@ -3526,6 +3534,7 @@ function generarAmortizacionPDF(p, cli, r){
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [27,42,74] },
     footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" },
+    columnStyles: { 3: { fontStyle: "bold" } },
     didParseCell: function(data){
       if(data.section==="body"){
         const fila = filasBase[data.row.index];
