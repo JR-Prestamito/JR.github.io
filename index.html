@@ -2904,7 +2904,8 @@ function viewPrestamos(){
   });
   return html;
 }
-function verDetalle(id){ state.tab="prestamos"; state.seleccionId=id; state.vista="detalle"; render(); }
+function verDetalle(id){ state.tab="prestamos"; state.seleccionId=id; state.vista="detalle"; state.paginaAmortizacion=null; render(); }
+function cambiarPaginaAmortizacion(delta){ state.paginaAmortizacion = Math.max(0, (state.paginaAmortizacion||0) + delta); render(); }
 function volverLista(){ state.vista="lista"; render(); }
 function verCartera(){ state.tab="prestamos"; state.vista="cartera"; render(); }
 
@@ -3309,39 +3310,65 @@ function viewDetallePrestamo(){
   // tabla: el número de fila coincide con "despuesDeFila" porque ahí es donde el motor
   // dinámico (generarTablaDinamica) suma ese abono extra al abono programado de esa fila.
   const filasConAjuste = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
-  let filasHtml = filasParaTabla.map((f,i)=>{
+  // Paginación fija de 10 filas por página (en vez de una caja con scroll interno): si hay
+  // más de 10 cuotas, se navega con botones de página en vez de deslizar dentro de la tabla.
+  const PORPAGINA_AMORT = 10;
+  const totalPaginasAmort = Math.max(1, Math.ceil(filasParaTabla.length / PORPAGINA_AMORT));
+  if(state.paginaAmortizacion==null){
+    // Por defecto se abre en la página donde está la cuota actual/siguiente a pagar, no
+    // siempre en la página 1 — así no hay que ir pasando páginas para ver dónde vas.
+    state.paginaAmortizacion = Math.min(Math.floor(r.pagosHechos / PORPAGINA_AMORT), totalPaginasAmort-1);
+  }
+  state.paginaAmortizacion = Math.max(0, Math.min(state.paginaAmortizacion, totalPaginasAmort-1));
+  const inicioPagina = state.paginaAmortizacion * PORPAGINA_AMORT;
+  const filasPagina = filasParaTabla.slice(inicioPagina, inicioPagina + PORPAGINA_AMORT);
+  let filasHtml = filasPagina.map((f,iRel)=>{
+    const i = inicioPagina + iRel;
     let estadoCelda;
     if(i < r.pagosHechos) estadoCelda = '<span style="color:#3B6D11">✓ Pagada</span>';
     else if(i === r.pagosHechos && r.abonadoEnCuotaActual>0) estadoCelda = `<span style="color:${GOLD};">Abono ${money(r.abonadoEnCuotaActual)}</span>`;
     else estadoCelda = '<span style="color:#bbb">—</span>';
     const tieneAjuste = filasConAjuste.has(f.n);
     return `<tr class="fila-amort${tieneAjuste?' fila-ajuste':''}">
-      <td style="padding:4px 6px;">${f.n}${tieneAjuste?' <span title="Incluye abono a capital" style="color:#3B6D11;font-weight:700;">*</span>':''}</td>
-      <td style="padding:4px 6px;white-space:nowrap;">${fmtDateCompacto(f.fecha)}</td>
-      <td style="padding:4px 6px;text-align:right">${money(f.saldoInicial)}</td>
-      <td style="padding:4px 6px;text-align:right">${money(f.cuota)}</td>
-      <td style="padding:4px 6px;text-align:right">${money(f.interes)}</td>
-      <td style="padding:4px 6px;text-align:right${tieneAjuste?';color:#3B6D11;font-weight:700;':''}">${money(f.abono)}</td>
-      <td style="padding:4px 6px;text-align:right">${money(f.saldo)}</td>
-      <td style="padding:4px 6px;white-space:nowrap;">${estadoCelda}</td>
+      <td style="padding:3px 5px;">${f.n}${tieneAjuste?' <span title="Incluye abono a capital" style="color:#3B6D11;font-weight:700;">*</span>':''}</td>
+      <td style="padding:3px 5px;white-space:nowrap;">${fmtDateCompacto(f.fecha)}</td>
+      <td style="padding:3px 5px;text-align:right">${money(f.saldoInicial)}</td>
+      <td style="padding:3px 5px;text-align:right">${money(f.cuota)}</td>
+      <td style="padding:3px 5px;text-align:right">${money(f.interes)}</td>
+      <td style="padding:3px 5px;text-align:right${tieneAjuste?';color:#3B6D11;font-weight:700;':''}">${money(f.abono)}</td>
+      <td style="padding:3px 5px;text-align:right">${money(f.saldo)}</td>
+      <td style="padding:3px 5px;white-space:nowrap;">${estadoCelda}</td>
     </tr>`;
   }).join("");
+  // Los totales siempre suman TODAS las cuotas (no solo la página que se ve ahora mismo).
   const totalCuota = filasParaTabla.reduce((s,f)=>s+(Number(f.cuota)||0),0);
   const totalInteres = filasParaTabla.reduce((s,f)=>s+(Number(f.interes)||0),0);
   const totalAbono = filasParaTabla.reduce((s,f)=>s+(Number(f.abono)||0),0);
-  const filaTotales = esIndefDetalle ? "" : `<tr class="fila-total-amort" style="font-weight:700;">
-    <td colspan="3" style="padding:5px 6px;">Total</td>
-    <td style="padding:5px 6px;text-align:right">${money(totalCuota)}</td>
-    <td style="padding:5px 6px;text-align:right">${money(totalInteres)}</td>
-    <td style="padding:5px 6px;text-align:right">${money(totalAbono)}</td>
+  const filaTotales = `<tr class="fila-total-amort" style="font-weight:700;">
+    <td colspan="3" style="padding:4px 5px;">Total</td>
+    <td style="padding:4px 5px;text-align:right">${money(totalCuota)}</td>
+    <td style="padding:4px 5px;text-align:right">${money(totalInteres)}</td>
+    <td style="padding:4px 5px;text-align:right">${money(totalAbono)}</td>
     <td></td><td></td>
   </tr>`;
+  const paginadorAmort = totalPaginasAmort<=1 ? "" : `
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 6px 0;">
+      <button class="printbtn" style="${state.paginaAmortizacion===0?"opacity:.35;pointer-events:none;":""}" onclick="cambiarPaginaAmortizacion(-1)">‹ Anterior</button>
+      <span class="hint" style="margin:0;">Página ${state.paginaAmortizacion+1} de ${totalPaginasAmort}</span>
+      <button class="printbtn" style="${state.paginaAmortizacion===totalPaginasAmort-1?"opacity:.35;pointer-events:none;":""}" onclick="cambiarPaginaAmortizacion(1)">Siguiente ›</button>
+    </div>`;
 
   const pendiente = calcularPendiente(p, r);
   const sugerido = pendiente.monto;
   const moraCalc = pendiente.mora;
   const nVenc = pendiente.nVenc;
-  const esBullet = p.metodo === METODOS[3] || p.metodo === METODOS[4];
+  // "Liquidar anticipado" no es solo para préstamos tipo bala (Capital al final / Americano)
+  // — el método Indefinido tampoco tiene una fecha de fin fija, así que también necesita
+  // esta forma de cerrarlo cuando el cliente quiere pagar todo y terminar.
+  // Ya no se limita a los métodos sin fecha de fin fija: cualquier préstamo puede
+  // liquidarse antes de tiempo (el interés se prorratea por los días reales transcurridos
+  // desde la última cuota pagada, sin importar el método).
+  const puedeLiquidarAnticipado = true;
 
   const diasFaltan = r.proximaFecha ? diasParaVencer(r.proximaFecha) : null;
   const necesitaRecordatorio = r.estado==="Activo" && r.proximaFecha && (atraso>0 || diasFaltan===1 || diasFaltan===0);
@@ -3386,7 +3413,7 @@ function viewDetallePrestamo(){
       <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#666;">Fecha del pago</span><input type="date" id="fechaPago" value="${hoyISO()}" max="${hoyISO()}"></label>
       <p class="hint nota-ayuda">${nVenc>1 ? `El monto sugerido ya incluye las ${nVenc} cuotas vencidas${moraCalc>0?" y la mora":""}.` : (moraCalc>0 ? "El monto ya incluye la mora; desmarca la casilla para dejar solo la cuota." : "Déjalo vacío para pagar lo sugerido.")} Un monto menor queda como abono parcial a la cuota. Si pagas de más (después de completarla), el excedente se registra como <b>abono a capital</b> — se puede hacer cualquier día.</p>
     </div>
-    ${esBullet ? `
+    ${puedeLiquidarAnticipado ? `
     <div class="row-card" style="display:block;">
       <p style="font-weight:600;margin:0 0 6px;">Liquidar anticipado</p>
       <p class="hint nota-ayuda" style="margin:0 0 10px;">Calcula el interés real, prorateado por los días que realmente pasaron, si cancelas antes de la fecha de la cuota.</p>
@@ -3404,16 +3431,17 @@ function viewDetallePrestamo(){
       <p class="hint solo-imprimir" style="margin:0 0 10px;">${p.codigo} · ${cli?cli.nombre:"—"} · Capital ${money(p.capital)} · Tasa ${p.tasa}% · ${p.periodo} · ${p.metodo}</p>
       <div class="tabla-card" style="margin-bottom:0;">
         <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-        <table style="width:100%;min-width:680px;font-size:11px;">
+        <table style="width:auto;min-width:640px;font-size:11px;border-collapse:collapse;">
           <thead><tr style="background:#F5F3EE;">
-            <th style="padding:5px 6px;text-align:left;">N°</th><th style="padding:5px 6px;text-align:left;">Fecha</th>
-            <th style="padding:5px 6px;text-align:right">Saldo ini.</th><th style="padding:5px 6px;text-align:right">Cuota</th>
-            <th style="padding:5px 6px;text-align:right">Interés</th><th style="padding:5px 6px;text-align:right">Abono</th>
-            <th style="padding:5px 6px;text-align:right">Pendiente</th><th style="padding:5px 6px;text-align:left;">Estado</th>
+            <th style="padding:4px 5px;text-align:left;">N°</th><th style="padding:4px 5px;text-align:left;">Fecha</th>
+            <th style="padding:4px 5px;text-align:right">Saldo ini.</th><th style="padding:4px 5px;text-align:right">Cuota</th>
+            <th style="padding:4px 5px;text-align:right">Interés</th><th style="padding:4px 5px;text-align:right">Abono</th>
+            <th style="padding:4px 5px;text-align:right">Pendiente</th><th style="padding:4px 5px;text-align:left;">Estado</th>
           </tr></thead>
           <tbody>${filasHtml}${filaTotales}</tbody>
         </table>
         </div>
+        ${paginadorAmort}
       </div>
     </div>
     <div class="flexrow" style="margin-bottom:10px;">
@@ -3494,7 +3522,7 @@ function generarAmortizacionPDF(p, cli, r){
     startY,
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
     body: filas,
-    foot: esIndefPDF ? undefined : [["Total","","",money(totalCuota),money(totalInteres),money(totalAbono),"",""]],
+    foot: [["Total","","",money(totalCuota),money(totalInteres),money(totalAbono),"",""]],
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [27,42,74] },
     footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" },
@@ -3600,8 +3628,17 @@ function compartirReciboPDF(){
   if(!p) return;
   const cli = state.clientes.find(c=>c.id===p.clienteId);
   const pagos = p.pagos || [];
-  const idx = sel.pagoId ? pagos.findIndex(pg=>pg.id===sel.pagoId) : -1;
-  const pg = idx>=0 ? pagos[idx] : pagos[pagos.length-1];
+  let idx = sel.pagoId ? pagos.findIndex(pg=>pg.id===sel.pagoId) : -1;
+  let pg = idx>=0 ? pagos[idx] : null;
+  if(!pg && sel.pagoId){
+    // Puede ser un pago archivado (de ANTES de una modificación no sustancial), que se
+    // guarda aparte en modificaciones[].pagosPrevios en vez de en p.pagos.
+    for(const m of (p.modificaciones||[])){
+      const pi = (m.pagosPrevios||[]).findIndex(x=>x.id===sel.pagoId);
+      if(pi>=0){ pg = m.pagosPrevios[pi]; idx = pi; break; }
+    }
+  }
+  if(!pg) pg = pagos[pagos.length-1];
   if(!pg) return;
   const numRecibo = pg.id ? pg.id.slice(-6).toUpperCase() : String(idx+1).padStart(4,"0");
   const r = resumen(p);
@@ -3631,8 +3668,17 @@ function imprimirRecibo(){
   if(!p) return;
   const cli = state.clientes.find(c=>c.id===p.clienteId);
   const pagos = p.pagos || [];
-  const idx = sel.pagoId ? pagos.findIndex(pg=>pg.id===sel.pagoId) : -1;
-  const pg = idx>=0 ? pagos[idx] : pagos[pagos.length-1];
+  let idx = sel.pagoId ? pagos.findIndex(pg=>pg.id===sel.pagoId) : -1;
+  let pg = idx>=0 ? pagos[idx] : null;
+  if(!pg && sel.pagoId){
+    // Puede ser un pago archivado (de ANTES de una modificación no sustancial), que se
+    // guarda aparte en modificaciones[].pagosPrevios en vez de en p.pagos.
+    for(const m of (p.modificaciones||[])){
+      const pi = (m.pagosPrevios||[]).findIndex(x=>x.id===sel.pagoId);
+      if(pi>=0){ pg = m.pagosPrevios[pi]; idx = pi; break; }
+    }
+  }
+  if(!pg) pg = pagos[pagos.length-1];
   if(!pg) return;
   const numRecibo = pg.id ? pg.id.slice(-6).toUpperCase() : String(idx+1).padStart(4,"0");
   const r = resumen(p);
@@ -3837,13 +3883,16 @@ function viewPagos(){
       </div>
     </div>`;
   };
-  const filaArchivada = (pg)=>{
+  const filaArchivada = (p, pg)=>{
     const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
     const nota = notaPago(pg);
-    return `<div class="row-card" style="opacity:.55;background:transparent;">
-      <div style="min-width:0;">
+    return `<div class="row-card">
+      <div style="cursor:pointer;min-width:0;" onclick="verRecibo('${p.id}','${pg.id||""}')">
         <p class="name">${money(total)}</p>
         <p class="sub">${fmtDate(pg.fecha)}${nota?" · "+nota:""}</p>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="printbtn" title="Ver recibo" onclick="verRecibo('${p.id}','${pg.id||""}')">🧾</button>
       </div>
     </div>`;
   };
@@ -3891,7 +3940,7 @@ function viewPagos(){
       </div>
       <div style="padding:12px 16px;">
         ${vigentes.length ? `<p class="hint" style="margin:0 0 6px;">Pagos vigentes (${vigentes.length}) · ${money(totalVigente)}</p>${vigentes.map(pg=>filaVigente(p,pg)).join("")}` : ""}
-        ${archivados.length ? `<p class="hint" style="margin:${vigentes.length?"10px":"0"} 0 6px;">De antes de modificar (${archivados.length})</p>${archivados.map(filaArchivada).join("")}` : ""}
+        ${archivados.length ? `<p class="hint" style="margin:${vigentes.length?"10px":"0"} 0 6px;">De antes de modificar (${archivados.length})</p>${archivados.map(pg=>filaArchivada(p,pg)).join("")}` : ""}
       </div>
     </details>`;
   });
@@ -3947,8 +3996,15 @@ function viewRecibo(){
   if(!p){ state.vista="lista"; return viewPagos(); }
   const cli = state.clientes.find(c=>c.id===p.clienteId);
   const pagos = p.pagos || [];
-  const idx = sel.pagoId ? pagos.findIndex(pg=>pg.id===sel.pagoId) : -1;
-  const pg = idx>=0 ? pagos[idx] : pagos[pagos.length-1];
+  let idx = sel.pagoId ? pagos.findIndex(pg=>pg.id===sel.pagoId) : -1;
+  let pg = idx>=0 ? pagos[idx] : null;
+  if(!pg && sel.pagoId){
+    for(const m of (p.modificaciones||[])){
+      const pi = (m.pagosPrevios||[]).findIndex(x=>x.id===sel.pagoId);
+      if(pi>=0){ pg = m.pagosPrevios[pi]; idx = pi; break; }
+    }
+  }
+  if(!pg) pg = pagos[pagos.length-1];
   if(!pg){ state.vista="lista"; return viewPagos(); }
   const numRecibo = pg.id ? pg.id.slice(-6).toUpperCase() : String(idx+1).padStart(4,"0");
   const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0);
