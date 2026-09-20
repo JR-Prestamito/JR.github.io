@@ -1695,7 +1695,7 @@ function viewReportePDF(){
         <div><p class="hint" style="margin:0;">Préstamos</p><p style="font-weight:700;margin:2px 0;">${state.prestamos.length}</p></div>
       </div>
       <div class="tabla-card">
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div style="overflow:auto;max-height:250px;-webkit-overflow-scrolling:touch;">
       <table style="width:100%;min-width:560px;border-collapse:collapse;font-size:12px;">
         <thead><tr style="background:#F5F3EE;">
           <th style="text-align:left;padding:5px 6px;">Código</th><th style="text-align:left;padding:5px 6px;">Cliente</th>
@@ -2088,7 +2088,7 @@ function viewReporteModificaciones(){
       <p class="hint" style="margin:0 0 14px;">Reporte de modificaciones y refinanciamientos (NIF C-19) · ${fmtDate(hoyISO())}</p>
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha refinanciado ni modificado ningún préstamo.</p>` : `
       <div class="tabla-card">
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div style="overflow:auto;max-height:250px;-webkit-overflow-scrolling:touch;">
       <table style="width:100%;min-width:780px;border-collapse:collapse;font-size:12px;">
         <thead><tr style="background:#F5F3EE;">
           <th style="padding:5px 6px;text-align:left;white-space:nowrap;">Fecha</th><th style="padding:5px 6px;text-align:left;white-space:nowrap;">Préstamo</th><th style="padding:5px 6px;text-align:left;white-space:nowrap;">Cliente</th>
@@ -2210,7 +2210,7 @@ function viewReporteDesembolsos(){
       <p class="hint" style="margin:0 0 14px;">Reporte de desembolsos · ${fmtDate(hoyISO())}</p>
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha desembolsado ningún préstamo.</p>` : `
       <div class="tabla-card">
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div style="overflow:auto;max-height:250px;-webkit-overflow-scrolling:touch;">
       <table style="width:100%;min-width:600px;border-collapse:collapse;font-size:12px;">
         <thead><tr style="background:#F5F3EE;">
           <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Préstamo</th>
@@ -2363,12 +2363,14 @@ function compartirHistorialPagosPDF(){
   });
 }
 function viewReporteHistorialPagos(){
-  const { actuales, grupos } = listaHistorialPagos();
-  const totalPreviosMonto = grupos.reduce((s,g)=>s+g.subtotalMonto,0);
-  const totalPreviosMora = grupos.reduce((s,g)=>s+g.subtotalMora,0);
-  const totalMonto = actuales.reduce((s,e)=>s+e.monto,0) + totalPreviosMonto;
-  const totalMora = actuales.reduce((s,e)=>s+e.mora,0) + totalPreviosMora;
-  const filas = actuales.map(e=>`<tr class="fila-amort">
+  // Antes los pagos "de antes de modificar" vivían aparte, en desplegables por préstamo.
+  // Ahora se unen a la misma tabla (todosLosEventosPago ya los mezcla y ordena por fecha,
+  // la misma función que ya usaba el PDF), y la tabla entera limita su alto a ~10 filas
+  // visibles — el resto se ve con scroll vertical en vez de alargar toda la pantalla.
+  const todos = todosLosEventosPago();
+  const totalMonto = todos.reduce((s,e)=>s+e.monto,0);
+  const totalMora = todos.reduce((s,e)=>s+e.mora,0);
+  const filas = todos.map(e=>`<tr class="fila-amort">
       <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
       <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}</td>
       <td style="padding:5px 6px;white-space:nowrap;">${e.cliente}</td>
@@ -2377,37 +2379,13 @@ function viewReporteHistorialPagos(){
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.mora>0?money(e.mora):"—"}</td>
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;font-weight:600;">${money(e.monto+e.mora)}</td>
     </tr>`).join("");
-  const gruposHtml = grupos.map(g=>`
-      <details class="tabla-card">
-        <summary class="fila-header-desplegable">
-          <span>Pagos anteriores · ${g.codigo} <span class="hint" style="font-weight:400;">(antes de modificar el ${fmtDateCompacto(g.fechaModificacion)})</span></span>
-          <span style="white-space:nowrap;">${money(g.subtotalMonto+g.subtotalMora)}</span>
-        </summary>
-        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-        <table style="width:100%;min-width:480px;border-collapse:collapse;font-size:12px;">
-          <thead><tr style="background:#F5F3EE;">
-            <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Concepto</th>
-            <th style="padding:5px 6px;text-align:right;">Monto</th><th style="padding:5px 6px;text-align:right;">Mora</th>
-            <th style="padding:5px 6px;text-align:right;">Total</th>
-          </tr></thead>
-          <tbody>${g.pagos.map(pg=>`<tr class="fila-amort">
-              <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(pg.fecha)}</td>
-              <td style="padding:5px 6px;white-space:nowrap;">${pg.concepto}</td>
-              <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(pg.monto)}</td>
-              <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${pg.mora>0?money(pg.mora):"—"}</td>
-              <td style="padding:5px 6px;text-align:right;white-space:nowrap;font-weight:600;">${money(pg.monto+pg.mora)}</td>
-            </tr>`).join("")}</tbody>
-        </table>
-        </div>
-      </details>`).join("");
   return `
     <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Historial de pagos · ${fmtDate(hoyISO())}</p>
-      ${actuales.length===0 && grupos.length===0 ? `<p class="hint">Todavía no se ha registrado ningún pago.</p>` : `
-      ${actuales.length ? `
+      ${todos.length===0 ? `<p class="hint">Todavía no se ha registrado ningún pago.</p>` : `
       <div class="tabla-card">
-      <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <div style="overflow:auto;max-height:250px;-webkit-overflow-scrolling:touch;">
       <table style="width:100%;min-width:660px;border-collapse:collapse;font-size:12px;">
         <thead><tr style="background:#F5F3EE;">
           <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Préstamo</th>
@@ -2418,8 +2396,7 @@ function viewReporteHistorialPagos(){
         <tbody>${filas}</tbody>
       </table>
       </div>
-      </div>` : `<p class="hint">Todavía no se ha registrado ningún pago vigente.</p>`}
-      ${gruposHtml}
+      </div>
       <div class="tabla-card" style="margin-bottom:0;">
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         <tr class="fila-amort"><td style="padding:8px 6px;">Total en cuotas/abonos</td><td style="padding:8px 6px;text-align:right;">${money(totalMonto)}</td></tr>
@@ -2428,7 +2405,7 @@ function viewReporteHistorialPagos(){
         <td style="padding:8px 6px;text-align:right;font-weight:700;">${money(totalMonto+totalMora)}</td></tr>
       </table>
       </div>`}
-      <p class="hint nota-ayuda" style="margin-top:14px;">Incluye todos los pagos registrados en todos los préstamos: cuotas, abonos a capital y liquidaciones anticipadas, con su mora cobrada cuando aplica. Los pagos hechos antes de una modificación de préstamo se agrupan aparte, en "Pagos anteriores".</p>
+      <p class="hint nota-ayuda" style="margin-top:14px;">Incluye todos los pagos registrados en todos los préstamos: cuotas, abonos a capital, enganches y liquidaciones anticipadas, con su mora cobrada cuando aplica — incluyendo los pagos hechos antes de una modificación de préstamo.</p>
     </div>
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
@@ -3908,9 +3885,9 @@ function viewPagos(){
         <p style="font-size:16px;font-weight:700;color:#3B6D11;margin:0;white-space:nowrap;">${money(totalGeneral)}</p>
       </summary>
       <div style="padding:10px 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-bottom:1px solid #e5e1d8;">
-        <div><p class="hint" style="margin:0 0 2px;">Capital prestado (neto)</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(capitalNeto)}</p></div>
-        <div><p class="hint" style="margin:0 0 2px;">Capital pendiente hoy</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(r.capitalPendiente||0)}</p></div>
-        <div><p class="hint" style="margin:0 0 2px;">Total cobrado</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(totalGeneral)}</p></div>
+        <div><p class="hint" style="margin:0 0 2px;white-space:nowrap;">Prestado (neto)</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(capitalNeto)}</p></div>
+        <div><p class="hint" style="margin:0 0 2px;white-space:nowrap;">Pendiente hoy</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(r.capitalPendiente||0)}</p></div>
+        <div><p class="hint" style="margin:0 0 2px;white-space:nowrap;">Total cobrado</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(totalGeneral)}</p></div>
       </div>
       <div style="padding:12px 16px;">
         ${vigentes.length ? `<p class="hint" style="margin:0 0 6px;">Pagos vigentes (${vigentes.length}) · ${money(totalVigente)}</p>${vigentes.map(pg=>filaVigente(p,pg)).join("")}` : ""}
