@@ -713,7 +713,7 @@ function generarTabla(p){
   // Configurable en Ajustes: si se cuenta el día de inicio del préstamo como "día 1" del
   // plazo (resta 1 día a cada fecha de cuota) o si se usa el estándar de la banca formal
   // (no se cuenta, la primera cuota cae exactamente "dias" después del inicio).
-  const offsetDia1 = (state.config.contarDiaInicio !== false) ? 1 : 0;
+  const offsetDia1 = (state.config.contarDiaInicio === true) ? 1 : 0; // por defecto (sin configurar) es bancario/estándar
   // La fecha de la primera cuota normalmente se calcula sola (regla de arriba), pero se
   // puede fijar a mano con p.fechaPrimeraCuota — por ejemplo si el desembolso fue hoy pero
   // quieres que la primera cuota caiga en una fecha específica (fin de mes, día de pago del
@@ -816,7 +816,7 @@ function generarTablaDinamica(p){
   const capitalOriginal = Number(p.capital)||0;
   const tasa = (Number(p.tasa)||0)/100;
   const dias = DIAS_PERIODO[p.periodo] || 30;
-  const offsetDia1 = (state.config.contarDiaInicio !== false) ? 1 : 0;
+  const offsetDia1 = (state.config.contarDiaInicio === true) ? 1 : 0; // por defecto (sin configurar) es bancario/estándar
   // Misma regla que generarTabla(): si p.fechaPrimeraCuota está fijada a mano, se respeta
   // aquí también (antes esta tabla "dinámica" —la que se usa cuando el préstamo tiene
   // abonos extra a capital— la ignoraba y siempre calculaba la fecha sola).
@@ -1021,7 +1021,8 @@ const ICONS = {
   users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
   landmark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>',
   wallet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>',
-  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>'
+  settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  refresh:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="19" height="19"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>'
 };
 
 let desbloqueado = sessionStorage.getItem(jrKey("jr_desbloqueado")) === "1";
@@ -1316,6 +1317,8 @@ function render(){
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
     html += `<button class="backbtn" style="margin-right:0;" title="Ajustes" onclick="abrirAjustes()">${ICONS.settings}</button>`;
+  } else {
+    html += `<button class="backbtn" id="btn-recargar" style="margin-right:0;" title="Recargar" onclick="recargarApp()">${ICONS.refresh}</button>`;
   }
   html += `</div></header><div class="content">`;
 
@@ -2593,6 +2596,12 @@ function viewAjustesClave(){
 }
 function viewAjustes(){
   return `
+  ${window.__esCopiaCompartida ? "" : `
+  <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Nombre del negocio</p>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">Aparece en el encabezado, los recibos y los reportes. Cámbialo si vas a usar esta app para otro negocio.</p>
+    <label style="margin-bottom:0;"><span>Nombre</span><input id="f_nombreNegocio" placeholder="JR Prestamito" value="${state.config.nombreNegocio||""}" oninput="state.config.nombreNegocio=this.value; save(); render();"></label>
+  </div>`}
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Apariencia</p>
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:0;cursor:pointer;">
@@ -2605,101 +2614,6 @@ function viewAjustes(){
       <span style="margin:0;font-size:14px;">Mostrar notas de ayuda</span>
     </label>
     <p class="hint" style="margin:6px 0 0;">Explicaciones y consejos de cómo funciona cada pantalla. Están ocultas por defecto para no saturar la vista — actívalas cuando las necesites.</p>
-  </div>
-  ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
-    <p style="font-weight:600;margin:0 0 4px;">Nombre del negocio</p>
-    <p class="hint nota-ayuda" style="margin:0 0 10px;">Aparece en el encabezado, los recibos y los reportes. Cámbialo si vas a usar esta app para otro negocio.</p>
-    <label style="margin-bottom:0;"><span>Nombre</span><input id="f_nombreNegocio" placeholder="JR Prestamito" value="${state.config.nombreNegocio||""}" oninput="state.config.nombreNegocio=this.value; save(); render();"></label>
-  </div>`}
-  ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
-    <p style="font-weight:600;margin:0 0 4px;">Recibo</p>
-    <p class="hint nota-ayuda" style="margin:0 0 10px;">El recibo lleva una marca de agua de fondo con las iniciales de tu negocio (${siglasApp()}) para que no se pueda falsificar fácilmente. Por defecto, el recibo sale <b>sin firma</b> cuando lo envías por WhatsApp/PDF y <b>con línea de firma</b> cuando lo imprimes en papel — puedes forzar una sola opción para ambos casos aquí:</p>
-    <label style="margin-bottom:0;"><span>Al final del recibo</span>
-      <select id="f_reciboFirma" onchange="state.config.reciboFirma=this.value; save(); render();">
-        <option value="automatico" ${(!state.config.reciboFirma||state.config.reciboFirma==="automatico")?"selected":""}>Automático: sin firma al enviar, con firma al imprimir</option>
-        <option value="sinfirma" ${state.config.reciboFirma==="sinfirma"?"selected":""}>Siempre nota: "Recibo válido sin firma"</option>
-        <option value="firma" ${state.config.reciboFirma==="firma"?"selected":""}>Siempre línea para firma de quien recibe el pago</option>
-        <option value="ninguno" ${state.config.reciboFirma==="ninguno"?"selected":""}>Ninguno, en ambos casos</option>
-      </select>
-    </label>
-  </div>`}
-  ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
-    <p style="font-weight:600;margin:0 0 4px;">Mensaje de recordatorio (WhatsApp / SMS)</p>
-    <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{monto}</b> (total vencido, sumando todas las cuotas atrasadas y la mora si aplica), <b>{cuotas}</b> (cantidad de cuotas vencidas, ej. "2 cuotas"), <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p>
-    <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="5" placeholder="${PLANTILLA_RECORDATORIO_DEFECTO}" oninput="state.config.mensajeRecordatorio=this.value; save(); render();">${state.config.mensajeRecordatorio||""}</textarea></label>
-    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3, {monto:3000, mora:90, nVenc:2})}</p>
-    <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajeRecordatorio=''; save(); render(); } })">Restablecer mensaje original</button>
-  </div>`}
-  ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
-    <p style="font-weight:600;margin:0 0 4px;">Mensaje de pendiente de cobro (1 día antes)</p>
-    <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b>.</p>
-    <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="5" placeholder="${PLANTILLA_PENDIENTE_DEFECTO}" oninput="state.config.mensajePendiente=this.value; save(); render();">${state.config.mensajePendiente||""}</textarea></label>
-    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()})}</p>
-    <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajePendiente=''; save(); render(); } })">Restablecer mensaje original</button>
-  </div>`}
-  ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
-    <p style="font-weight:600;margin:0 0 4px;">Cómo contar los días del plazo</p>
-    <p class="hint nota-ayuda" style="margin:0 0 10px;">Ejemplo con préstamo semanal iniciado un miércoles: con "Contar desde el día 1" la primera cuota cae el próximo martes (7 días contando el miércoles como día 1). Con "Estándar" cae el miércoles siguiente (7 días completos después, sin contar el día del préstamo).</p>
-    <label style="margin-bottom:0;"><span>Fechas de cuota</span>
-      <select id="f_contarDiaInicio" onchange="state.config.contarDiaInicio=(this.value==='si'); save(); render();">
-        <option value="si" ${(state.config.contarDiaInicio!==false)?"selected":""}>Contar desde el día 1 (el día del préstamo ya cuenta)</option>
-        <option value="no" ${(state.config.contarDiaInicio===false)?"selected":""}>Estándar bancario (el día del préstamo no cuenta)</option>
-      </select>
-    </label>
-  </div>`}
-  <div class="row-card" style="display:block;">
-    <p style="font-weight:600;margin:0 0 4px;">Clave de acceso</p>
-    <p class="hint nota-ayuda" style="margin:0 0 12px;">Esta misma clave protege la app al abrirla y también te la vuelve a pedir al entrar a Ajustes, por seguridad extra.</p>
-    <label style="margin-bottom:12px;"><span>Nueva clave</span>
-      <input id="f_claveAcceso" type="text" inputmode="numeric" placeholder="Ej. 1234" value="">
-    </label>
-    <label style="margin-bottom:6px;"><span>Código de recuperación (algo que solo tú sepas, por si olvidas la clave)</span>
-      <input id="f_codigoRecuperacion" type="text" placeholder="Ej. una palabra o frase que recuerdes" value="">
-    </label>
-    <p class="hint nota-ayuda" style="margin:0 0 14px;">Si algún día olvidas la clave, la pantalla de acceso te pedirá este código en vez de dejarte entrar sin más — así nadie puede saltarse la clave con solo tocar un botón.</p>
-    <button class="btn btn-gold" onclick="guardarClaveAcceso()">Guardar</button>
-    ${state.config.pin ? `<button class="btn btn-danger" style="margin-top:10px;" onclick="quitarClaveAcceso()">Quitar clave</button>` : ""}
-    ${state.config.pin ? `
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #eee;">
-      <label style="display:flex;align-items:center;gap:10px;margin:0;cursor:pointer;">
-        <input type="checkbox" id="f_pedirClaveAjustes" ${state.config.pedirClaveEnAjustes!==false?"checked":""} onchange="state.config.pedirClaveEnAjustes=this.checked; save(); render();" style="width:18px;height:18px;flex:none;">
-        <span style="font-size:14px;">Pedir esta clave también al entrar a Ajustes</span>
-      </label>
-      <p class="hint nota-ayuda" style="margin:6px 0 0;">Si la desactivas, la clave se te sigue pidiendo al abrir la app, pero ya no al entrar aquí a Ajustes.</p>
-    </div>` : ""}
-    ${window.__esCopiaCompartida ? "" : `
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #eee;">
-      <p style="font-size:13px;font-weight:600;margin:0 0 4px;">Huella / Face ID</p>
-      ${!state.config.pin
-        ? `<p class="hint nota-ayuda" style="margin:0;">Primero pon una clave de inicio (arriba) para poder activar la huella como atajo.</p>`
-        : window.__huellaSoportada
-          ? (state.config.huellaCredId
-              ? `<p class="hint" style="margin:0 0 10px;">Activada en este celular.</p><button class="btn btn-outline" onclick="desactivarHuella()">Desactivar huella</button>`
-              : `<p class="hint nota-ayuda" style="margin:0 0 10px;">Úsala como atajo para no escribir la clave cada vez que abres la app. La clave se sigue guardando y funciona siempre como respaldo.</p><button class="btn btn-outline" onclick="activarHuella()">Activar huella / Face ID</button>`)
-          : `<p class="hint nota-ayuda" style="margin:0;">No disponible ahora mismo en este celular/navegador. Para poder usarla, la app debe abrirse desde una dirección https:// (no como archivo descargado directamente) y el celular debe tener huella o Face ID configurados en sus ajustes.</p>`
-      }
-    </div>`}
-  </div>
-  ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
-    <p style="font-weight:600;margin:0 0 4px;">Compartir copia protegida</p>
-    <p class="hint nota-ayuda" style="margin:0 0 10px;">Genera una copia de este archivo con su propia clave (segura, generada al azar). Nadie puede abrir ni ver nada de esa copia sin escribir esa clave primero — ideal para mandarle el archivo a un cobrador u otra persona. Esa copia sale vacía (sin tus clientes ni préstamos) y NO trae la opción de volver a generar otra copia protegida desde ella; si quien la recibe necesita compartirla de nuevo, tiene que pedírtela a ti.</p>
-    <button class="btn btn-outline" onclick="generarCopiaProtegida()">Generar archivo protegido para compartir</button>
-    <p class="hint nota-ayuda" style="margin-top:10px;">Nota: esto evita que alguien sin la clave abra el archivo normalmente. No es un cifrado imposible de romper (alguien muy técnico podría revisar el código fuente), pero es suficiente para que nadie casual lo abra sin permiso.</p>
-  </div>`}
-  <div class="row-card" style="display:block;">
-    <p style="font-weight:600;margin:0 0 4px;">Respaldo de datos</p>
-    <p class="hint nota-ayuda" style="margin:0 0 10px;">Guarda un archivo con tus clientes y préstamos, o restaura uno que ya tengas. Por seguridad, tu clave de inicio y la conexión con la nube NO se incluyen en este archivo — si restauras en otro celular, tendrás que configurarlas ahí de nuevo.</p>
-    <div class="flexrow">
-      <button class="btn btn-outline" onclick="exportarDatos()">Descargar respaldo</button>
-      <button class="btn btn-outline" onclick="document.getElementById('archivoRespaldo').click()">Restaurar respaldo</button>
-    </div>
-    <input type="file" id="archivoRespaldo" accept="application/json" style="display:none" onchange="importarDatos(event)">
   </div>
   <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Reportes</p>
@@ -2741,6 +2655,88 @@ function viewAjustes(){
     <p class="hint nota-ayuda" style="margin-top:10px;">Con la subida automática activada, cada cambio se sube a la nube casi al instante (no necesitas acordarte de subir manualmente), y cada vez que abras la app trae lo último automáticamente. Aun así, sigue siendo el último que suba el que queda guardado — si dos celulares editan al mismo tiempo sin internet, al volver a tener señal el que suba después sobrescribe al otro.</p>
   </div>
   <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Respaldo de datos</p>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">Guarda un archivo con tus clientes y préstamos, o restaura uno que ya tengas. Por seguridad, tu clave de inicio y la conexión con la nube NO se incluyen en este archivo — si restauras en otro celular, tendrás que configurarlas ahí de nuevo.</p>
+    <div class="flexrow">
+      <button class="btn btn-outline" onclick="exportarDatos()">Descargar respaldo</button>
+      <button class="btn btn-outline" onclick="document.getElementById('archivoRespaldo').click()">Restaurar respaldo</button>
+    </div>
+    <input type="file" id="archivoRespaldo" accept="application/json" style="display:none" onchange="importarDatos(event)">
+  </div>
+  ${window.__esCopiaCompartida ? "" : `
+  <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Cómo contar los días del plazo</p>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">Ejemplo con préstamo semanal iniciado un miércoles: con "Contar desde el día 1" la primera cuota cae el próximo martes (7 días contando el miércoles como día 1). Con "Estándar" cae el miércoles siguiente (7 días completos después, sin contar el día del préstamo).</p>
+    <label style="margin-bottom:0;"><span>Fechas de cuota</span>
+      <select id="f_contarDiaInicio" onchange="state.config.contarDiaInicio=(this.value==='si'); save(); render();">
+        <option value="si" ${(state.config.contarDiaInicio===true)?"selected":""}>Contar desde el día 1 (el día del préstamo ya cuenta)</option>
+        <option value="no" ${(state.config.contarDiaInicio!==true)?"selected":""}>Estándar bancario (el día del préstamo no cuenta)</option>
+      </select>
+    </label>
+  </div>`}
+  <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Clave de acceso</p>
+    <p class="hint nota-ayuda" style="margin:0 0 12px;">Esta misma clave protege la app al abrirla y también te la vuelve a pedir al entrar a Ajustes, por seguridad extra.</p>
+    <label style="margin-bottom:12px;"><span>Nueva clave</span>
+      <input id="f_claveAcceso" type="text" inputmode="numeric" placeholder="Ej. 1234" value="">
+    </label>
+    <label style="margin-bottom:6px;"><span>Código de recuperación (algo que solo tú sepas, por si olvidas la clave)</span>
+      <input id="f_codigoRecuperacion" type="text" placeholder="Ej. una palabra o frase que recuerdes" value="">
+    </label>
+    <p class="hint nota-ayuda" style="margin:0 0 14px;">Si algún día olvidas la clave, la pantalla de acceso te pedirá este código en vez de dejarte entrar sin más — así nadie puede saltarse la clave con solo tocar un botón.</p>
+    <button class="btn btn-gold" onclick="guardarClaveAcceso()">Guardar</button>
+    ${state.config.pin ? `<button class="btn btn-danger" style="margin-top:10px;" onclick="quitarClaveAcceso()">Quitar clave</button>` : ""}
+    ${state.config.pin ? `
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #eee;">
+      <label style="display:flex;align-items:center;gap:10px;margin:0;cursor:pointer;">
+        <input type="checkbox" id="f_pedirClaveAjustes" ${state.config.pedirClaveEnAjustes!==false?"checked":""} onchange="state.config.pedirClaveEnAjustes=this.checked; save(); render();" style="width:18px;height:18px;flex:none;">
+        <span style="font-size:14px;">Pedir esta clave también al entrar a Ajustes</span>
+      </label>
+      <p class="hint nota-ayuda" style="margin:6px 0 0;">Si la desactivas, la clave se te sigue pidiendo al abrir la app, pero ya no al entrar aquí a Ajustes.</p>
+    </div>` : ""}
+    ${window.__esCopiaCompartida ? "" : `
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #eee;">
+      <p style="font-size:13px;font-weight:600;margin:0 0 4px;">Huella / Face ID</p>
+      ${!state.config.pin
+        ? `<p class="hint nota-ayuda" style="margin:0;">Primero pon una clave de inicio (arriba) para poder activar la huella como atajo.</p>`
+        : window.__huellaSoportada
+          ? (state.config.huellaCredId
+              ? `<p class="hint" style="margin:0 0 10px;">Activada en este celular.</p><button class="btn btn-outline" onclick="desactivarHuella()">Desactivar huella</button>`
+              : `<p class="hint nota-ayuda" style="margin:0 0 10px;">Úsala como atajo para no escribir la clave cada vez que abres la app. La clave se sigue guardando y funciona siempre como respaldo.</p><button class="btn btn-outline" onclick="activarHuella()">Activar huella / Face ID</button>`)
+          : `<p class="hint nota-ayuda" style="margin:0;">No disponible ahora mismo en este celular/navegador. Para poder usarla, la app debe abrirse desde una dirección https:// (no como archivo descargado directamente) y el celular debe tener huella o Face ID configurados en sus ajustes.</p>`
+      }
+    </div>`}
+  </div>
+  ${window.__esCopiaCompartida ? "" : `
+  <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Recibo</p>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">El recibo lleva una marca de agua de fondo con las iniciales de tu negocio (${siglasApp()}) para que no se pueda falsificar fácilmente. Por defecto, el recibo sale <b>sin firma</b> cuando lo envías por WhatsApp/PDF y <b>con línea de firma</b> cuando lo imprimes en papel — puedes forzar una sola opción para ambos casos aquí:</p>
+    <label style="margin-bottom:0;"><span>Al final del recibo</span>
+      <select id="f_reciboFirma" onchange="state.config.reciboFirma=this.value; save(); render();">
+        <option value="automatico" ${(!state.config.reciboFirma||state.config.reciboFirma==="automatico")?"selected":""}>Automático: sin firma al enviar, con firma al imprimir</option>
+        <option value="sinfirma" ${state.config.reciboFirma==="sinfirma"?"selected":""}>Siempre nota: "Recibo válido sin firma"</option>
+        <option value="firma" ${state.config.reciboFirma==="firma"?"selected":""}>Siempre línea para firma de quien recibe el pago</option>
+        <option value="ninguno" ${state.config.reciboFirma==="ninguno"?"selected":""}>Ninguno, en ambos casos</option>
+      </select>
+    </label>
+  </div>`}
+  ${window.__esCopiaCompartida ? "" : `
+  <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Mensaje de recordatorio (WhatsApp / SMS)</p>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{monto}</b> (total vencido, sumando todas las cuotas atrasadas y la mora si aplica), <b>{cuotas}</b> (cantidad de cuotas vencidas, ej. "2 cuotas"), <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p>
+    <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="5" placeholder="${PLANTILLA_RECORDATORIO_DEFECTO}" oninput="state.config.mensajeRecordatorio=this.value; save(); render();">${state.config.mensajeRecordatorio||""}</textarea></label>
+    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3, {monto:3000, mora:90, nVenc:2})}</p>
+    <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajeRecordatorio=''; save(); render(); } })">Restablecer mensaje original</button>
+  </div>`}
+  ${window.__esCopiaCompartida ? "" : `
+  <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Mensaje de pendiente de cobro (1 día antes)</p>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b>.</p>
+    <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="5" placeholder="${PLANTILLA_PENDIENTE_DEFECTO}" oninput="state.config.mensajePendiente=this.value; save(); render();">${state.config.mensajePendiente||""}</textarea></label>
+    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()})}</p>
+    <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajePendiente=''; save(); render(); } })">Restablecer mensaje original</button>
+  </div>`}
+  <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Mora por atraso</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Porcentaje que se cobra por cada día de atraso sobre el monto de la cuota. Déjalo en 0 si no quieres cobrar mora.</p>
     <label style="margin-bottom:0;"><span>Tasa de mora diaria (%)</span><input type="text" inputmode="decimal" step="0.01" min="0" value="${state.config.tasaMoraDiaria}" oninput="state.config.tasaMoraDiaria=filtrarDecimal(this.value); save();"></label>
@@ -2749,7 +2745,15 @@ function viewAjustes(){
     <p style="font-weight:600;margin:0 0 4px;">Umbral de modificación sustancial (NIF)</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Al refinanciar, se compara el valor presente del préstamo nuevo contra el del préstamo original. Si la diferencia es igual o mayor a este porcentaje, se clasifica como modificación sustancial (préstamo nuevo); si es menor, se registra como no sustancial (con su ganancia o pérdida por modificación). 10% es el criterio más usado.</p>
     <label style="margin-bottom:0;"><span>Umbral (%)</span><input type="text" inputmode="decimal" step="0.1" min="0" value="${state.config.umbralModificacionSustancial!==undefined?state.config.umbralModificacionSustancial:10}" oninput="state.config.umbralModificacionSustancial=filtrarDecimal(this.value); save();"></label>
-  </div>`;
+  </div>
+  ${window.__esCopiaCompartida ? "" : `
+  <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">Compartir copia protegida</p>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">Genera una copia de este archivo con su propia clave (segura, generada al azar). Nadie puede abrir ni ver nada de esa copia sin escribir esa clave primero — ideal para mandarle el archivo a un cobrador u otra persona. Esa copia sale vacía (sin tus clientes ni préstamos) y NO trae la opción de volver a generar otra copia protegida desde ella; si quien la recibe necesita compartirla de nuevo, tiene que pedírtela a ti.</p>
+    <button class="btn btn-outline" onclick="generarCopiaProtegida()">Generar archivo protegido para compartir</button>
+    <p class="hint nota-ayuda" style="margin-top:10px;">Nota: esto evita que alguien sin la clave abra el archivo normalmente. No es un cifrado imposible de romper (alguien muy técnico podría revisar el código fuente), pero es suficiente para que nadie casual lo abra sin permiso.</p>
+  </div>`}
+  `;
 }
 
 function viewClientes(){
@@ -3081,7 +3085,7 @@ function abrirNuevoPrestamo(){
   window._nf = {
     codigo: nextCode("P", state.prestamos),
     clienteId: state.clientes[0]?state.clientes[0].id:"", capital:"", tasa:"", cuotas:"",
-    periodo:"Mensual", metodo:METODOS[0], fechaInicio:hoyISO(), fechaPrimeraCuota:""
+    periodo:"Mensual", metodo:METODOS[5], fechaInicio:hoyISO(), fechaPrimeraCuota:""
   };
   state.vista = "nuevo";
   render();
@@ -4077,24 +4081,42 @@ window.addEventListener("beforeunload", function(e){
   return "";
 });
 
+// --- Banner "Actualizando…" compartido, usado tanto por el ícono de recargar como por el
+// gesto de deslizar hacia abajo (más abajo), para que los dos se vean exactamente igual.
+let _indicadorRecarga = null;
+function getIndicadorRecarga(){
+  if(!_indicadorRecarga){
+    _indicadorRecarga = document.createElement("div");
+    _indicadorRecarga.id = "pull-refresh-indicator";
+    document.body.appendChild(_indicadorRecarga);
+  }
+  return _indicadorRecarga;
+}
+// --- Recargar a mano, tocando el ícono del encabezado: dispara una recarga REAL del
+// navegador (para traer siempre la última versión del archivo), reutilizando el mismo
+// guardado de pantalla que el gesto de deslizar de abajo, así que también te deja
+// exactamente donde estabas.
+function recargarApp(){
+  const ind = getIndicadorRecarga();
+  ind.classList.add("mostrando");
+  ind.innerHTML = `<span class="spin"></span> Actualizando…`;
+  guardarNav();
+  _recargaIntencional = true;
+  setTimeout(function(){ location.reload(); }, 200);
+}
 // --- "Deslizar hacia abajo para actualizar" hecho a mano: dispara una recarga REAL del
 // navegador (para traer siempre la última versión del archivo) pero, gracias a guardarNav()
 // / navGuardada() de arriba, al volver a cargar la app te deja exactamente en la misma
 // pantalla en la que estabas — no te manda a Inicio como haría el gesto nativo del navegador
 // (que overscroll-behavior, arriba, ya bloquea para que no dispare solo por accidente).
+// Solo funciona en la pantalla de Inicio (el resumen/presentación) — en el resto de
+// pantallas, deslizar hacia abajo no hace nada; para recargar ahí se usa el ícono del
+// encabezado (recargarApp()).
 (function(){
-  let indicador = null;
-  function getIndicador(){
-    if(!indicador){
-      indicador = document.createElement("div");
-      indicador.id = "pull-refresh-indicator";
-      document.body.appendChild(indicador);
-    }
-    return indicador;
-  }
   const UMBRAL = 70;
   let startY = null, disparado = false;
   document.addEventListener("touchstart", function(e){
+    if(state.tab!=="inicio" || state.vista!=="lista"){ startY = null; return; }
     if(window.scrollY > 0){ startY = null; return; }
     if(e.touches.length !== 1) { startY = null; return; }
     startY = e.touches[0].clientY;
@@ -4102,12 +4124,13 @@ window.addEventListener("beforeunload", function(e){
   }, { passive: true });
   document.addEventListener("touchmove", function(e){
     if(startY===null || disparado) return;
+    if(state.tab!=="inicio" || state.vista!=="lista"){ startY = null; return; }
     const delta = e.touches[0].clientY - startY;
     if(delta <= 0){ return; }
     if(window.scrollY > 0){ startY = null; return; }
     if(delta > UMBRAL){
       disparado = true;
-      const ind = getIndicador();
+      const ind = getIndicadorRecarga();
       ind.classList.add("mostrando");
       ind.innerHTML = `<span class="spin"></span> Actualizando…`;
       guardarNav();
@@ -4117,6 +4140,45 @@ window.addEventListener("beforeunload", function(e){
   }, { passive: true });
   document.addEventListener("touchend", function(){
     startY = null;
+  }, { passive: true });
+})();
+
+// --- Deslizar hacia los lados para cambiar de pestaña (Inicio/Clientes/Préstamos/Pagos),
+// como en apps nativas. Solo funciona en la pantalla principal de cada pestaña (vista
+// "lista"), para no interferir con el scroll horizontal de tablas anchas ni con ninguna
+// otra pantalla (formularios, detalle, reportes, etc.).
+(function(){
+  const ORDEN_TABS = ["inicio","clientes","prestamos","pagos"];
+  const UMBRAL_X = 60;
+  let sx = null, sy = null, disparado = false;
+  document.addEventListener("touchstart", function(e){
+    if(state.vista !== "lista"){ sx = null; return; }
+    if(e.touches.length !== 1){ sx = null; return; }
+    sx = e.touches[0].clientX;
+    sy = e.touches[0].clientY;
+    disparado = false;
+  }, { passive: true });
+  document.addEventListener("touchmove", function(e){
+    if(sx===null || disparado) return;
+    if(state.vista !== "lista"){ sx = null; return; }
+    const dx = e.touches[0].clientX - sx;
+    const dy = e.touches[0].clientY - sy;
+    // Solo cuenta si el movimiento es claramente más horizontal que vertical, para no
+    // interferir con el scroll normal de la lista hacia arriba/abajo.
+    if(Math.abs(dx) < UMBRAL_X || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    disparado = true;
+    const i = ORDEN_TABS.indexOf(state.tab);
+    let destino = null;
+    if(dx < 0 && i < ORDEN_TABS.length - 1) destino = ORDEN_TABS[i+1]; // hacia la izquierda -> siguiente
+    else if(dx > 0 && i > 0) destino = ORDEN_TABS[i-1]; // hacia la derecha -> anterior
+    if(destino){
+      state.tab = destino;
+      state.vista = "lista";
+      render();
+    }
+  }, { passive: true });
+  document.addEventListener("touchend", function(){
+    sx = null; sy = null;
   }, { passive: true });
 })();
 
