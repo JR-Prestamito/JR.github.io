@@ -47,6 +47,20 @@
   .card .val{font-size:18px;font-weight:600;margin:0;}
   .section-title{font-size:13px;font-weight:600;color:#8a8680;margin:0 0 8px;}
   .row-card{border:1px solid #e5e1d8;border-radius:16px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;background:#fff;}
+  /* Menú de opciones (⋮): un botón redondo en la esquina, y un panel desplegable anclado a
+     él con las acciones de esa pantalla (imprimir, compartir, editar, eliminar, etc.) en
+     vez de tener un botón suelto por cada una regado en el cuerpo de la pantalla. */
+  .menu-opciones-wrap{position:relative;}
+  .menu-opciones-btn{background:none;border:none;cursor:pointer;padding:6px;border-radius:10px;color:var(--navy);display:flex;align-items:center;justify-content:center;}
+  .menu-opciones-btn:active{background:rgba(0,0,0,.06);}
+  .menu-opciones-panel{position:absolute;top:calc(100% + 8px);right:0;background:#fff;border:1px solid #e5e1d8;border-radius:14px;box-shadow:0 12px 32px rgba(27,42,74,.18);min-width:236px;padding:6px;z-index:500;opacity:0;transform:translateY(-6px) scale(.97);pointer-events:none;transition:opacity .15s ease,transform .15s ease;}
+  .menu-opciones-panel.abierto{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
+  .menu-opciones-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;cursor:pointer;font-size:14px;color:#22201c;background:none;border:none;width:100%;text-align:left;font-family:inherit;}
+  .menu-opciones-item:active{background:#F5F3EE;}
+  .menu-opciones-item svg{width:17px;height:17px;flex-shrink:0;color:var(--gold);}
+  .menu-opciones-item.peligro{color:#A32D2D;}
+  .menu-opciones-item.peligro svg{color:#A32D2D;}
+  .menu-opciones-sep{height:1px;background:#ece8e0;margin:6px 6px;}
   .monto-navy{color:var(--navy);}
   /* Las notas de ayuda/instrucciones (.nota-ayuda, siempre además de .hint para el mismo
      estilo) se ocultan por defecto — casi nadie las necesita leer cada vez. Se pueden volver
@@ -209,6 +223,14 @@
   [data-theme="dark"] #app{background:#12161f;}
   [data-theme="dark"] .section-title{color:rgba(255,255,255,.5);}
   [data-theme="dark"] .row-card{background:#1B212C;border-color:rgba(255,255,255,.08);}
+  [data-theme="dark"] .menu-opciones-btn{color:#E7E7EA;}
+  [data-theme="dark"] .menu-opciones-btn:active{background:rgba(255,255,255,.08);}
+  [data-theme="dark"] .menu-opciones-panel{background:#1B212C;border-color:rgba(255,255,255,.1);box-shadow:0 12px 32px rgba(0,0,0,.5);}
+  [data-theme="dark"] .menu-opciones-item{color:#E7E7EA;}
+  [data-theme="dark"] .menu-opciones-item:active{background:rgba(255,255,255,.07);}
+  [data-theme="dark"] .menu-opciones-item.peligro{color:#e07a7a;}
+  [data-theme="dark"] .menu-opciones-item.peligro svg{color:#e07a7a;}
+  [data-theme="dark"] .menu-opciones-sep{background:rgba(255,255,255,.1);}
   [data-theme="dark"] .row-card .sub{color:rgba(255,255,255,.5);}
   [data-theme="dark"] input,
   [data-theme="dark"] select,
@@ -728,6 +750,59 @@ function fmtDateCompacto(dateStr){
   const meses = ["ene","feb","mar","abr","may","jun","jul","ago","sept","oct","nov","dic"];
   return `${String(d.getDate()).padStart(2,"0")}-${meses[d.getMonth()]}-${d.getFullYear()}`;
 }
+// Fecha en formato numérico corto sin ceros a la izquierda (21/9/2026), como se usa en
+// documentos legales/contratos — distinto del fmtDate() normal que usa "21 sept 2026".
+function fmtDateNumerica(dateStr){
+  if(!dateStr) return "—";
+  const d = new Date(dateStr + "T00:00:00");
+  return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+}
+const MESES_LARGOS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+// Convierte un número entero (0 a 999,999,999) a su forma escrita en español, en
+// mayúsculas — se usa en el contrato de préstamo (montos y fechas en letras, como en
+// un pagaré formal: "CINCO MIL", "VEINTIUNO", "DOS MIL VEINTISEIS").
+function numeroALetras(n){
+  n = Math.floor(Math.abs(Number(n))||0);
+  if(n===0) return "CERO";
+  const UNIDADES = ["","UNO","DOS","TRES","CUATRO","CINCO","SEIS","SIETE","OCHO","NUEVE","DIEZ",
+    "ONCE","DOCE","TRECE","CATORCE","QUINCE","DIECISEIS","DIECISIETE","DIECIOCHO","DIECINUEVE","VEINTE"];
+  const DECENAS = ["","","VEINTI","TREINTA","CUARENTA","CINCUENTA","SESENTA","SETENTA","OCHENTA","NOVENTA"];
+  const CENTENAS = ["","CIENTO","DOSCIENTOS","TRESCIENTOS","CUATROCIENTOS","QUINIENTOS","SEISCIENTOS","SETECIENTOS","OCHOCIENTOS","NOVECIENTOS"];
+  function bloque(num){ // 0-999
+    if(num===0) return "";
+    if(num===100) return "CIEN";
+    let s = "";
+    const c = Math.floor(num/100), resto = num%100;
+    if(c>0) s += CENTENAS[c] + " ";
+    if(resto>0){
+      if(resto<=20){ s += UNIDADES[resto]; }
+      else{
+        const d = Math.floor(resto/10), u = resto%10;
+        if(d===2){ s += (u===0?"VEINTE":"VEINTI"+UNIDADES[u]); }
+        else{ s += DECENAS[d] + (u>0? " Y "+UNIDADES[u] : ""); }
+      }
+    }
+    return s.trim();
+  }
+  function bloqueMil(num){ // 0-999999
+    const miles = Math.floor(num/1000), resto = num%1000;
+    let s = "";
+    if(miles>0){
+      s += (miles===1 ? "MIL" : bloque(miles)+" MIL");
+      if(resto>0) s += " ";
+    }
+    if(resto>0) s += bloque(resto);
+    return s.trim();
+  }
+  const millones = Math.floor(n/1000000), resto = n%1000000;
+  let out = "";
+  if(millones>0){
+    out += (millones===1? "UN MILLON" : bloque(millones)+" MILLONES");
+    if(resto>0) out += " ";
+  }
+  out += bloqueMil(resto);
+  return out.trim() || "CERO";
+}
 function diasAtraso(fecha){
   if(!fecha) return 0;
   const hoy = hoyISO();
@@ -1052,16 +1127,56 @@ function badge(estado){
   return `<span class="badge ${cls}">${estado}</span>`;
 }
 const ICONS = {
-  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
-  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-  landmark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>',
-  wallet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>',
+  home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.3l8.5 7.2" /><path d="M5.5 9.3V20a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V9.3" fill="currentColor" fill-opacity=".14" stroke-opacity=".9"/><path d="M9.7 21v-5.6a1 1 0 0 1 1-1h2.6a1 1 0 0 1 1 1V21" fill="currentColor" fill-opacity=".35" stroke-opacity=".9"/></svg>',
+  users:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.3" fill="currentColor" fill-opacity=".18"/><path d="M3.2 20c0-3.4 2.6-5.8 5.8-5.8s5.8 2.4 5.8 5.8" fill="currentColor" fill-opacity=".12"/><path d="M16.2 4.9a3.3 3.3 0 0 1 0 6.5" stroke-opacity=".9"/><path d="M15.6 14.6c2.7.4 4.6 2.6 4.6 5.4" stroke-opacity=".9"/></svg>',
+  landmark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.3 12 4l9 5.3" fill="currentColor" fill-opacity=".18"/><path d="M4 9.5h16"/><path d="M6.6 9.5V18M12 9.5V18M17.4 9.5V18"/><path d="M3.3 20.5h17.4"/></svg>',
+  wallet:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5a2 2 0 0 1 2-2h11.5a1 1 0 0 1 1 1v2.3" fill="currentColor" fill-opacity=".1"/><path d="M4 7.5v10.8A1.7 1.7 0 0 0 5.7 20h13.1a1 1 0 0 0 1-1v-5.8a1 1 0 0 0-1-1H6a2 2 0 0 1-2-2" fill="currentColor" fill-opacity=".14"/><circle cx="16.6" cy="13.1" r="1.3" fill="currentColor" stroke="none"/></svg>',
   settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   refresh:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="19" height="19"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
   trending:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
   alertcirc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
-  calculator:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="18"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>'
+  calculator:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="18"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>',
+  chevron:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
+  filetext:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="8" y1="9" x2="10" y2="9"/></svg>',
+  dots:'<svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>',
+  printer:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>',
+  share:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="10.5" x2="15.4" y2="6.5"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/></svg>',
+  edit:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>',
+  trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
+  undo:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>',
+  refinance:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>'
 };
+
+// --- Menú de opciones (⋮): botón redondo que abre un panel anclado con acciones (imprimir,
+// compartir, editar, eliminar...), en vez de tener un botón suelto por cada una regado en
+// el cuerpo de la pantalla. "items" es una lista de {icono, texto, onclick, peligro} o
+// {sep:true} para una línea divisoria (se usa antes de una acción destructiva como Eliminar).
+function menuOpcionesHtml(id, items){
+  const filas = items.map(it=>{
+    if(it.sep) return `<div class="menu-opciones-sep"></div>`;
+    return `<button class="menu-opciones-item${it.peligro?" peligro":""}" onclick="cerrarMenuOpciones('${id}'); ${it.onclick}">${it.icono||""}<span>${it.texto}</span></button>`;
+  }).join("");
+  return `<div class="menu-opciones-wrap" id="menu-wrap-${id}">
+    <button class="menu-opciones-btn" onclick="toggleMenuOpciones('${id}')" title="Más opciones">${ICONS.dots}</button>
+    <div class="menu-opciones-panel" id="menu-panel-${id}">${filas}</div>
+  </div>`;
+}
+function toggleMenuOpciones(id){
+  document.querySelectorAll(".menu-opciones-panel.abierto").forEach(function(el){
+    if(el.id !== "menu-panel-"+id) el.classList.remove("abierto");
+  });
+  const panel = document.getElementById("menu-panel-"+id);
+  if(panel) panel.classList.toggle("abierto");
+}
+function cerrarMenuOpciones(id){
+  const panel = document.getElementById("menu-panel-"+id);
+  if(panel) panel.classList.remove("abierto");
+}
+document.addEventListener("click", function(e){
+  if(!e.target.closest(".menu-opciones-wrap")){
+    document.querySelectorAll(".menu-opciones-panel.abierto").forEach(function(el){ el.classList.remove("abierto"); });
+  }
+});
 
 let desbloqueado = sessionStorage.getItem(jrKey("jr_desbloqueado")) === "1";
 
@@ -1316,8 +1431,8 @@ function render(){
   const titles = {inicio:"Resumen", clientes:"Clientes", prestamos:"Préstamos", pagos:"Historial de pagos"};
   let html = `<header><div style="display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:center;">`;
-  if(state.tab==="prestamos" && (state.vista==="detalle" || state.vista==="cartera" || state.vista==="refinanciar" || state.vista==="nuevo" || state.vista==="calculadora")){
-    html += `<button class="backbtn" onclick="${state.vista==="nuevo"?`window._nf=null; state.vista=${(window._nf&&window._nf.editId)?"'detalle'":"'lista'"}; render();`:(state.vista==="calculadora"?"window._calc=null; state.vista='lista'; render();":"volverLista()")}">‹</button>`;
+  if(state.tab==="prestamos" && (state.vista==="detalle" || state.vista==="cartera" || state.vista==="refinanciar" || state.vista==="nuevo" || state.vista==="calculadora" || state.vista==="contrato")){
+    html += `<button class="backbtn" onclick="${state.vista==="nuevo"?`window._nf=null; state.vista=${(window._nf&&window._nf.editId)?"'detalle'":"'lista'"}; render();`:(state.vista==="calculadora"?"window._calc=null; state.vista='lista'; render();":(state.vista==="contrato"?"state.vista='detalle'; render();":"volverLista()"))}">‹</button>`;
   }
   if(state.tab==="pagos" && state.vista==="recibo"){
     html += `<button class="backbtn" onclick="state.vista='lista'; render();">‹</button>`;
@@ -1351,11 +1466,26 @@ function render(){
   const tituloHistorialPagos = state.tab==="inicio" && state.vista==="reporteHistorialPagos" ? "Historial de pagos" : null;
   const tituloNuevoPrestamo = state.tab==="prestamos" && state.vista==="nuevo" ? ((window._nf && window._nf.editId) ? `Editando ${window._nf.codigo}` : "Nuevo préstamo") : null;
   const tituloCalculadora = state.tab==="prestamos" && state.vista==="calculadora" ? "Calculadora" : null;
+  const tituloContrato = state.tab==="prestamos" && state.vista==="contrato" ? "Contrato de préstamo" : null;
   document.title = nombreApp();
-  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||tituloCalculadora||titles[state.tab])))}</h1></div>
+  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||tituloCalculadora||tituloContrato||titles[state.tab])))}</h1></div>
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
     html += `<button class="backbtn" style="margin-right:0;" title="Ajustes" onclick="abrirAjustes()">${ICONS.settings}</button>`;
+  } else if(state.tab==="prestamos" && state.vista==="detalle" && state.prestamos.find(x=>x.id===state.seleccionId)){
+    html += `<button class="backbtn" id="btn-recargar" style="margin-right:6px;" title="Recargar" onclick="recargarApp()">${ICONS.refresh}</button>`;
+    html += menuOpcionesDetallePrestamo(state.prestamos.find(x=>x.id===state.seleccionId));
+  } else if(state.tab==="inicio" && ["reportePDF","estadoResultados","reporteModificaciones","reporteDesembolsos","reporteHistorialPagos"].indexOf(state.vista)!==-1){
+    const _fnImprimir = {reportePDF:"imprimirReportePDF",estadoResultados:"imprimirEstadoResultadosPDF",reporteModificaciones:"imprimirReporteModificacionesPDF",reporteDesembolsos:"imprimirReporteDesembolsosPDF",reporteHistorialPagos:"imprimirHistorialPagosPDF"}[state.vista];
+    const _fnCompartir = {reportePDF:"compartirReportePDF",estadoResultados:"compartirEstadoResultadosPDF",reporteModificaciones:"compartirReporteModificacionesPDF",reporteDesembolsos:"compartirReporteDesembolsosPDF",reporteHistorialPagos:"compartirHistorialPagosPDF"}[state.vista];
+    html += `<button class="backbtn" id="btn-recargar" style="margin-right:6px;" title="Recargar" onclick="recargarApp()">${ICONS.refresh}</button>`;
+    html += menuOpcionesHtml("reporte-"+state.vista, [
+      { icono: ICONS.printer, texto:"Imprimir", onclick: `${_fnImprimir}()` },
+      { icono: ICONS.share, texto:"Compartir en PDF", onclick: `${_fnCompartir}()` }
+    ]);
+  } else if(state.tab==="pagos" && state.vista==="recibo" && state.reciboSel && state.prestamos.find(x=>x.id===state.reciboSel.prestamoId)){
+    html += `<button class="backbtn" id="btn-recargar" style="margin-right:6px;" title="Recargar" onclick="recargarApp()">${ICONS.refresh}</button>`;
+    html += menuOpcionesRecibo();
   } else {
     html += `<button class="backbtn" id="btn-recargar" style="margin-right:0;" title="Recargar" onclick="recargarApp()">${ICONS.refresh}</button>`;
   }
@@ -1759,11 +1889,7 @@ function viewReportePDF(){
       </div>
       </div>
     </div>
-    <div class="flexrow" style="margin-top:16px;">
-      <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="imprimirReportePDF()">Imprimir</button>
-    </div>
-    <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirReportePDF()">Compartir en PDF</button>`;
+    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
 }
 function capitalOriginalDesembolsado(p){
   // p.capital se sobreescribe con el capital MAS RECIENTE cada vez que el prestamo tiene una
@@ -1990,11 +2116,7 @@ function viewEstadoResultados(){
       </div>
       <p class="hint nota-ayuda" style="margin-top:14px;">Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como "desembolso" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo) — el resto del capital nuevo es el saldo pendiente del préstamo anterior reacomodado, no dinero que volvió a salir de la caja. Cuando un refinanciamiento se clasifica como "modificación no sustancial" según NIF C-19 (prueba del 10% de valor presente), la diferencia se reconoce aquí como ganancia o pérdida; cuando es "sustancial", se trata como préstamo nuevo sin efecto adicional en este renglón.</p>
     </div>
-    <div class="flexrow" style="margin-top:16px;">
-      <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="imprimirEstadoResultadosPDF()">Imprimir</button>
-    </div>
-    <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirEstadoResultadosPDF()">Compartir en PDF</button>`;
+    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
 }
 function abrirReporteModificaciones(){
   state.tab = "inicio";
@@ -2162,11 +2284,7 @@ function viewReporteModificaciones(){
       </div>`}
       <p class="hint nota-ayuda" style="margin-top:14px;">Reúne todos los refinanciamientos y modificaciones de condiciones registrados, con su clasificación NIF C-19 (sustancial o no sustancial) y la ganancia o pérdida reconocida en cada uno. Es el detalle/respaldo de la línea "Ganancia/(pérdida) por modificación de préstamos" del Estado de resultados.</p>
     </div>
-    <div class="flexrow" style="margin-top:16px;">
-      <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="imprimirReporteModificacionesPDF()">Imprimir</button>
-    </div>
-    <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirReporteModificacionesPDF()">Compartir en PDF</button>`;
+    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
 }
 // Junta en una sola lista, ordenada por fecha, TODO el dinero que ha salido de caja como
 // capital prestado: el desembolso inicial de cada préstamo (o el "monto adicional" si nació
@@ -2281,11 +2399,7 @@ function viewReporteDesembolsos(){
       </div>`}
       <p class="hint nota-ayuda" style="margin-top:14px;">Incluye el capital de cada préstamo nuevo y, cuando un préstamo nace de un refinanciamiento, solo el monto adicional que realmente se entregó en efectivo (el resto es el saldo del préstamo anterior reacomodado). También incluye los montos adicionales entregados en modificaciones no sustanciales (NIF C-19).</p>
     </div>
-    <div class="flexrow" style="margin-top:16px;">
-      <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="imprimirReporteDesembolsosPDF()">Imprimir</button>
-    </div>
-    <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirReporteDesembolsosPDF()">Compartir en PDF</button>`;
+    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
 }
 
 // Separa el historial de pagos en dos partes:
@@ -2447,11 +2561,7 @@ function viewReporteHistorialPagos(){
       </div>`}
       <p class="hint nota-ayuda" style="margin-top:14px;">Incluye todos los pagos registrados en todos los préstamos: cuotas, abonos a capital, enganches y liquidaciones anticipadas, con su mora cobrada cuando aplica — incluyendo los pagos hechos antes de una modificación de préstamo.</p>
     </div>
-    <div class="flexrow" style="margin-top:16px;">
-      <button class="btn btn-outline" onclick="state.vista='ajustes'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="imprimirHistorialPagosPDF()">Imprimir</button>
-    </div>
-    <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirHistorialPagosPDF()">Compartir en PDF</button>`;
+    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
 }
 
 async function subirNube(silencioso){
@@ -2904,6 +3014,7 @@ function viewPrestamos(){
   if(state.vista==="calculadora" && !window._calc) state.vista = "lista"; // resguardo: formulario no restaurado
   if(state.vista==="nuevo") return viewNuevoPrestamo();
   if(state.vista==="detalle") return viewDetallePrestamo();
+  if(state.vista==="contrato") return viewContratoPrestamo();
   if(state.vista==="cartera") return viewCartera();
   if(state.vista==="refinanciar") return viewRefinanciar();
   if(state.vista==="calculadora") return viewCalculadora();
@@ -3465,6 +3576,41 @@ function guardarRefinanciamiento(){
   }, { textoAceptar:"Confirmar" });
 }
 
+
+function viewContratoPrestamo(){
+  const p = state.prestamos.find(x=>x.id===state.seleccionId);
+  if(!p){ state.vista="lista"; return viewPrestamos(); }
+  const cli = state.clientes.find(c=>c.id===p.clienteId);
+  const r = resumen(p);
+  const d = datosContrato(p, cli, r);
+  return `
+    <p class="hint" style="margin:0 0 12px;">${p.codigo} · ${d.cliente}</p>
+    <div class="row-card" style="display:block;">
+      <label style="margin-bottom:4px;"><span>N° de referencia</span><input id="inputContratoRef" type="text" inputmode="numeric" placeholder="Ej. 114832" value="${d.referencia}" oninput="(function(v){ const pr=state.prestamos.find(x=>x.id==='${p.id}'); if(pr){ pr.contratoRef=v; save(); render(); } })(this.value)"></label>
+      <p class="hint nota-ayuda" style="margin:0 0 14px;">Este número aparece como "Préstamo Ref." en el documento. Codeudor: <b>No aplica</b>.</p>
+      <div class="flexrow">
+        <button class="btn btn-outline" onclick="imprimirContrato('${p.id}')">Imprimir contrato</button>
+        <button class="btn btn-outline" onclick="compartirContratoPDF('${p.id}')">Compartir en PDF</button>
+      </div>
+    </div>`;
+}
+function menuOpcionesDetallePrestamo(p){
+  const items = [
+    { icono: ICONS.filetext, texto: "Contrato de préstamo", onclick: `state.vista='contrato'; render();` },
+    { sep:true },
+    { icono: ICONS.printer, texto: "Imprimir tabla", onclick: `imprimirTabla('${p.id}')` },
+    { icono: ICONS.share, texto: "Compartir tabla en PDF", onclick: `compartirAmortizacionPDF('${p.id}')` },
+    { icono: ICONS.printer, texto: "Imprimir estado de cuenta", onclick: `imprimirEstadoCuenta('${p.id}')` },
+    { icono: ICONS.share, texto: "Compartir estado de cuenta", onclick: `compartirEstadoCuentaPDF('${p.id}')` },
+    { sep:true },
+    { icono: ICONS.edit, texto: "Editar préstamo", onclick: `abrirEditarPrestamo('${p.id}')` }
+  ];
+  if(p.modificaciones && p.modificaciones.length){
+    items.push({ icono: ICONS.undo, texto: "Deshacer última modificación", onclick: `deshacerUltimaModificacion('${p.id}')` });
+  }
+  items.push({ sep:true }, { icono: ICONS.trash, texto: "Eliminar préstamo", onclick: `eliminarPrestamo('${p.id}')`, peligro:true });
+  return menuOpcionesHtml("detalle-prestamo", items);
+}
 function viewDetallePrestamo(){
   const p = state.prestamos.find(x=>x.id===state.seleccionId);
   if(!p){ state.vista="lista"; return viewPrestamos(); }
@@ -3612,7 +3758,7 @@ function viewDetallePrestamo(){
       <label><span>Fecha de liquidación</span><input type="date" id="fechaLiquidacion" value="${hoyISO()}"></label>
       <button class="btn btn-outline" onclick="liquidarAnticipado('${p.id}')">Calcular y liquidar</button>
     </div>` : ""}` : ""}
-    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:16px;">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:8px;">
       <p class="section-title" style="margin:0;">Tabla de amortización</p>
       <p style="font-size:12px;color:#666;margin:0;">Capital: <b class="monto-navy">${money(p.capital)}</b></p>
     </div>
@@ -3636,22 +3782,9 @@ function viewDetallePrestamo(){
         ${paginadorAmort}
       </div>
     </div>
-    <div class="flexrow" style="margin-bottom:10px;">
-      <button class="btn btn-outline" onclick="imprimirTabla('${p.id}')">Imprimir tabla</button>
-      <button class="btn btn-outline" onclick="compartirAmortizacionPDF('${p.id}')">Compartir en PDF</button>
-    </div>
-    <div class="flexrow" style="margin-bottom:10px;">
-      <button class="btn btn-navy" onclick="imprimirEstadoCuenta('${p.id}')">Imprimir estado de cuenta</button>
-      <button class="btn btn-navy" onclick="compartirEstadoCuentaPDF('${p.id}')">Compartir estado de cuenta</button>
-    </div>
     ${r.estado==="Activo" ? `<button class="btn btn-outline" style="margin-bottom:10px;" onclick="abrirRefinanciar('${p.id}')">Refinanciar este préstamo</button>` : ""}
     ${p.refinanciaDe ? `<p class="hint" style="margin-bottom:10px;">Este préstamo nació de un refinanciamiento.</p>` : ""}
-    ${(p.modificaciones && p.modificaciones.length) ? `<p class="hint" style="margin-bottom:6px;">Este préstamo ha tenido ${p.modificaciones.length} modificación(es) de condiciones sin crear un préstamo nuevo (NIF C-19, no sustancial). Última: ${fmtDate(p.modificaciones[p.modificaciones.length-1].fecha)}.</p>
-    <button class="btn btn-outline" style="margin-bottom:10px;" onclick="deshacerUltimaModificacion('${p.id}')">Deshacer última modificación</button>` : ""}
-    <div class="flexrow">
-      <button class="btn btn-outline" onclick="abrirEditarPrestamo('${p.id}')">Editar préstamo</button>
-      <button class="btn btn-danger" onclick="eliminarPrestamo('${p.id}')">Eliminar</button>
-    </div>
+    ${(p.modificaciones && p.modificaciones.length) ? `<p class="hint" style="margin-bottom:10px;">Este préstamo ha tenido ${p.modificaciones.length} modificación(es) de condiciones sin crear un préstamo nuevo (NIF C-19, no sustancial). Última: ${fmtDate(p.modificaciones[p.modificaciones.length-1].fecha)}. Puedes deshacerla desde el menú ${ICONS.dots} de arriba.</p>` : ""}
   `;
 }
 function cargarScript(src, cb){
@@ -4010,6 +4143,151 @@ function generarReciboPDF(p, cli, pg, r, numRecibo, contexto){
     doc.setTextColor(20);
   }
   return doc;
+}
+// --- Contrato de préstamo (pagaré) ---
+// El campo "Codeudor" siempre se muestra como "No aplica": la app no maneja codeudores
+// todavía, así que se deja fijo en vez de dejarlo vacío o inventar un dato.
+function datosContrato(p, cli, r){
+  const tasaMora = Number(state.config.tasaMoraDiaria)||0;
+  const primeraCuota = (r.tabla && r.tabla[0]) ? r.tabla[0] : null;
+  const fechaPrimerPago = primeraCuota ? primeraCuota.fecha : p.fechaInicio;
+  const montoCuota = primeraCuota ? primeraCuota.cuota : 0;
+  const fd = new Date(p.fechaInicio+"T00:00:00");
+  const diaPrimerPago = new Date(fechaPrimerPago+"T00:00:00").getDate();
+  const nCuotas = Number(p.cuotas) || (r.tabla ? r.tabla.length : 0);
+  return {
+    cliente: cli ? cli.nombre : "—",
+    fechaDesembolso: p.fechaInicio,
+    fechaPrimerPago,
+    referencia: p.contratoRef || "",
+    codeudor: "No aplica",
+    capital: Number(p.capital)||0,
+    nCuotas,
+    periodo: (p.periodo||"Mensual").toUpperCase(),
+    montoCuota,
+    diaPrimerPago,
+    tasaMora,
+    diaDesembolso: fd.getDate(),
+    diaDesembolsoTexto: numeroALetras(fd.getDate()),
+    mesDesembolso: MESES_LARGOS[fd.getMonth()],
+    anioDesembolso: fd.getFullYear(),
+    anioDesembolsoTexto: numeroALetras(fd.getFullYear())
+  };
+}
+// Monto en Lempiras sin espacio después de la "L" (L5,000.00) — solo para el contrato,
+// que sigue un formato de documento legal distinto al money() normal de la app (L 5,000.00).
+function moneyContrato(n){
+  n = Number(n); n = Number.isFinite(n) ? n : 0;
+  return "L" + n.toLocaleString("es-HN", {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function camposContrato(d){
+  return [
+    ["Cliente", d.cliente],
+    ["Fecha Desembolso", fmtDateNumerica(d.fechaDesembolso)],
+    ["Fecha Primer Pago", fmtDateNumerica(d.fechaPrimerPago)],
+    ["Préstamo Ref.", d.referencia || "—"],
+    ["Codeudor", d.codeudor],
+    ["Monto Prestado", `${moneyContrato(d.capital)} (${numeroALetras(d.capital)})`]
+  ];
+}
+function parrafosContrato(d){
+  return [
+    [
+      {t:"Yo, "}, {t:d.cliente, b:true}, {t:", me comprometo a pagar la suma de "},
+      {t:`${moneyContrato(d.capital)} (${numeroALetras(d.capital)})`, b:true},
+      {t:" a "}, {t:nombreApp().toUpperCase(), b:true},
+      {t:", en concepto de préstamo recibido en fecha "},
+      {t:`${d.diaDesembolsoTexto} (${d.diaDesembolso})`, b:true},
+      {t:` días del mes de ${d.mesDesembolso} del año `},
+      {t:`${d.anioDesembolsoTexto} (${d.anioDesembolso})`, b:true},
+      {t:".-"}
+    ],
+    [
+      {t:"El pago se realizará en "},
+      {t:`${numeroALetras(d.nCuotas)} (${d.nCuotas}) CUOTA${d.nCuotas===1?"":"S"} ${d.periodo}`, b:true},
+      {t:" de "},
+      {t:`${moneyContrato(d.montoCuota)} (${numeroALetras(Math.trunc(d.montoCuota))})`, b:true},
+      {t:` cada una, con vencimiento el ${d.diaPrimerPago} de cada mes, hasta la cancelación total de la deuda.-`}
+    ],
+    [
+      {t:"En caso de incumplimiento en el pago de alguna cuota, se aplicará un interés del "},
+      {t:`${d.tasaMora.toFixed(2)}`, b:true},
+      {t:" sobre el saldo pendiente hasta su regularización.-"}
+    ],
+    [
+      {t:"Ambas partes acuerdan que cualquier controversia derivada de este acuerdo será resuelta conforme a las leyes.-"}
+    ]
+  ];
+}
+// Dibuja un párrafo con palabras en negrita/normal intercaladas, con salto de línea
+// automático — jsPDF no soporta HTML enriquecido, así que se coloca palabra por palabra.
+function dibujarParrafoRico(doc, segmentos, x, y, maxWidth, lineHeight){
+  let cx = x, cy = y;
+  segmentos.forEach(seg=>{
+    doc.setFont("helvetica", seg.b?"bold":"normal");
+    String(seg.t).split(" ").forEach(palabra=>{
+      if(palabra==="") return;
+      const anchoPalabra = doc.getTextWidth(palabra);
+      const anchoConEspacio = doc.getTextWidth(palabra+" ");
+      if(cx + anchoPalabra > x + maxWidth){ cx = x; cy += lineHeight; }
+      doc.text(palabra, cx, cy);
+      cx += anchoConEspacio;
+    });
+  });
+  doc.setFont("helvetica","normal");
+  return cy + lineHeight;
+}
+function generarContratoPDF(p, cli, r){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const d = datosContrato(p, cli, r);
+  const xL = 14, xR = 196, maxW = xR - xL;
+  let y = 18;
+  doc.setFontSize(14); doc.setFont("helvetica","bold");
+  doc.text(nombreApp().toUpperCase(), 105, y, {align:"center"}); y += 7;
+  doc.setFontSize(11);
+  doc.text("CONTRATO DE PRÉSTAMO", 105, y, {align:"center"}); y += 6;
+  doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 9;
+  doc.setFontSize(10.5);
+  camposContrato(d).forEach(([label, valor])=>{
+    doc.setFont("helvetica","bold"); doc.text(label+":", xL, y);
+    const anchoLabel = doc.getTextWidth(label+": ");
+    doc.setFont("helvetica","normal"); doc.text(String(valor), xL+anchoLabel, y);
+    y += 7;
+  });
+  y += 6;
+  parrafosContrato(d).forEach(parrafo=>{ y = dibujarParrafoRico(doc, parrafo, xL, y, maxW, 6); y += 4; });
+  y += 20;
+  doc.setDrawColor(20); doc.line(xL+35, y, xR-35, y); y += 5;
+  doc.setFont("helvetica","bold"); doc.setFontSize(10.5);
+  doc.text(d.cliente, 105, y, {align:"center"});
+  doc.setFont("helvetica","normal");
+  return doc;
+}
+function imprimirContrato(id){
+  const p = state.prestamos.find(x=>x.id===id);
+  if(!p) return;
+  const cli = state.clientes.find(c=>c.id===p.clienteId);
+  const r = resumen(p);
+  cargarPDFLibs(function(){
+    const doc = generarContratoPDF(p, cli, r);
+    imprimirPDFDoc(doc);
+  });
+}
+function compartirContratoPDF(id){
+  const p = state.prestamos.find(x=>x.id===id);
+  if(!p) return;
+  const cli = state.clientes.find(c=>c.id===p.clienteId);
+  const r = resumen(p);
+  cargarPDFLibs(function(){
+    try{
+      const doc = generarContratoPDF(p, cli, r);
+      const blob = doc.output("blob");
+      compartirOdescargarPDF(blob, `contrato-${p.codigo}.pdf`, `Contrato de préstamo ${p.codigo}`);
+    }catch(err){
+      mostrarAlerta("Ocurrió un error generando el contrato en PDF. Intenta de nuevo.");
+    }
+  });
 }
 function compartirReciboPDF(){
   const sel = state.reciboSel || {};
@@ -4384,6 +4662,27 @@ function verRecibo(prestamoId, pagoId){
   state.reciboSel = { prestamoId, pagoId };
   render();
 }
+function menuOpcionesRecibo(){
+  const sel = state.reciboSel || {};
+  const p = state.prestamos.find(x=>x.id===sel.prestamoId);
+  if(!p) return "";
+  const pagos = p.pagos || [];
+  let pg = sel.pagoId ? pagos.find(x=>x.id===sel.pagoId) : null;
+  if(!pg && sel.pagoId){
+    for(const m of (p.modificaciones||[])){
+      const enc = (m.pagosPrevios||[]).find(x=>x.id===sel.pagoId);
+      if(enc){ pg = enc; break; }
+    }
+  }
+  if(!pg) pg = pagos[pagos.length-1];
+  if(!pg) return "";
+  return menuOpcionesHtml("recibo", [
+    { icono: ICONS.printer, texto:"Imprimir recibo", onclick:"imprimirRecibo()" },
+    { icono: ICONS.share, texto:"Compartir recibo en PDF", onclick:"compartirReciboPDF()" },
+    { sep:true },
+    { icono: ICONS.trash, texto:"Eliminar este pago", onclick:`eliminarPago('${p.id}','${pg.id||""}')`, peligro:true }
+  ]);
+}
 function viewRecibo(){
   const sel = state.reciboSel || {};
   const p = state.prestamos.find(x=>x.id===sel.prestamoId);
@@ -4429,12 +4728,7 @@ function viewRecibo(){
       ${(state.config.reciboFirma||"automatico")==="sinfirma" ? `<p class="hint" style="margin-top:16px;text-align:center;">Recibo válido sin firma.</p>` : ""}
       ${(state.config.reciboFirma||"automatico")==="automatico" ? `<p class="hint" style="margin-top:16px;text-align:center;">Al imprimir sale con línea de firma · al enviarlo sale sin firma.</p>` : ""}
     </div>
-    <div class="flexrow" style="margin-top:16px;">
-      <button class="btn btn-outline" onclick="state.vista='lista'; render();">Volver</button>
-      <button class="btn btn-gold" onclick="imprimirRecibo()">Imprimir recibo</button>
-    </div>
-    <button class="btn btn-outline" style="margin-top:10px;" onclick="compartirReciboPDF()">Compartir recibo en PDF</button>
-    <button class="btn btn-danger" style="margin-top:10px;" onclick="eliminarPago('${p.id}','${pg.id||""}')">Eliminar este pago</button>`;
+    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='lista'; render();">Volver</button>`;
 }
 
 
