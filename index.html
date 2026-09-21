@@ -51,8 +51,8 @@
      él con las acciones de esa pantalla (imprimir, compartir, editar, eliminar, etc.) en
      vez de tener un botón suelto por cada una regado en el cuerpo de la pantalla. */
   .menu-opciones-wrap{position:relative;}
-  .menu-opciones-btn{background:none;border:none;cursor:pointer;padding:6px;border-radius:10px;color:var(--navy);display:flex;align-items:center;justify-content:center;}
-  .menu-opciones-btn:active{background:rgba(0,0,0,.06);}
+  .menu-opciones-btn{background:none;border:none;cursor:pointer;padding:6px;border-radius:10px;color:#fff;display:flex;align-items:center;justify-content:center;}
+  .menu-opciones-btn:active{background:rgba(255,255,255,.15);}
   .menu-opciones-panel{position:absolute;top:calc(100% + 8px);right:0;background:#fff;border:1px solid #e5e1d8;border-radius:14px;box-shadow:0 12px 32px rgba(27,42,74,.18);min-width:236px;padding:6px;z-index:500;opacity:0;transform:translateY(-6px) scale(.97);pointer-events:none;transition:opacity .15s ease,transform .15s ease;}
   .menu-opciones-panel.abierto{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
   .menu-opciones-item{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;cursor:pointer;font-size:14px;color:#22201c;background:none;border:none;width:100%;text-align:left;font-family:inherit;}
@@ -1471,7 +1471,21 @@ function render(){
   html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||tituloCalculadora||tituloContrato||titles[state.tab])))}</h1></div>
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
-    html += `<button class="backbtn" style="margin-right:0;" title="Ajustes" onclick="abrirAjustes()">${ICONS.settings}</button>`;
+    html += menuOpcionesHtml("inicio", [
+      { icono: ICONS.edit, texto:"Nombre del negocio", onclick: "abrirAjustes('sec-nombre-negocio')" },
+      { icono: ICONS.settings, texto:"Apariencia", onclick: "abrirAjustes('sec-apariencia')" },
+      { icono: ICONS.refresh, texto:"Sincronizar entre celulares", onclick: "abrirAjustes('sec-sync')" },
+      { icono: ICONS.filetext, texto:"Respaldo de datos", onclick: "abrirAjustes('sec-respaldo')" },
+      { icono: ICONS.calculator, texto:"Cómo contar los días del plazo", onclick: "abrirAjustes('sec-plazo')" },
+      { icono: ICONS.alertcirc, texto:"Clave de acceso", onclick: "abrirAjustes('sec-clave')" },
+      { sep:true },
+      { icono: ICONS.filetext, texto:"Reporte general (PDF)", onclick: "abrirReportePDF()" },
+      { icono: ICONS.filetext, texto:"Reporte general (Excel)", onclick: "exportarExcel()" },
+      { icono: ICONS.trending, texto:"Estado de resultados", onclick: "abrirEstadoResultados()" },
+      { icono: ICONS.refinance, texto:"Modificaciones (NIF C-19)", onclick: "abrirReporteModificaciones()" },
+      { icono: ICONS.filetext, texto:"Desembolsos", onclick: "abrirReporteDesembolsos()" },
+      { icono: ICONS.filetext, texto:"Historial de pagos", onclick: "abrirReporteHistorialPagos()" }
+    ]);
   } else if(state.tab==="prestamos" && state.vista==="detalle" && state.prestamos.find(x=>x.id===state.seleccionId)){
     html += `<button class="backbtn" id="btn-recargar" style="margin-right:6px;" title="Recargar" onclick="recargarApp()">${ICONS.refresh}</button>`;
     html += menuOpcionesDetallePrestamo(state.prestamos.find(x=>x.id===state.seleccionId));
@@ -1511,6 +1525,13 @@ function render(){
     panelClave.style.minHeight = `calc(100vh - ${altoHeader + altoTabbar}px)`;
   }
 
+  // Si se entró a Ajustes desde el menú de una sección específica (ej. "Clave de acceso"),
+  // se salta directo ahí en vez de dejar al usuario buscarla desplazándose a mano.
+  if(state.tab==="inicio" && state.vista==="ajustes" && state._irAjustesSeccion){
+    const destino = document.getElementById(state._irAjustesSeccion);
+    if(destino) destino.scrollIntoView({behavior:"smooth", block:"start"});
+    state._irAjustesSeccion = null;
+  }
   // Restaura el foco (y la posición del cursor) en el mismo campo, si seguía existiendo.
   if(activoId){
     const nuevo = document.getElementById(activoId);
@@ -2676,11 +2697,12 @@ function viewInicio(){
   });
   return html;
 }
-function abrirAjustes(){
+function abrirAjustes(seccion){
   state.tab = "inicio";
   state.vista = (state.config.pin && state.config.pedirClaveEnAjustes!==false) ? "ajustesClave" : "ajustes";
   state._errorClaveAjustes = false;
   state._huellaAjustesYaIntentada = false;
+  state._irAjustesSeccion = seccion || null;
   render();
 }
 async function usarHuellaAjustes(){
@@ -2751,12 +2773,12 @@ function viewAjustesClave(){
 function viewAjustes(){
   return `
   ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-nombre-negocio">
     <p style="font-weight:600;margin:0 0 4px;">Nombre del negocio</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Aparece en el encabezado, los recibos y los reportes. Cámbialo si vas a usar esta app para otro negocio.</p>
     <label style="margin-bottom:0;"><span>Nombre</span><input id="f_nombreNegocio" placeholder="JR Prestamito" value="${state.config.nombreNegocio||""}" oninput="state.config.nombreNegocio=this.value; save(); render();"></label>
   </div>`}
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-apariencia">
     <p style="font-weight:600;margin:0 0 4px;">Apariencia</p>
     <label style="display:flex;align-items:center;gap:8px;margin-bottom:0;cursor:pointer;">
       <input type="checkbox" style="width:auto;" ${state.config.temaOscuro?"checked":""} onchange="state.config.temaOscuro=this.checked; document.documentElement.setAttribute('data-theme', this.checked?'dark':'light'); save(); render();">
@@ -2785,7 +2807,7 @@ function viewAjustes(){
       <button class="btn btn-outline" onclick="abrirReporteHistorialPagos()">Historial de pagos</button>
     </div>
   </div>
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-sync">
     <p style="font-weight:600;margin:0 0 4px;">Sincronizar entre celulares</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Usa una Google Sheet como nube compartida. Configúrala una sola vez (instrucciones aparte) y luego pega aquí la URL y la clave. Con la URL y clave puestas, cada vez que abras la app en cualquier celular trae automáticamente lo último de la nube.</p>
     <label><span>URL de la aplicación web</span><input id="f_syncUrl" placeholder="https://script.google.com/macros/s/.../exec" value="${state.config.syncUrl||""}" oninput="state.config.syncUrl=this.value; save({sinAutoSync:true});"></label>
@@ -2808,7 +2830,7 @@ function viewAjustes(){
     </div>
     <p class="hint nota-ayuda" style="margin-top:10px;">Con la subida automática activada, cada cambio se sube a la nube casi al instante (no necesitas acordarte de subir manualmente), y cada vez que abras la app trae lo último automáticamente. Aun así, sigue siendo el último que suba el que queda guardado — si dos celulares editan al mismo tiempo sin internet, al volver a tener señal el que suba después sobrescribe al otro.</p>
   </div>
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-respaldo">
     <p style="font-weight:600;margin:0 0 4px;">Respaldo de datos</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Guarda un archivo con tus clientes y préstamos, o restaura uno que ya tengas. Por seguridad, tu clave de inicio y la conexión con la nube NO se incluyen en este archivo — si restauras en otro celular, tendrás que configurarlas ahí de nuevo.</p>
     <div class="flexrow">
@@ -2818,7 +2840,7 @@ function viewAjustes(){
     <input type="file" id="archivoRespaldo" accept="application/json" style="display:none" onchange="importarDatos(event)">
   </div>
   ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-plazo">
     <p style="font-weight:600;margin:0 0 4px;">Cómo contar los días del plazo</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Ejemplo con préstamo semanal iniciado un miércoles: con "Contar desde el día 1" la primera cuota cae el próximo martes (7 días contando el miércoles como día 1). Con "Estándar" cae el miércoles siguiente (7 días completos después, sin contar el día del préstamo).</p>
     <label style="margin-bottom:0;"><span>Fechas de cuota</span>
@@ -2828,7 +2850,7 @@ function viewAjustes(){
       </select>
     </label>
   </div>`}
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-clave">
     <p style="font-weight:600;margin:0 0 4px;">Clave de acceso</p>
     <p class="hint nota-ayuda" style="margin:0 0 12px;">Esta misma clave protege la app al abrirla y también te la vuelve a pedir al entrar a Ajustes, por seguridad extra.</p>
     <label style="margin-bottom:12px;"><span>Nueva clave</span>
