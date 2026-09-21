@@ -3640,6 +3640,10 @@ function viewDetallePrestamo(){
       <button class="btn btn-outline" onclick="imprimirTabla('${p.id}')">Imprimir tabla</button>
       <button class="btn btn-outline" onclick="compartirAmortizacionPDF('${p.id}')">Compartir en PDF</button>
     </div>
+    <div class="flexrow" style="margin-bottom:10px;">
+      <button class="btn btn-navy" onclick="imprimirEstadoCuenta('${p.id}')">Imprimir estado de cuenta</button>
+      <button class="btn btn-navy" onclick="compartirEstadoCuentaPDF('${p.id}')">Compartir estado de cuenta</button>
+    </div>
     ${r.estado==="Activo" ? `<button class="btn btn-outline" style="margin-bottom:10px;" onclick="abrirRefinanciar('${p.id}')">Refinanciar este préstamo</button>` : ""}
     ${p.refinanciaDe ? `<p class="hint" style="margin-bottom:10px;">Este préstamo nació de un refinanciamiento.</p>` : ""}
     ${(p.modificaciones && p.modificaciones.length) ? `<p class="hint" style="margin-bottom:6px;">Este préstamo ha tenido ${p.modificaciones.length} modificación(es) de condiciones sin crear un préstamo nuevo (NIF C-19, no sustancial). Última: ${fmtDate(p.modificaciones[p.modificaciones.length-1].fecha)}.</p>
@@ -3738,6 +3742,160 @@ function generarAmortizacionPDF(p, cli, r, mostrarTotales){
     doc.setTextColor(0,0,0);
   }
   return doc;
+}
+function generarEstadoCuentaPDF(p, cli, r){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  dibujarMarcaAgua(doc, siglasApp(), 210, 297);
+  let y = 14;
+  doc.setFontSize(15); doc.setTextColor(27,42,74); doc.text(nombreApp(), 14, y);
+  doc.setFontSize(9.5); doc.setTextColor(120); doc.text("Estado de cuenta", 196, y-2, {align:"right"});
+  doc.text(`Emitido: ${fmtDate(hoyISO())}`, 196, y+3, {align:"right"});
+  doc.setTextColor(20);
+  y += 7;
+  doc.setDrawColor(200); doc.line(14, y, 196, y); y += 6;
+
+  // Datos del cliente y del préstamo, en dos columnas
+  const col1 = 14, col2 = 110;
+  doc.setFontSize(8); doc.setFont("helvetica","bold");
+  doc.text("CLIENTE", col1, y); doc.text("PRÉSTAMO", col2, y);
+  doc.setFont("helvetica","normal"); y += 4.5;
+  doc.setFontSize(9.5);
+  doc.text(cli?cli.nombre:"Cliente eliminado", col1, y); doc.text(p.codigo, col2, y); y += 4.2;
+  doc.setFontSize(8.5); doc.setTextColor(90);
+  if(cli && cli.cedula){ doc.text(`Cédula: ${cli.cedula}`, col1, y); }
+  doc.text(`Método: ${p.metodo}`, col2, y); y += 4.2;
+  if(cli && cli.celular){ doc.text(`Celular: ${cli.celular}`, col1, y); }
+  doc.text(`Tasa: ${p.tasa}% · ${p.periodo}`, col2, y); y += 4.2;
+  doc.text(`Fecha de inicio: ${fmtDate(p.fechaInicio)}`, col2, y);
+  doc.setTextColor(20);
+  y += 7;
+
+  // Resumen financiero
+  const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
+  const estadoTxt = atraso>0 ? `Vencido (${atraso} día${atraso===1?"":"s"} de atraso)` : r.estado;
+  const totalCobradoLoan = (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0), 0)
+    + (p.modificaciones||[]).reduce((s,m)=>s+(m.pagosPrevios||[]).reduce((s2,pg)=>s2+(Number(pg.monto)||0)+(Number(pg.mora)||0),0), 0);
+  doc.autoTable({
+    startY: y,
+    body: [
+      ["Capital prestado", money(p.capital)],
+      ["Capital pendiente hoy", money(r.capitalPendiente||0)],
+      ["Total cobrado a la fecha", money(totalCobradoLoan)],
+      ["Estado", estadoTxt],
+      ["Próxima fecha de pago", r.proximaFecha ? fmtDate(r.proximaFecha) : "—"]
+    ],
+    theme: "plain",
+    styles: { fontSize: 9.5, cellPadding: 1 },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 55 } }
+  });
+  y = doc.lastAutoTable.finalY + 8;
+
+  // Si el préstamo nació de un refinanciamiento sustancial, o tuvo modificaciones de
+  // condiciones (NIF C-19, no sustanciales) directamente sobre él, se incluyen aquí — es
+  // parte de la historia del préstamo y no debía faltar en un estado de cuenta completo.
+  const origenRef = p.refinanciaDe ? state.prestamos.find(x=>x.id===p.refinanciaDe) : null;
+  if(origenRef || (p.modificaciones && p.modificaciones.length)){
+    doc.setFontSize(11); doc.setFont("helvetica","bold"); doc.text("Modificaciones", 14, y);
+    doc.setFont("helvetica","normal"); y += 3;
+    if(origenRef){
+      doc.setFontSize(8.5); doc.setTextColor(90);
+      doc.text(`Este préstamo nació de un refinanciamiento del préstamo ${origenRef.codigo}, con fecha ${fmtDate(p.fechaInicio)}.`, 14, y+3);
+      doc.setTextColor(20);
+      y += 8;
+    }
+    if(p.modificaciones && p.modificaciones.length){
+      doc.autoTable({
+        startY: y,
+        head: [["Fecha","Capital antes","Capital después","Tasa antes","Tasa después"]],
+        body: p.modificaciones.map(m=>[
+          fmtDate(m.fecha), money(m.capitalAnterior), money(m.capitalNuevo),
+          `${m.tasaAnterior}%`, `${m.tasaNueva}%`
+        ]),
+        styles: { fontSize: 8, cellPadding: 1 },
+        headStyles: { fillColor: [27,42,74] }
+      });
+      y = doc.lastAutoTable.finalY + 8;
+    } else {
+      y += 4;
+    }
+  }
+
+  // Historial de pagos de este préstamo (vigentes + los de antes de alguna modificación)
+  const pagosTodos = [...(p.pagos||[])];
+  (p.modificaciones||[]).forEach(m=>{ (m.pagosPrevios||[]).forEach(pg=>pagosTodos.push(pg)); });
+  pagosTodos.sort((a,b)=> (a.fecha||"").localeCompare(b.fecha||""));
+  doc.setFontSize(11); doc.setFont("helvetica","bold"); doc.text("Historial de pagos", 14, y);
+  doc.setFont("helvetica","normal"); y += 3;
+  doc.autoTable({
+    startY: y,
+    head: [["Fecha","Concepto","Monto","Mora"]],
+    body: pagosTodos.length ? pagosTodos.map(pg=>[fmtDate(pg.fecha), conceptoPago(pg), money(pg.monto), pg.mora>0?money(pg.mora):"—"]) : [["—","Todavía no hay pagos registrados","",""]],
+    styles: { fontSize: 8.5, cellPadding: 1 },
+    headStyles: { fillColor: [27,42,74] }
+  });
+  y = doc.lastAutoTable.finalY + 8;
+
+  // Tabla de amortización completa (empieza en página nueva si no cabe bien)
+  if(y > 230){ doc.addPage(); y = 16; }
+  doc.setFontSize(11); doc.setFont("helvetica","bold"); doc.text("Tabla de amortización", 14, y);
+  doc.setFont("helvetica","normal"); y += 3;
+  const esIndefEC = p.metodo === METODOS[5];
+  const filasEC = esIndefEC
+    ? (function(){
+        const hoy = hoyISO();
+        const visibles = r.tabla.filter((f,i)=> i===0 || addDays(r.tabla[i-1].fecha,1) <= hoy);
+        return visibles.length ? visibles : [r.tabla[0]];
+      })()
+    : r.tabla;
+  const filasConAjusteEC = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
+  const totalCuotaEC = filasEC.reduce((s,f)=>s+(Number(f.cuota)||0),0);
+  const totalInteresEC = filasEC.reduce((s,f)=>s+(Number(f.interes)||0),0);
+  const totalAbonoEC = filasEC.reduce((s,f)=>s+(Number(f.abono)||0),0);
+  doc.autoTable({
+    startY: y,
+    head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
+    body: filasEC.map((f,i)=>{
+      const tieneAjuste = filasConAjusteEC.has(f.n);
+      const estado = i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente");
+      return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
+    }),
+    foot: [["Total","","",money(totalCuotaEC),money(totalInteresEC),money(totalAbonoEC),"",""]],
+    styles: { fontSize: 8, cellPadding: 1 },
+    headStyles: { fillColor: [27,42,74] },
+    footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" },
+    columnStyles: { 3: { fontStyle: "bold" } }
+  });
+  const finalY = doc.lastAutoTable.finalY;
+  doc.setFontSize(7.5); doc.setTextColor(130);
+  doc.text("Documento generado automáticamente por " + nombreApp() + ", sujeto a verificación con el prestamista.", 14, Math.min(finalY+8, 290));
+  doc.setTextColor(20);
+  return doc;
+}
+function compartirEstadoCuentaPDF(prestamoId){
+  const p = state.prestamos.find(x=>x.id===prestamoId);
+  if(!p) return;
+  const cli = state.clientes.find(c=>c.id===p.clienteId);
+  const r = resumen(p);
+  cargarPDFLibs(function(){
+    try{
+      const doc = generarEstadoCuentaPDF(p, cli, r);
+      const blob = doc.output("blob");
+      compartirOdescargarPDF(blob, `estado-cuenta-${p.codigo}.pdf`, `Estado de cuenta ${p.codigo}`);
+    }catch(err){
+      mostrarAlerta("Ocurrió un error generando el estado de cuenta. Intenta de nuevo.");
+    }
+  });
+}
+function imprimirEstadoCuenta(id){
+  const p = state.prestamos.find(x=>x.id===id);
+  if(!p) return;
+  const cli = state.clientes.find(c=>c.id===p.clienteId);
+  const r = resumen(p);
+  cargarPDFLibs(function(){
+    const doc = generarEstadoCuentaPDF(p, cli, r);
+    imprimirPDFDoc(doc);
+  });
 }
 function compartirAmortizacionPDF(prestamoId){
   const p = state.prestamos.find(x=>x.id===prestamoId);
