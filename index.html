@@ -2894,7 +2894,7 @@ function viewPrestamos(){
       <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
       <p class="sub">${p.codigo} · ${p.metodo.split(" (")[0]}</p>
       <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(r.saldoPendiente)}</p></div>
-      <div style="text-align:right;">${badge(atraso>0?"Vencido":r.estado)}${atraso>0?`<p class="hint" style="margin:2px 0 0;color:#A32D2D;">${nVenc} cuota${nVenc===1?"":"s"}</p>`:""}</div>
+      <div style="text-align:right;">${badge(atraso>0?"Vencido":r.estado)}</div>
     </div>`;
   };
   // Se agrupan por estado (en vez de una sola lista mezclada) para que sea más fácil ver de
