@@ -827,6 +827,11 @@ function generarTablaDinamica(p){
   const esIndef = metodo === METODOS[5];
   const nOriginal = Number(p.cuotas)||0;
   const ajustes = (p.ajustesCapital||[]).slice().sort((a,b)=>a.despuesDeFila-b.despuesDeFila);
+  // Blindaje extra: cualquier ajuste guardado con despuesDeFila menor a 1 (por ejemplo, de
+  // antes de la corrección de arriba) se sube a 1 aquí también, para que abonos ya
+  // guardados con ese problema queden arreglados solos sin tener que borrarlos y volver a
+  // registrarlos.
+  ajustes.forEach(aj => { if(aj.despuesDeFila < 1) aj.despuesDeFila = 1; });
 
   if(metodo === METODOS[4] && ajustes.length){
     // Sistema Americano (puro): nada se paga hasta el final; cada abono recalcula el
@@ -3402,7 +3407,7 @@ function viewDetallePrestamo(){
       <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Capital</p><p style="font-size:15px;font-weight:600;margin:0;">${money(p.capital)}</p></div>
       <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Cuota</p><p style="font-size:15px;font-weight:600;margin:0;">${money(r.cuota)}</p></div>
       <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Próxima fecha</p><p style="font-size:15px;font-weight:600;margin:0;">${r.proximaFecha?fmtDate(r.proximaFecha):"—"}</p></div>
-      <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Cuotas pagadas</p><p style="font-size:15px;font-weight:600;margin:0;">${r.pagosHechos}${p.metodo.includes("Indefinido")?"":" / "+p.cuotas}</p></div>
+      <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Cuotas pagadas</p><p style="font-size:15px;font-weight:600;margin:0;">${r.pagosHechos}${p.metodo.includes("Indefinido")?"":" / "+r.tabla.length}</p></div>
     </div>
     ${necesitaRecordatorio ? `
     <div class="row-card" style="display:block;">
@@ -3758,7 +3763,12 @@ function registrarPago(id){
         // pagoId enlaza este ajuste con el pago de arriba, para poder deshacer ambos juntos
         // si el pago se llega a eliminar más adelante (ver eliminarPago).
         p.ajustesCapital = p.ajustesCapital || [];
-        p.ajustesCapital.push({ despuesDeFila: (r.pagosHechos||0) + pendiente.nVenc, monto: excedente, fecha: fechaPago, pagoId: idAbono });
+        // OJO: si el pago se hace el mismo día que vence la cuota (o antes), esa cuota
+        // todavía no cuenta como "vencida" (pendiente.nVenc puede dar 0) — pero el abono
+        // igual se está aplicando a esa cuota que se está pagando ahora mismo, así que la
+        // marca nunca debe ser menor a 1, o si no, apunta a la fila "0" (que no existe, la
+        // numeración empieza en 1) y el abono se queda sin aplicarse a ninguna fila.
+        p.ajustesCapital.push({ despuesDeFila: (r.pagosHechos||0) + Math.max(1, pendiente.nVenc), monto: excedente, fecha: fechaPago, pagoId: idAbono });
       }
     }
     save(); render();
