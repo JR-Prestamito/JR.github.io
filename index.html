@@ -421,6 +421,7 @@ const _navPrevia = navGuardada();
 // la pantalla se rompe (por eso antes, al deslizar, terminaba sacando de donde estaba).
 window._nf = (_navPrevia && _navPrevia._nf) || null;
 window._rf = (_navPrevia && _navPrevia._rf) || null;
+window._calc = (_navPrevia && _navPrevia._calc) || null;
 
 // La app "beta" (una rama separada de esta) guarda el historial de refinanciamientos y
 // modificaciones bajo el nombre p.historialModificaciones, en vez de p.modificaciones como
@@ -480,7 +481,7 @@ function guardarNav(){
     sessionStorage.setItem(jrKey("jr_nav"), JSON.stringify({
       tab: state.tab, vista: state.vista, seleccionId: state.seleccionId,
       showFormCliente: state.showFormCliente, clienteEditId: state.clienteEditId,
-      _nf: window._nf || null, _rf: window._rf || null
+      _nf: window._nf || null, _rf: window._rf || null, _calc: window._calc || null
     }));
   }catch(e){}
 }
@@ -1058,7 +1059,8 @@ const ICONS = {
   settings:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   refresh:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="19" height="19"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>',
   trending:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
-  alertcirc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+  alertcirc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
+  calculator:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="8" y1="10" x2="8" y2="10.01"/><line x1="12" y1="10" x2="12" y2="10.01"/><line x1="16" y1="10" x2="16" y2="10.01"/><line x1="8" y1="14" x2="8" y2="14.01"/><line x1="12" y1="14" x2="12" y2="14.01"/><line x1="16" y1="14" x2="16" y2="18"/><line x1="8" y1="18" x2="8" y2="18.01"/><line x1="12" y1="18" x2="12" y2="18.01"/></svg>'
 };
 
 let desbloqueado = sessionStorage.getItem(jrKey("jr_desbloqueado")) === "1";
@@ -1314,8 +1316,8 @@ function render(){
   const titles = {inicio:"Resumen", clientes:"Clientes", prestamos:"Préstamos", pagos:"Historial de pagos"};
   let html = `<header><div style="display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:center;">`;
-  if(state.tab==="prestamos" && (state.vista==="detalle" || state.vista==="cartera" || state.vista==="refinanciar" || state.vista==="nuevo")){
-    html += `<button class="backbtn" onclick="${state.vista==="nuevo"?`window._nf=null; state.vista=${(window._nf&&window._nf.editId)?"'detalle'":"'lista'"}; render();`:"volverLista()"}">‹</button>`;
+  if(state.tab==="prestamos" && (state.vista==="detalle" || state.vista==="cartera" || state.vista==="refinanciar" || state.vista==="nuevo" || state.vista==="calculadora")){
+    html += `<button class="backbtn" onclick="${state.vista==="nuevo"?`window._nf=null; state.vista=${(window._nf&&window._nf.editId)?"'detalle'":"'lista'"}; render();`:(state.vista==="calculadora"?"window._calc=null; state.vista='lista'; render();":"volverLista()")}">‹</button>`;
   }
   if(state.tab==="pagos" && state.vista==="recibo"){
     html += `<button class="backbtn" onclick="state.vista='lista'; render();">‹</button>`;
@@ -1348,8 +1350,9 @@ function render(){
   const tituloDesembolsos = state.tab==="inicio" && state.vista==="reporteDesembolsos" ? "Reporte de desembolsos" : null;
   const tituloHistorialPagos = state.tab==="inicio" && state.vista==="reporteHistorialPagos" ? "Historial de pagos" : null;
   const tituloNuevoPrestamo = state.tab==="prestamos" && state.vista==="nuevo" ? ((window._nf && window._nf.editId) ? `Editando ${window._nf.codigo}` : "Nuevo préstamo") : null;
+  const tituloCalculadora = state.tab==="prestamos" && state.vista==="calculadora" ? "Calculadora" : null;
   document.title = nombreApp();
-  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||titles[state.tab])))}</h1></div>
+  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||tituloCalculadora||titles[state.tab])))}</h1></div>
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
     html += `<button class="backbtn" style="margin-right:0;" title="Ajustes" onclick="abrirAjustes()">${ICONS.settings}</button>`;
@@ -2898,13 +2901,16 @@ function eliminarCliente(id){
 function viewPrestamos(){
   if(state.vista==="nuevo" && !window._nf) state.vista = "lista"; // resguardo: formulario no restaurado
   if(state.vista==="refinanciar" && !window._rf) state.vista = "lista"; // resguardo: formulario no restaurado
+  if(state.vista==="calculadora" && !window._calc) state.vista = "lista"; // resguardo: formulario no restaurado
   if(state.vista==="nuevo") return viewNuevoPrestamo();
   if(state.vista==="detalle") return viewDetallePrestamo();
   if(state.vista==="cartera") return viewCartera();
   if(state.vista==="refinanciar") return viewRefinanciar();
+  if(state.vista==="calculadora") return viewCalculadora();
 
   let html = `<div class="toprow" style="margin-bottom:16px;">
     <input id="buscarPrestamo" style="flex:1;" placeholder="Buscar préstamo o cliente" value="${state.qPrestamos}" oninput="state.qPrestamos=this.value; render()">
+    <button class="iconbtn" style="background:#fff;color:${NAVY};border:1.5px solid ${NAVY};display:flex;align-items:center;justify-content:center;" title="Calculadora de préstamos" onclick="abrirCalculadora()">${ICONS.calculator}</button>
     <button class="iconbtn" onclick="abrirNuevoPrestamo()">+</button>
   </div>`;
   const filtrados = state.prestamos.filter(p=>{
@@ -3174,6 +3180,126 @@ function guardarPrestamo(){
     state.vista = "lista";
   }
   save(); render();
+}
+
+// --- Calculadora de préstamos --------------------------------------------------------
+// Es una simulación: nunca guarda un préstamo por sí sola. Vive en su propia variable
+// (window._calc, fuera de "state") igual que los formularios de nuevo préstamo/refinanciar,
+// así una recarga a mitad de usarla no pierde los números ya escritos.
+function abrirCalculadora(){
+  window._calc = {
+    clienteId: "", nombreTemporal: "", capital: "", tasa: "", cuotas: "",
+    periodo: "Mensual", metodo: METODOS[5], fechaInicio: hoyISO(), fechaPrimeraCuota: "",
+    mostrarTotales: true, pagina: 0
+  };
+  state.vista = "calculadora";
+  render();
+}
+function viewCalculadora(){
+  const f = window._calc;
+  const esIndef = f.metodo === METODOS[5];
+
+  let opts = `<option value="">— Sin cliente / temporal —</option>` +
+    state.clientes.map(c=>`<option value="${c.id}" ${c.id===f.clienteId?"selected":""}>${c.nombre}</option>`).join("");
+  let metodoOpts = METODOS.map(m=>`<option ${m===f.metodo?"selected":""}>${m}</option>`).join("");
+  let periodoOpts = PERIODOS.map(pd=>`<option ${pd===f.periodo?"selected":""}>${pd}</option>`).join("");
+
+  let previewHtml = "";
+  if(f.capital && f.tasa && (esIndef || f.cuotas)){
+    const tabla = generarTabla({...f, cuotas: esIndef?6:f.cuotas}); // Indefinido: 6 de muestra, no tiene plazo fijo
+    const esAmericano = f.metodo === METODOS[4];
+    if(tabla.length){
+      const totalCuota = tabla.reduce((s,x)=>s+(Number(x.cuota)||0),0);
+      const totalInteres = tabla.reduce((s,x)=>s+(Number(x.interes)||0),0);
+      const totalAbono = tabla.reduce((s,x)=>s+(Number(x.abono)||0),0);
+
+      // Misma paginación de 10 en 10 que usa la tabla real del detalle del préstamo.
+      const PORPAGINA = 10;
+      const totalPaginas = Math.max(1, Math.ceil(tabla.length/PORPAGINA));
+      if(f.pagina==null || f.pagina>=totalPaginas) f.pagina = 0;
+      const inicio = f.pagina*PORPAGINA;
+      const filasHtml = tabla.slice(inicio, inicio+PORPAGINA).map(fila => `<tr class="fila-amort">
+        <td style="padding:3px 5px;white-space:nowrap;">${fila.n}</td>
+        <td style="padding:3px 5px;white-space:nowrap;">${fmtDateCompacto(fila.fecha)}</td>
+        <td style="padding:3px 5px;text-align:right;white-space:nowrap;">${money(fila.saldoInicial)}</td>
+        <td style="padding:3px 5px;text-align:right;white-space:nowrap;font-weight:700;">${money(fila.cuota)}</td>
+        <td style="padding:3px 5px;text-align:right;white-space:nowrap;">${money(fila.interes)}</td>
+        <td style="padding:3px 5px;text-align:right;white-space:nowrap;">${money(fila.abono)}</td>
+        <td style="padding:3px 5px;text-align:right;white-space:nowrap;">${money(fila.saldo)}</td>
+      </tr>`).join("");
+      const filaTotales = f.mostrarTotales ? `<tr class="fila-total-amort" style="font-weight:700;">
+        <td colspan="3" style="padding:4px 5px;white-space:nowrap;">Total</td>
+        <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(totalCuota)}</td>
+        <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(totalInteres)}</td>
+        <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(totalAbono)}</td>
+        <td></td>
+      </tr>` : "";
+      const paginador = totalPaginas<=1 ? "" : `
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:8px 6px 0;">
+        <button class="printbtn" style="${f.pagina===0?"opacity:.35;pointer-events:none;":""}" onclick="window._calc.pagina=Math.max(0,window._calc.pagina-1); render()">‹ Anterior</button>
+        <span class="hint" style="margin:0;">Página ${f.pagina+1} de ${totalPaginas}</span>
+        <button class="printbtn" style="${f.pagina===totalPaginas-1?"opacity:.35;pointer-events:none;":""}" onclick="window._calc.pagina=Math.min(${totalPaginas-1},window._calc.pagina+1); render()">Siguiente ›</button>
+      </div>`;
+
+      previewHtml = `
+      ${esAmericano ? `<p class="hint" style="margin:0 0 10px;">Durante el plazo no se cobra nada; todo el interés se acumula. Pago único al final (capital + interés): <b>${money(tabla[tabla.length-1].cuota)}</b></p>` : ""}
+      ${esIndef ? `<p class="hint nota-ayuda" style="margin:0 0 10px;">Método Indefinido: no tiene plazo fijo, así que se muestran las primeras 6 cuotas como referencia (una por período).</p>` : ""}
+      <label style="display:flex;align-items:center;gap:8px;margin:0 0 10px;cursor:pointer;">
+        <input type="checkbox" ${f.mostrarTotales?"checked":""} onchange="window._calc.mostrarTotales=this.checked; render()" style="width:17px;height:17px;">
+        <span style="font-size:13px;">Mostrar totales (fila de Total al final de la tabla)</span>
+      </label>
+      <div class="tabla-card" style="margin-bottom:16px;">
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+        <table class="amort-grid" style="width:auto;font-size:11px;border-collapse:collapse;">
+          <thead><tr style="background:#F5F3EE;">
+            <th style="padding:4px 5px;text-align:left;white-space:nowrap;">N°</th><th style="padding:4px 5px;text-align:left;white-space:nowrap;">Fecha</th>
+            <th style="padding:4px 5px;text-align:right;white-space:nowrap;">Saldo ini.</th><th style="padding:4px 5px;text-align:right;white-space:nowrap;">Cuota</th>
+            <th style="padding:4px 5px;text-align:right;white-space:nowrap;">Interés</th><th style="padding:4px 5px;text-align:right;white-space:nowrap;">Abono</th>
+            <th style="padding:4px 5px;text-align:right;white-space:nowrap;">Pendiente</th>
+          </tr></thead>
+          <tbody>${filasHtml}${filaTotales}</tbody>
+        </table>
+        </div>
+        ${paginador}
+      </div>
+      <div class="flexrow" style="margin-bottom:16px;">
+        <button class="btn btn-outline" onclick="imprimirTablaCalculadora()">Imprimir tabla</button>
+        <button class="btn btn-outline" onclick="compartirTablaCalculadoraPDF()">Compartir en PDF</button>
+      </div>`;
+    }
+  }
+
+  const puedeCrear = !!f.clienteId && f.capital && f.tasa && (esIndef || f.cuotas);
+
+  return `
+    <p class="hint nota-ayuda" style="margin:0 0 14px;">Simula un préstamo sin guardar nada todavía. Puedes elegir un cliente ya registrado, o simplemente escribir un nombre para probar números — eso no crea ningún cliente ni préstamo real.</p>
+    <label><span>Cliente (opcional)</span><select id="calc_cliente" onchange="window._calc.clienteId=this.value; render()">${opts}</select></label>
+    ${!f.clienteId ? `<label><span>O escribe un nombre temporal (opcional, solo para esta simulación)</span><input id="calc_nombreTemporal" type="text" value="${f.nombreTemporal||""}" placeholder="Ej. cliente nuevo, sin registrar todavía" oninput="window._calc.nombreTemporal=this.value; render()"></label>` : ""}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <label style="margin:0;"><span>Capital a financiar (L)</span><input id="calc_capital" type="text" inputmode="decimal" value="${f.capital}" oninput="window._calc.capital=filtrarDecimal(this.value); render()"></label>
+      <label style="margin:0;"><span>Tasa de interés (%)</span><input id="calc_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._calc.tasa=filtrarDecimal(this.value); render()"></label>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+      <label style="margin:0;"><span>Período de pago</span><select id="calc_periodo" onchange="window._calc.periodo=this.value; render()">${periodoOpts}</select></label>
+      <label style="margin:0;"><span>Método de amortización</span><select id="calc_metodo" onchange="window._calc.metodo=this.value; render()">${metodoOpts}</select></label>
+    </div>
+    ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input id="calc_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._calc.cuotas=filtrarEntero(this.value); render()"></label>`}
+    <label><span>Fecha del préstamo</span><input id="calc_fecha" type="date" value="${f.fechaInicio}" oninput="window._calc.fechaInicio=this.value; render()"></label>
+    ${previewHtml}
+    <button class="btn btn-gold" style="width:100%;" onclick="crearPrestamoDesdeCalculadora()" ${puedeCrear?"":"disabled style='opacity:.4'"}>Crear este préstamo</button>
+    ${!f.clienteId ? `<p class="hint" style="margin-top:8px;text-align:center;">Para crear el préstamo de verdad hace falta elegir un cliente ya registrado (el nombre temporal es solo para probar números).</p>` : ""}`;
+}
+function crearPrestamoDesdeCalculadora(){
+  const f = window._calc;
+  if(!f.clienteId) return;
+  window._nf = {
+    codigo: nextCode("P", state.prestamos),
+    clienteId: f.clienteId, capital: f.capital, tasa: f.tasa, cuotas: f.cuotas,
+    periodo: f.periodo, metodo: f.metodo, fechaInicio: f.fechaInicio, fechaPrimeraCuota: f.fechaPrimeraCuota||""
+  };
+  window._calc = null;
+  state.vista = "nuevo";
+  render();
 }
 
 function abrirRefinanciar(id){
@@ -3554,7 +3680,8 @@ async function compartirOdescargarPDF(blob, nombreArchivo, tituloCompartir){
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 4000);
 }
-function generarAmortizacionPDF(p, cli, r){
+function generarAmortizacionPDF(p, cli, r, mostrarTotales){
+  if(mostrarTotales===undefined) mostrarTotales = true; // préstamos reales: siempre con totales
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF();
   doc.setFontSize(14);
@@ -3588,7 +3715,7 @@ function generarAmortizacionPDF(p, cli, r){
     startY,
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
     body: filas,
-    foot: [["Total","","",money(totalCuota),money(totalInteres),money(totalAbono),"",""]],
+    foot: mostrarTotales ? [["Total","","",money(totalCuota),money(totalInteres),money(totalAbono),"",""]] : undefined,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [27,42,74] },
     footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" },
@@ -3622,6 +3749,43 @@ function compartirAmortizacionPDF(prestamoId){
       const doc = generarAmortizacionPDF(p, cli, r);
       const blob = doc.output("blob");
       compartirOdescargarPDF(blob, `amortizacion-${p.codigo}.pdf`, `Tabla de amortización ${p.codigo}`);
+    }catch(err){
+      mostrarAlerta("Ocurrió un error generando el PDF. Intenta de nuevo.");
+    }
+  });
+}
+// Arma un préstamo "de mentira" con los datos de la calculadora, solo para poder reusar el
+// mismo generador de PDF que usan los préstamos reales — nunca se guarda en state.prestamos.
+function construirSimulacionParaPDF(){
+  const f = window._calc;
+  const esIndef = f.metodo === METODOS[5];
+  if(!(f.capital && f.tasa && (esIndef || f.cuotas))) return null;
+  const cliReal = f.clienteId ? state.clientes.find(c=>c.id===f.clienteId) : null;
+  const p = {
+    codigo: "SIMULACIÓN", capital: f.capital, tasa: f.tasa, periodo: f.periodo, metodo: f.metodo,
+    fechaInicio: f.fechaInicio, fechaPrimeraCuota: f.fechaPrimeraCuota||"", ajustesCapital: [], pagos: []
+  };
+  const cli = cliReal || { nombre: f.nombreTemporal ? f.nombreTemporal : "Cliente sin definir" };
+  const tabla = generarTabla({...f, cuotas: esIndef?6:f.cuotas});
+  const r = { tabla, pagosHechos: 0, abonadoEnCuotaActual: 0 };
+  return { p, cli, r };
+}
+function imprimirTablaCalculadora(){
+  const datos = construirSimulacionParaPDF();
+  if(!datos) return;
+  cargarPDFLibs(function(){
+    const doc = generarAmortizacionPDF(datos.p, datos.cli, datos.r, window._calc.mostrarTotales);
+    imprimirPDFDoc(doc);
+  });
+}
+function compartirTablaCalculadoraPDF(){
+  const datos = construirSimulacionParaPDF();
+  if(!datos) return;
+  cargarPDFLibs(function(){
+    try{
+      const doc = generarAmortizacionPDF(datos.p, datos.cli, datos.r, window._calc.mostrarTotales);
+      const blob = doc.output("blob");
+      compartirOdescargarPDF(blob, `simulacion-amortizacion.pdf`, `Simulación de amortización`);
     }catch(err){
       mostrarAlerta("Ocurrió un error generando el PDF. Intenta de nuevo.");
     }
