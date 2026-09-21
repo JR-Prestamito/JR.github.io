@@ -203,6 +203,12 @@
   [data-theme="dark"] label span{color:rgba(255,255,255,.55);}
   [data-theme="dark"] .btn-outline{background:#1B212C;border-color:rgba(255,255,255,.18);color:#E7E7EA;}
   [data-theme="dark"] .btn-danger{background:#1B212C;border-color:rgba(195,90,90,.4);color:#F0908A;}
+  [data-theme="dark"] .badge{background:transparent!important;}
+  [data-theme="dark"] .b-activo{background:rgba(59,109,17,.28)!important;color:#8FCB5C;}
+  [data-theme="dark"] .b-pagado{background:rgba(15,110,86,.28)!important;color:#4FD9B8;}
+  [data-theme="dark"] .b-vencido{background:rgba(163,45,45,.28)!important;color:#F0908A;}
+  [data-theme="dark"] .b-refinanciado{background:rgba(34,85,160,.28)!important;color:#8FB2E8;}
+  [data-theme="dark"] .b-porcobrar{background:rgba(138,100,22,.28)!important;color:#E8C171;}
   [data-theme="dark"] .tabbar{background:#1B212C;border-color:rgba(255,255,255,.08);}
   [data-theme="dark"] .tab-btn.active{color:#fff;}
   [data-theme="dark"] table{color:#E7E7EA;}
@@ -2944,12 +2950,18 @@ function calcularPendiente(p, r){
   const diasAtr = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
   let monto = r.faltaEnCuotaActual || r.cuota || 0;
   let mora = 0;
+  // detalleMora guarda, cuota por cuota, la base sobre la que se calculó, los días de
+  // atraso propios de ESA cuota y el monto de mora resultante — para poder explicarle
+  // al usuario exactamente de dónde sale el total (ver mensajeRecordatorio / viewDetalle).
+  const detalleMora = [];
   if(r.proximaFecha && tasaMora>0 && diasAtr>0){
     // La mora se cobra sobre lo que REALMENTE falta de la cuota, no sobre su monto original.
     // Si el cliente ya abonó parte de esa cuota (r.faltaEnCuotaActual), esa parte ya la pagó —
     // cobrarle mora sobre el monto completo la cobraría dos veces sobre dinero que ya entregó.
     const baseMora = r.cuotaActual ? (r.faltaEnCuotaActual || 0) : (r.cuota||0);
-    mora += round2(baseMora*tasaMora/100*diasAtr);
+    const moraCuota = round2(baseMora*tasaMora/100*diasAtr);
+    mora += moraCuota;
+    detalleMora.push({ base: baseMora, dias: diasAtr, mora: moraCuota });
   }
   for(let i=1;i<nVenc;i++){
     const fila = r.tabla[r.pagosHechos+i];
@@ -2957,10 +2969,14 @@ function calcularPendiente(p, r){
     monto += fila.cuota;
     if(tasaMora>0){
       const diasAtrFila = diasAtraso(fila.fecha);
-      if(diasAtrFila>0) mora += round2(fila.cuota*tasaMora/100*diasAtrFila);
+      if(diasAtrFila>0){
+        const moraCuota = round2(fila.cuota*tasaMora/100*diasAtrFila);
+        mora += moraCuota;
+        detalleMora.push({ base: fila.cuota, dias: diasAtrFila, mora: moraCuota });
+      }
     }
   }
-  return { monto: round2(monto), mora: round2(mora), nVenc, diasAtr };
+  return { monto: round2(monto), mora: round2(mora), nVenc, diasAtr, detalleMora };
 }
 function mensajePendiente(p, cli, r){
   const cuota = money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota);
@@ -3030,11 +3046,12 @@ function viewCartera(){
     html += `<p class="cartera-grupo">${g.label} (${enGrupo.length})</p>`;
     enGrupo.forEach(({p, r, atraso})=>{
       const cli = state.clientes.find(c=>c.id===p.clienteId);
+      const nVencCard = cuotasVencidas(r);
       html += `<div class="row-card" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
         <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
         <p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p>
         <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(r.cuotaActual?r.cuotaActual.cuota:r.cuota)}</p></div>
-        <span class="badge b-vencido">${atraso} día${atraso===1?"":"s"}</span>
+        <span class="badge b-vencido">${atraso} día${atraso===1?"":"s"} · ${nVencCard} cuota${nVencCard===1?"":"s"}</span>
       </div>`;
     });
   });
@@ -3411,7 +3428,8 @@ function viewDetallePrestamo(){
     </div>
     ${necesitaRecordatorio ? `
     <div class="row-card" style="display:block;">
-      <p style="font-weight:700;margin:0 0 6px;color:#A32D2D;">${atraso>0 ? `Cuota vencida (${atraso} día${atraso===1?"":"s"} · ${nVenc} cuota${nVenc===1?"":"s"})` : (diasFaltan===0 ? "Por cobrar hoy" : "Por cobrar mañana")}</p>
+      <p style="font-weight:700;margin:0 0 4px;">Enviar Recordatorios</p>
+      <p class="hint" style="color:#A32D2D;margin:0 0 6px;">${atraso>0 ? `Cuota vencida (${atraso} día${atraso===1?"":"s"} · ${nVenc} cuota${nVenc===1?"":"s"})` : (diasFaltan===0 ? "Por cobrar hoy" : "Por cobrar mañana")}</p>
       ${(waRec||smsRec) ? `<div class="flexrow">
         ${waRec?`<a class="btn btn-outline" style="text-decoration:none;text-align:center;" href="${waRec}" target="_blank" rel="noopener">Enviar WhatsApp</a>`:""}
         ${smsRec?`<a class="btn btn-outline" style="text-decoration:none;text-align:center;" href="${smsRec}">Enviar SMS</a>`:""}
@@ -3422,6 +3440,7 @@ function viewDetallePrestamo(){
       <p style="font-weight:600;margin:0 0 10px;">Registrar pago</p>
       ${r.abonadoEnCuotaActual>0 ? `<p class="hint" style="color:#8A6416;margin:0 0 10px;">Ya abonaste ${money(r.abonadoEnCuotaActual)} a esta cuota. Falta ${money(r.faltaEnCuotaActual)}.</p>` : ""}
       ${moraCalc>0 ? `<p class="hint" style="color:#A32D2D;margin:0 0 6px;">${nVenc>1 ? `Tienes ${nVenc} cuotas vencidas. Mora total calculada: ${money(moraCalc)}` : `Este pago tiene ${pendiente.diasAtr} día(s) de atraso. Mora calculada: ${money(moraCalc)}`}</p>
+      <p class="hint nota-ayuda" style="margin:0 0 10px;">Cómo se calculó: ${pendiente.detalleMora.map(d=>`${money(d.base)} × ${state.config.tasaMoraDiaria}%/día × ${d.dias} día${d.dias===1?"":"s"} = ${money(d.mora)}`).join(" + ")}${pendiente.detalleMora.length>1?` → total ${money(moraCalc)}. La mora se calcula por separado para cada cuota vencida, cada una según sus propios días de atraso — por eso el ${nVenc}° vencimiento no acumula los mismos ${pendiente.diasAtr} días que la primera cuota vencida.`:"."}</p>
       <label style="display:flex;align-items:center;gap:6px;margin-bottom:12px;"><input type="checkbox" id="incluirMora" checked style="width:auto;" onchange="document.getElementById('montoPago').value = this.checked ? '${round2(sugerido+moraCalc).toFixed(2)}' : '${sugerido.toFixed(2)}';"><span style="margin:0;font-size:13px;color:#666;">Cobrar la mora junto con este pago</span></label>` : ""}
       <div class="flexrow">
         <input type="text" inputmode="decimal" id="montoPago" value="${moraCalc>0 ? round2(sugerido+moraCalc).toFixed(2) : ""}" placeholder="${sugerido.toFixed(2)}">
