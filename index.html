@@ -1540,43 +1540,57 @@ function render(){
   const _claveNav = state.tab + "|" + state.vista;
   const _esNavegacion = window._ultimaClaveNav !== undefined && window._ultimaClaveNav !== _claveNav;
   window._ultimaClaveNav = _claveNav;
-  if(_esNavegacion && document.startViewTransition){
-    document.startViewTransition(() => { document.getElementById("app").innerHTML = html; });
-  } else {
-    document.getElementById("app").innerHTML = html;
-  }
+  // Todo lo que necesita que el HTML nuevo ya esté puesto en pantalla (medir alturas, saltar
+  // a una sección, restaurar el foco, recortar notas largas a 2 líneas) va aquí adentro, para
+  // que corra siempre DESPUÉS de la actualización real del DOM.
+  // Ojo: con document.startViewTransition() el callback que cambia el DOM se ejecuta de forma
+  // asíncrona (después de que el navegador capture una "foto" de la pantalla actual) — si este
+  // código se ejecutaba fuera, después de llamar a startViewTransition() y no dentro del
+  // callback, corría contra el DOM VIEJO (la pantalla de la que se venía), no contra el nuevo.
+  // Eso hacía que, en toda pantalla a la que se llega navegando (como los reportes), las notas
+  // largas nunca se recortaran a 2 líneas: el recorte se calculaba sobre la pantalla anterior.
+  function despuesDePintar(){
+    // El panel de "Ajustes protegidos" debe verse centrado en el espacio que queda entre el
+    // encabezado y la barra inferior. En vez de adivinar esas alturas (que cambian según el
+    // celular, el notch, etc.), se miden de verdad ya insertado en la pantalla.
+    const panelClave = document.getElementById("panelAjustesClave");
+    if(panelClave){
+      const headerEl = document.querySelector("#app > header");
+      const tabbarEl = document.querySelector("#app > .tabbar");
+      const altoHeader = headerEl ? headerEl.offsetHeight : 0;
+      const altoTabbar = tabbarEl ? tabbarEl.offsetHeight : 0;
+      panelClave.style.minHeight = `calc(100vh - ${altoHeader + altoTabbar}px)`;
+    }
 
-  // El panel de "Ajustes protegidos" debe verse centrado en el espacio que queda entre el
-  // encabezado y la barra inferior. En vez de adivinar esas alturas (que cambian según el
-  // celular, el notch, etc.), se miden de verdad ya insertado en la pantalla.
-  const panelClave = document.getElementById("panelAjustesClave");
-  if(panelClave){
-    const headerEl = document.querySelector("#app > header");
-    const tabbarEl = document.querySelector("#app > .tabbar");
-    const altoHeader = headerEl ? headerEl.offsetHeight : 0;
-    const altoTabbar = tabbarEl ? tabbarEl.offsetHeight : 0;
-    panelClave.style.minHeight = `calc(100vh - ${altoHeader + altoTabbar}px)`;
-  }
-
-  // Si se entró a Ajustes desde el menú de una sección específica (ej. "Clave de acceso"),
-  // se salta directo ahí en vez de dejar al usuario buscarla desplazándose a mano.
-  if(state.tab==="inicio" && state.vista==="ajustes" && state._irAjustesSeccion){
-    const destino = document.getElementById(state._irAjustesSeccion);
-    if(destino) destino.scrollIntoView({behavior:"smooth", block:"start"});
-    state._irAjustesSeccion = null;
-  }
-  // Restaura el foco (y la posición del cursor) en el mismo campo, si seguía existiendo.
-  if(activoId){
-    const nuevo = document.getElementById(activoId);
-    if(nuevo){
-      nuevo.focus({preventScroll:true});
-      if(selStart!=null && nuevo.setSelectionRange){
-        try{ nuevo.setSelectionRange(selStart, selEnd); }catch(e){}
+    // Si se entró a Ajustes desde el menú de una sección específica (ej. "Clave de acceso"),
+    // se salta directo ahí en vez de dejar al usuario buscarla desplazándose a mano.
+    if(state.tab==="inicio" && state.vista==="ajustes" && state._irAjustesSeccion){
+      const destino = document.getElementById(state._irAjustesSeccion);
+      if(destino) destino.scrollIntoView({behavior:"smooth", block:"start"});
+      state._irAjustesSeccion = null;
+    }
+    // Restaura el foco (y la posición del cursor) en el mismo campo, si seguía existiendo.
+    if(activoId){
+      const nuevo = document.getElementById(activoId);
+      if(nuevo){
+        nuevo.focus({preventScroll:true});
+        if(selStart!=null && nuevo.setSelectionRange){
+          try{ nuevo.setSelectionRange(selStart, selEnd); }catch(e){}
+        }
       }
     }
+    window.scrollTo(0, mismaVista ? scrollY : 0);
+    prepararNotasLargas();
   }
-  window.scrollTo(0, mismaVista ? scrollY : 0);
-  prepararNotasLargas();
+  if(_esNavegacion && document.startViewTransition){
+    document.startViewTransition(() => {
+      document.getElementById("app").innerHTML = html;
+      despuesDePintar();
+    });
+  } else {
+    document.getElementById("app").innerHTML = html;
+    despuesDePintar();
+  }
 }
 // Recorta a 2 líneas (con "…" nativo del recorte) cualquier .nota-ayuda cuyo texto sea más
 // largo que eso, y hace que tocar la nota misma la expanda/colapse — sin icono ni botón
@@ -3874,8 +3888,8 @@ function viewDetallePrestamo(){
         ${paginadorAmort}
       </div>
     </div>
-    ${p.refinanciaDe ? `<p class="hint" style="margin-bottom:10px;">Este préstamo nació de un refinanciamiento.</p>` : ""}
-    ${(p.modificaciones && p.modificaciones.length) ? `<p class="hint" style="margin-bottom:10px;">Este préstamo ha tenido ${p.modificaciones.length} modificación(es) de condiciones sin crear un préstamo nuevo (NIF C-19, no sustancial). Última: ${fmtDate(p.modificaciones[p.modificaciones.length-1].fecha)}. Puedes deshacerla desde el menú ${ICONS.dots} de arriba.</p>` : ""}
+    ${p.refinanciaDe ? `<p class="hint nota-ayuda" style="margin-bottom:10px;">Este préstamo nació de un refinanciamiento.</p>` : ""}
+    ${(p.modificaciones && p.modificaciones.length) ? `<p class="hint nota-ayuda" style="margin-bottom:10px;">Este préstamo ha tenido ${p.modificaciones.length} modificación(es) de condiciones sin crear un préstamo nuevo (NIF C-19, no sustancial). Última: ${fmtDate(p.modificaciones[p.modificaciones.length-1].fecha)}. Puedes deshacerla desde el menú ${ICONS.dots} de arriba.</p>` : ""}
   `;
 }
 function cargarScript(src, cb){
