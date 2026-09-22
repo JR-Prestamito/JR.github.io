@@ -1499,6 +1499,7 @@ function render(){
       { icono: ICONS.refresh, texto:"Sincronizar entre celulares", onclick: "abrirAjustes('sec-sync')" },
       { icono: ICONS.filetext, texto:"Respaldo de datos", onclick: "abrirAjustes('sec-respaldo')" },
       { icono: ICONS.calculator, texto:"Cómo contar los días del plazo", onclick: "abrirAjustes('sec-plazo')" },
+      { icono: ICONS.refresh, texto:"WhatsApp de recordatorios", onclick: "abrirAjustes('sec-whatsapp')" },
       { icono: ICONS.alertcirc, texto:"Clave de acceso", onclick: "abrirAjustes('sec-clave')" },
       { sep:true },
       { icono: ICONS.filetext, texto:"Reporte general (PDF)", onclick: "abrirReportePDF()" },
@@ -1581,6 +1582,13 @@ function render(){
     }
     window.scrollTo(0, mismaVista ? scrollY : 0);
     prepararNotasLargas();
+    // Algunos navegadores "recuerdan" por su cuenta el último valor que el usuario eligió
+    // en un <select>, e ignoran cuál <option> quedó marcada como "selected" en el HTML
+    // nuevo al reconstruir la pantalla — por eso a veces el selector de WhatsApp se
+    // quedaba pegado en la última opción elegida sin importar cuál se marcara. Se corrige
+    // forzando el valor real después de pintar, en vez de confiar solo en "selected".
+    const selWA = document.getElementById("f_whatsappApp");
+    if(selWA) selWA.value = state.config.whatsappApp==="business" ? "business" : "normal";
   }
   if(_esNavegacion && document.startViewTransition){
     document.startViewTransition(() => {
@@ -2954,11 +2962,11 @@ function viewAjustes(){
     </label>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-whatsapp">
     <p style="font-weight:600;margin:0 0 4px;">WhatsApp para recordatorios</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Elige con cuál app debe intentar abrir el botón "Enviar WhatsApp" en Cartera vencida. En Android, si la app elegida no está instalada, cae de vuelta a WhatsApp normal. En iPhone, esta opción no hace diferencia (Apple no permite elegir entre las dos apps desde un enlace) y siempre se abre la app de WhatsApp que tengas configurada como predeterminada.</p>
     <label><span>App</span>
-      <select id="f_whatsappApp" onchange="state.config.whatsappApp=this.value; save(); render();">
+      <select id="f_whatsappApp" onchange="state.config.whatsappApp=this.value; save(); setTimeout(render,0);">
         <option value="normal" ${(!state.config.whatsappApp||state.config.whatsappApp==="normal")?"selected":""}>WhatsApp normal</option>
         <option value="business" ${state.config.whatsappApp==="business"?"selected":""}>WhatsApp Business</option>
       </select>
@@ -3251,12 +3259,18 @@ function linkWhatsapp(cli, mensaje){
   const numero = `504${digitos}`;
   const texto = encodeURIComponent(mensaje);
   const linkNormal = `https://wa.me/${numero}?text=${texto}`;
-  if(state.config.whatsappApp==="business"){
-    // Enlace tipo "intent" de Android: le pide a Chrome que abra directamente la app de
-    // WhatsApp Business (paquete com.whatsapp.w4b) en vez de la normal. Si esa app no está
-    // instalada, o si es un iPhone (que no soporta enlaces "intent://"), el navegador cae de
-    // vuelta al enlace normal de wa.me indicado en browser_fallback_url.
-    return `intent://send?phone=${numero}&text=${texto}#Intent;scheme=whatsapp;package=com.whatsapp.w4b;S.browser_fallback_url=${encodeURIComponent(linkNormal)};end`;
+  // En Android, un enlace wa.me común deja que el TELÉFONO decida con cuál app abrirlo — si
+  // WhatsApp Business quedó puesto como la app predeterminada del sistema para ese tipo de
+  // enlace, se abre siempre ahí sin importar qué se elija en Ajustes, incluso con "WhatsApp
+  // normal" seleccionado. Por eso ahora se apunta al paquete exacto en los dos casos (no
+  // solo para Business), usando un enlace "intent" — así de verdad se abre la app elegida.
+  // En iPhone, "intent://" no existe como esquema de enlace (es propio de Android/Chrome),
+  // así que ahí se sigue usando el enlace normal de siempre — de todas formas esta opción
+  // no hace diferencia en iPhone (Apple no deja elegir entre las dos apps desde un enlace).
+  const esAndroid = /Android/i.test(navigator.userAgent||"");
+  if(esAndroid){
+    const paquete = state.config.whatsappApp==="business" ? "com.whatsapp.w4b" : "com.whatsapp";
+    return `intent://send?phone=${numero}&text=${texto}#Intent;scheme=whatsapp;package=${paquete};S.browser_fallback_url=${encodeURIComponent(linkNormal)};end`;
   }
   return linkNormal;
 }
