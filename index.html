@@ -1588,16 +1588,26 @@ function prepararNotasLargas(){
   // la pena ni procesarlas: sin esto, tocarlas (o cualquier resto de estado "expandida" de
   // antes de apagar el interruptor) no tiene ningún efecto visible mientras estén ocultas.
   if(!state.config.mostrarAyudas) return;
-  document.querySelectorAll(".nota-ayuda").forEach(function(el){
-    el.classList.add("colapsable");
-    if(el.scrollHeight - el.clientHeight > 4){
-      el.setAttribute("role", "button");
-      el.setAttribute("aria-label", "Tocar para ver la nota completa");
-      el.onclick = function(){ el.classList.toggle("expandida"); };
-    } else {
-      el.classList.remove("colapsable");
-    }
-  });
+  function medir(){
+    document.querySelectorAll(".nota-ayuda").forEach(function(el){
+      el.classList.add("colapsable");
+      if(el.scrollHeight - el.clientHeight > 4){
+        el.setAttribute("role", "button");
+        el.setAttribute("aria-label", "Tocar para ver la nota completa");
+        el.onclick = function(){ el.classList.toggle("expandida"); };
+      } else {
+        el.classList.remove("colapsable");
+      }
+    });
+  }
+  medir();
+  // Si esta pantalla se dibujó antes de que la tipografía real terminara de cargar, la
+  // primera medición pudo usar una fuente de respaldo con otro tamaño y calcular mal cuántas
+  // líneas ocupa el texto (una nota de 3 líneas parecía caber en 2 y se quedaba sin recortar).
+  // Se vuelve a medir en cuanto las fuentes están listas, para corregir esos casos.
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(medir).catch(function(){});
+  }
 }
 
 function exportarDatos(){
@@ -2931,6 +2941,17 @@ function viewAjustes(){
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;">
+    <p style="font-weight:600;margin:0 0 4px;">WhatsApp para recordatorios</p>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">Elige con cuál app debe intentar abrir el botón "Enviar WhatsApp" en Cartera vencida. En Android, si la app elegida no está instalada, cae de vuelta a WhatsApp normal. En iPhone, esta opción no hace diferencia (Apple no permite elegir entre las dos apps desde un enlace) y siempre se abre la app de WhatsApp que tengas configurada como predeterminada.</p>
+    <label><span>App</span>
+      <select id="f_whatsappApp" onchange="state.config.whatsappApp=this.value; save(); render();">
+        <option value="normal" ${(!state.config.whatsappApp||state.config.whatsappApp==="normal")?"selected":""}>WhatsApp normal</option>
+        <option value="business" ${state.config.whatsappApp==="business"?"selected":""}>WhatsApp Business</option>
+      </select>
+    </label>
+  </div>`}
+  ${window.__esCopiaCompartida ? "" : `
+  <div class="row-card" style="display:block;">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de recordatorio (WhatsApp / SMS)</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{monto}</b> (total vencido, sumando todas las cuotas atrasadas y la mora si aplica), <b>{cuotas}</b> (cantidad de cuotas vencidas, ej. "2 cuotas"), <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p>
     <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="5" placeholder="${PLANTILLA_RECORDATORIO_DEFECTO}" oninput="state.config.mensajeRecordatorio=this.value; save(); render();">${state.config.mensajeRecordatorio||""}</textarea></label>
@@ -3213,7 +3234,17 @@ function linkWhatsapp(cli, mensaje){
   if(!cli || !cli.celular) return null;
   const digitos = soloDigitos(cli.celular);
   if(digitos.length!==8) return null;
-  return `https://wa.me/504${digitos}?text=${encodeURIComponent(mensaje)}`;
+  const numero = `504${digitos}`;
+  const texto = encodeURIComponent(mensaje);
+  const linkNormal = `https://wa.me/${numero}?text=${texto}`;
+  if(state.config.whatsappApp==="business"){
+    // Enlace tipo "intent" de Android: le pide a Chrome que abra directamente la app de
+    // WhatsApp Business (paquete com.whatsapp.w4b) en vez de la normal. Si esa app no está
+    // instalada, o si es un iPhone (que no soporta enlaces "intent://"), el navegador cae de
+    // vuelta al enlace normal de wa.me indicado en browser_fallback_url.
+    return `intent://send?phone=${numero}&text=${texto}#Intent;scheme=whatsapp;package=com.whatsapp.w4b;S.browser_fallback_url=${encodeURIComponent(linkNormal)};end`;
+  }
+  return linkNormal;
 }
 function linkSms(cli, mensaje){
   if(!cli || !cli.celular) return null;
@@ -3642,12 +3673,9 @@ function viewContratoPrestamo(){
     <p class="hint" style="margin:0 0 12px;">${p.codigo} · ${d.cliente}</p>
     <div class="row-card" style="display:block;">
       <label style="margin-bottom:4px;"><span>N° de referencia</span>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <input id="inputContratoRef" type="text" style="flex:1;" value="${d.referencia}" oninput="(function(v){ const pr=state.prestamos.find(x=>x.id==='${p.id}'); if(pr){ pr.contratoRef=v; save(); render(); } })(this.value)">
-          <button type="button" class="printbtn" title="Volver a generarlo automático" onclick="(function(){ const pr=state.prestamos.find(x=>x.id==='${p.id}'); if(pr){ pr.contratoRef=''; save(); render(); } })()">↺</button>
-        </div>
+        <input id="inputContratoRef" type="text" value="${d.referencia}" oninput="(function(v){ const pr=state.prestamos.find(x=>x.id==='${p.id}'); if(pr){ pr.contratoRef=v; save(); render(); } })(this.value)">
       </label>
-      <p class="hint nota-ayuda" style="margin:0 0 14px;">Se genera solo con el formato PP-año-código de cliente-número de crédito de ese cliente (ej. PP-2026-C-0001-01 para su primer préstamo, -02 para el segundo, etc.). Si ya tenías algo escrito aquí de antes, eso se mantiene — dale al botón ↺ para volver al automático. Aparece como "Préstamo Ref." en el documento. Codeudor: <b>No aplica</b>.</p>
+      <p class="hint nota-ayuda" style="margin:0 0 14px;">Se genera solo con el formato código de préstamo-año-código de cliente-número de crédito de ese cliente (ej. ${p.codigo}-2026-${cli?cli.codigo:"C-0001"}-01 para su primer préstamo, -02 para el segundo, etc.). Si ya tenías algo escrito aquí de antes, eso se mantiene. Aparece como "Préstamo Ref." en el documento. Codeudor: <b>No aplica</b>.</p>
       <div class="flexrow">
         <button class="btn btn-outline" onclick="imprimirContrato('${p.id}')">Imprimir contrato</button>
         <button class="btn btn-outline" onclick="compartirContratoPDF('${p.id}')">Compartir en PDF</button>
@@ -4210,10 +4238,10 @@ function generarReciboPDF(p, cli, pg, r, numRecibo, contexto){
 // --- Contrato de préstamo (pagaré) ---
 // El campo "Codeudor" siempre se muestra como "No aplica": la app no maneja codeudores
 // todavía, así que se deja fijo en vez de dejarlo vacío o inventar un dato.
-// Número de referencia del contrato, automático: PP-{año del préstamo}-{código del
-// cliente}-{cuántos créditos lleva ese cliente, incluido este}. Ej: PP-2026-C-0001-01 para
-// el primer préstamo de C-0001, PP-2026-C-0001-02 para el segundo, etc. — el consecutivo se
-// cuenta SOLO entre los préstamos de ese mismo cliente, ordenados por fecha.
+// Número de referencia del contrato, automático: {código del préstamo}-{año del préstamo}-
+// {código del cliente}-{cuántos créditos lleva ese cliente, incluido este}. Ej: P-0001-2026-
+// C-0001-01 para el primer préstamo de C-0001, P-0002-2026-C-0001-02 para el segundo, etc. —
+// el consecutivo se cuenta SOLO entre los préstamos de ese mismo cliente, ordenados por fecha.
 function generarReferenciaContrato(p, cli){
   if(!cli) return "";
   const anio = new Date(p.fechaInicio+"T00:00:00").getFullYear();
@@ -4224,7 +4252,7 @@ function generarReferenciaContrato(p, cli){
   let idx = prestamosCliente.findIndex(x=>x.id===p.id);
   if(idx<0) idx = prestamosCliente.length;
   const numCredito = String(idx+1).padStart(2,"0");
-  return `PP-${anio}-${cli.codigo}-${numCredito}`;
+  return `${p.codigo}-${anio}-${cli.codigo}-${numCredito}`;
 }
 function datosContrato(p, cli, r){
   const tasaMora = Number(state.config.tasaMoraDiaria)||0;
