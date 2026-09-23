@@ -573,7 +573,10 @@ async function autoCargarNubeAlAbrir(){
     }
   }catch(e){ /* sin internet o la nube no respondió: seguimos con los datos locales, sin molestar con una alerta */ }
 }
-// --- Contabilidad de refinanciamientos según NIF C-19 (equivalente a NIIF 9) ---
+// --- Contabilidad de refinanciamientos según NIIF para las PYMES, Sección 11
+// (Instrumentos Financieros Básicos) — equivalente en Honduras a la prueba de modificación
+// sustancial de IFRS 9. Honduras adoptó las NIIF/NIIF para las PYMES (no las NIF mexicanas
+// del CINIF), así que es esa la norma que corresponde citar aquí. ---
 // Cuando se modifican las condiciones de un préstamo (tasa, plazo, capital), la norma
 // exige comparar el valor presente de los flujos de efectivo NUEVOS (descontados a la
 // tasa efectiva ORIGINAL) contra el capital que queda como base del préstamo justo antes
@@ -640,16 +643,18 @@ function evaluarModificacionNIF(origen, capitalBase, flujosNuevos, opts){
   } else {
     pvNuevo = valorPresente(flujosNuevos, tasaEfectivaOriginal);
   }
-  // OJO — bug real, ya corregido: para Indefinido, la cuota nueva SIEMPRE se calcula como
-  // capitalBase * tasaNueva. Si la tasa no cambió, pvNuevo = (capitalBase*tasa)/tasa =
-  // capitalBase, EXACTO, sin importar cuánto haya cambiado el capital (aunque se dupliquen
-  // o tripliquen los fondos entregados) — la prueba quedaba matemáticamente incapaz de
-  // detectar NINGÚN aumento de capital en este método. Por eso aquí (solo para Indefinido)
-  // se compara contra el capital pendiente ANTES del refinanciamiento (origen), no contra
-  // capitalBase (el capital nuevo, después del enganche/adicional) — así si el capital
-  // realmente cambió mucho, si se detecta.
-  const baseComparacion = opts.esIndefinidoNuevo ? (Number(resumen(origen).capitalPendiente)||capitalBase) : capitalBase;
-  const diffPct = Math.abs(pvNuevo-baseComparacion)/baseComparacion;
+  // La comparación SIEMPRE es contra capitalBase (el capital nuevo, ya neto de
+  // enganche/adicional) — igual para los 6 métodos, sin excepción. Hubo un intento previo de
+  // comparar el caso "nuevo = Indefinido" contra el capital pendiente DE ANTES del
+  // refinanciamiento, con la idea de "detectar" aumentos de capital que de otro modo dan 0%
+  // de diferencia. Se quitó, porque ese comportamiento no es un error: si la tasa no cambia,
+  // prestar más dinero (o cobrar un abono) a esa MISMA tasa no genera ninguna ganancia o
+  // pérdida por sí solo — es simplemente más (o menos) préstamo en las mismas condiciones, y
+  // así se comporta consistentemente en los otros 5 métodos también (ver por ejemplo Francés
+  // + adicional a la misma tasa, que da 0% igual). Además, ese "arreglo" comparaba siempre
+  // contra el capital ANTES del refinanciamiento, así que un simple abono a capital
+  // (enganche, sin adicional) también salía "sustancial" por error.
+  const diffPct = Math.abs(pvNuevo-capitalBase)/capitalBase;
   const umbral = (Number(state.config.umbralModificacionSustancial)||10)/100;
   const esSustancial = diffPct >= umbral;
   const gananciaPerdida = esSustancial ? 0 : (pvNuevo - capitalBase);
@@ -1514,7 +1519,7 @@ function render(){
       { icono: ICONS.filetext, texto:"Reporte general (PDF)", onclick: "abrirReportePDF()" },
       { icono: ICONS.filetext, texto:"Reporte general (Excel)", onclick: "exportarExcel()" },
       { icono: ICONS.trending, texto:"Estado de resultados", onclick: "abrirEstadoResultados()" },
-      { icono: ICONS.refinance, texto:"Modificaciones (NIF C-19)", onclick: "abrirReporteModificaciones()" },
+      { icono: ICONS.refinance, texto:"Modificaciones (NIIF PYMES)", onclick: "abrirReporteModificaciones()" },
       { icono: ICONS.filetext, texto:"Desembolsos", onclick: "abrirReporteDesembolsos()" },
       { icono: ICONS.filetext, texto:"Historial de pagos", onclick: "abrirReporteHistorialPagos()" }
     ]);
@@ -2009,7 +2014,7 @@ function enganchesDe(p){
   return (p.pagos||[]).filter(pg=>pg.tipo==="enganche").reduce((s,pg)=>s+(Number(pg.monto)||0),0);
 }
 function pagosPreviosDe(p){
-  // Los pagos hechos ANTES de una modificación "no sustancial" (NIF C-19) se archivan en
+  // Los pagos hechos ANTES de una modificación "no sustancial" (NIIF PYMES) se archivan en
   // modificaciones[].pagosPrevios y ya NO viven en p.pagos (se limpia al modificar) — pero
   // ese dinero sí se cobró de verdad. Si no se suma aquí, "Total cobrado" queda por debajo
   // de lo que muestra el Historial de pagos (que sí los incluye), y el cuadre no da.
@@ -2052,7 +2057,7 @@ function generarEstadoResultadosPDF(){
     enganches += enganchesDe(p);
     pagosPrevios += pagosPreviosDe(p);
     // Nota: una refinanciación SUSTANCIAL (la única que deja p.refinanciaDe en el
-    // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIF C-19 — esa
+    // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIIF PYMES — esa
     // columna solo aplica a modificaciones NO sustanciales, que van en p.modificaciones
     // (ya sumadas más abajo). Por eso aquí no hay nada que sumar para ese caso.
     desembolsos += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
@@ -2101,7 +2106,7 @@ function generarEstadoResultadosPDF(){
   if(gananciaPerdidaModificaciones !== 0){
     doc.autoTable({
       startY,
-      head: [["Ganancia/(pérdida) por modificación de préstamos (NIF C-19)","Monto"]],
+      head: [["Ganancia/(pérdida) por modificación de préstamos (NIIF PYMES)","Monto"]],
       body: [[gananciaPerdidaModificaciones>=0?"Ganancia por modificación":"Pérdida por modificación", money(gananciaPerdidaModificaciones)]],
       columnStyles: { 1: { halign: "right" } },
       styles: { fontSize: 9, cellPadding: 2 },
@@ -2126,7 +2131,7 @@ function generarEstadoResultadosPDF(){
   }
   doc.setFontSize(7.5);
   doc.setTextColor(120,120,120);
-  const nota = "Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como \"desembolso\" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo). Cuando un refinanciamiento se clasifica como \"modificación no sustancial\" (NIF C-19), la diferencia se reconoce aquí como ganancia o pérdida.";
+  const nota = "Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como \"desembolso\" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo). Cuando un refinanciamiento se clasifica como \"modificación no sustancial\" (NIIF para las PYMES, Sección 11), la diferencia se reconoce aquí como ganancia o pérdida.";
   doc.text(doc.splitTextToSize(nota, 180), 14, startY);
   doc.setTextColor(0,0,0);
   return doc;
@@ -2152,7 +2157,7 @@ function viewEstadoResultados(){
     enganches += enganchesDe(p);
     pagosPrevios += pagosPreviosDe(p);
     // Nota: una refinanciación SUSTANCIAL (la única que deja p.refinanciaDe en el
-    // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIF C-19 — esa
+    // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIIF PYMES — esa
     // columna solo aplica a modificaciones NO sustanciales, que van en p.modificaciones
     // (ya sumadas más abajo). Por eso aquí no hay nada que sumar para ese caso.
     // Al refinanciar, el "nuevo capital" es en su mayoría el saldo pendiente del préstamo
@@ -2160,7 +2165,7 @@ function viewEstadoResultados(){
     // realmente sale como efectivo nuevo en ese momento es el "monto adicional" entregado
     // (si lo hubo). Contar el capital nuevo completo duplicaría ese dinero en el reporte.
     desembolsos += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
-    // Modificaciones NO sustanciales (NIF C-19): no crean préstamo nuevo, así que su enganche,
+    // Modificaciones NO sustanciales (NIIF PYMES): no crean préstamo nuevo, así que su enganche,
     // monto adicional y ganancia/pérdida quedan guardados dentro del mismo préstamo en
     // "modificaciones" — hay que sumarlos aquí para que no se pierdan del reporte.
     (p.modificaciones||[]).forEach(m=>{
@@ -2197,7 +2202,7 @@ function viewEstadoResultados(){
       </table>
       </div>
       ${gananciaPerdidaModificaciones!==0 ? `
-      <p style="font-weight:700;margin:0 0 6px;">Ganancia/(pérdida) por modificación de préstamos (NIF C-19)</p>
+      <p style="font-weight:700;margin:0 0 6px;">Ganancia/(pérdida) por modificación de préstamos (NIIF PYMES)</p>
       <div class="tabla-card">
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         ${fila(gananciaPerdidaModificaciones>=0?"Ganancia por modificación":"Pérdida por modificación", gananciaPerdidaModificaciones, true)}
@@ -2209,7 +2214,7 @@ function viewEstadoResultados(){
         <td style="padding:8px 6px;text-align:right;font-weight:700;color:${utilidad>=0?"#3B6D11":"#c0433b"};">${money(Math.abs(utilidad))}</td></tr>
       </table>
       </div>
-      <p class="hint nota-ayuda" style="margin-top:14px;">Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como "desembolso" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo) — el resto del capital nuevo es el saldo pendiente del préstamo anterior reacomodado, no dinero que volvió a salir de la caja. Cuando un refinanciamiento se clasifica como "modificación no sustancial" según NIF C-19 (prueba del 10% de valor presente), la diferencia se reconoce aquí como ganancia o pérdida; cuando es "sustancial", se trata como préstamo nuevo sin efecto adicional en este renglón.</p>
+      <p class="hint nota-ayuda" style="margin-top:14px;">Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como "desembolso" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo) — el resto del capital nuevo es el saldo pendiente del préstamo anterior reacomodado, no dinero que volvió a salir de la caja. Cuando un refinanciamiento se clasifica como "modificación no sustancial" según NIIF para las PYMES, Sección 11 (prueba del 10% de valor presente), la diferencia se reconoce aquí como ganancia o pérdida; cuando es "sustancial", se trata como préstamo nuevo sin efecto adicional en este renglón.</p>
     </div>
     <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
 }
@@ -2261,7 +2266,7 @@ function generarReporteModificacionesPDF(){
   doc.setFontSize(14);
   doc.text(nombreApp(), 14, 16);
   doc.setFontSize(9);
-  doc.text(`Reporte de modificaciones y refinanciamientos (NIF C-19)  ·  ${fmtDate(hoyISO())}`, 14, 23);
+  doc.text(`Reporte de modificaciones y refinanciamientos (NIIF PYMES)  ·  ${fmtDate(hoyISO())}`, 14, 23);
   // "Capital antes -> después" como un solo texto largo obligaba a hacer la hoja más ancha
   // (landscape) para que no se partiera en dos líneas. Separando antes/después en columnas
   // propias, cada dato es corto por sí solo y cabe en una línea en la hoja vertical normal.
@@ -2319,7 +2324,7 @@ function generarReporteModificacionesPDF(){
   startY = doc.lastAutoTable.finalY + 8;
   doc.setFontSize(7.5);
   doc.setTextColor(120,120,120);
-  const nota = "Reúne todos los refinanciamientos y modificaciones de condiciones registrados, con su clasificación NIF C-19 (sustancial o no sustancial) y la ganancia o pérdida reconocida en cada uno. Es el detalle/respaldo de la línea \"Ganancia/(pérdida) por modificación de préstamos\" del Estado de resultados.";
+  const nota = "Reúne todos los refinanciamientos y modificaciones de condiciones registrados, con su clasificación según NIIF para las PYMES, Sección 11 (sustancial o no sustancial) y la ganancia o pérdida reconocida en cada uno. Es el detalle/respaldo de la línea \"Ganancia/(pérdida) por modificación de préstamos\" del Estado de resultados.";
   doc.text(doc.splitTextToSize(nota, 180), 14, startY);
   doc.setTextColor(0,0,0);
   return doc;
@@ -2354,7 +2359,7 @@ function viewReporteModificaciones(){
   return `
     <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
-      <p class="hint" style="margin:0 0 14px;">Reporte de modificaciones y refinanciamientos (NIF C-19) · ${fmtDate(hoyISO())}</p>
+      <p class="hint" style="margin:0 0 14px;">Reporte de modificaciones y refinanciamientos (NIIF PYMES) · ${fmtDate(hoyISO())}</p>
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha refinanciado ni modificado ningún préstamo.</p>` : `
       <div class="tabla-card">
       <div style="overflow:auto;max-height:250px;-webkit-overflow-scrolling:touch;">
@@ -2377,14 +2382,14 @@ function viewReporteModificaciones(){
         <td style="padding:8px 6px;text-align:right;font-weight:700;color:${totalGanancia>=0?"#3B6D11":"#c0433b"};">${money(Math.abs(totalGanancia))}</td></tr>
       </table>
       </div>`}
-      <p class="hint nota-ayuda" style="margin-top:14px;">Reúne todos los refinanciamientos y modificaciones de condiciones registrados, con su clasificación NIF C-19 (sustancial o no sustancial) y la ganancia o pérdida reconocida en cada uno. Es el detalle/respaldo de la línea "Ganancia/(pérdida) por modificación de préstamos" del Estado de resultados.</p>
+      <p class="hint nota-ayuda" style="margin-top:14px;">Reúne todos los refinanciamientos y modificaciones de condiciones registrados, con su clasificación según NIIF para las PYMES, Sección 11 (sustancial o no sustancial) y la ganancia o pérdida reconocida en cada uno. Es el detalle/respaldo de la línea "Ganancia/(pérdida) por modificación de préstamos" del Estado de resultados.</p>
     </div>
     <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
 }
 // Junta en una sola lista, ordenada por fecha, TODO el dinero que ha salido de caja como
 // capital prestado: el desembolso inicial de cada préstamo (o el "monto adicional" si nació
 // de un refinanciamiento, ya que el resto es saldo reacomodado, no dinero nuevo) y el
-// "adicional" de cada modificación no sustancial (NIF C-19) registrada sobre un préstamo.
+// "adicional" de cada modificación no sustancial (NIIF PYMES) registrada sobre un préstamo.
 function listaDesembolsos(){
   const eventos = [];
   state.prestamos.forEach(p=>{
@@ -2443,7 +2448,7 @@ function generarReporteDesembolsosPDF(){
   const startY = doc.lastAutoTable.finalY + 8;
   doc.setFontSize(7.5);
   doc.setTextColor(120,120,120);
-  const nota = "Incluye el capital de cada préstamo nuevo y, cuando un préstamo nace de un refinanciamiento, solo el monto adicional que realmente se entregó en efectivo (el resto es el saldo del préstamo anterior reacomodado). También incluye los montos adicionales entregados en modificaciones no sustanciales (NIF C-19).";
+  const nota = "Incluye el capital de cada préstamo nuevo y, cuando un préstamo nace de un refinanciamiento, solo el monto adicional que realmente se entregó en efectivo (el resto es el saldo del préstamo anterior reacomodado). También incluye los montos adicionales entregados en modificaciones no sustanciales (NIIF PYMES).";
   doc.text(doc.splitTextToSize(nota, 180), 14, startY);
   doc.setTextColor(0,0,0);
   return doc;
@@ -2492,7 +2497,7 @@ function viewReporteDesembolsos(){
         <td style="padding:8px 6px;text-align:right;font-weight:700;">${money(total)}</td></tr>
       </table>
       </div>`}
-      <p class="hint nota-ayuda" style="margin-top:14px;">Incluye el capital de cada préstamo nuevo y, cuando un préstamo nace de un refinanciamiento, solo el monto adicional que realmente se entregó en efectivo (el resto es el saldo del préstamo anterior reacomodado). También incluye los montos adicionales entregados en modificaciones no sustanciales (NIF C-19).</p>
+      <p class="hint nota-ayuda" style="margin-top:14px;">Incluye el capital de cada préstamo nuevo y, cuando un préstamo nace de un refinanciamiento, solo el monto adicional que realmente se entregó en efectivo (el resto es el saldo del préstamo anterior reacomodado). También incluye los montos adicionales entregados en modificaciones no sustanciales (NIIF PYMES).</p>
     </div>
     <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
 }
@@ -2500,7 +2505,7 @@ function viewReporteDesembolsos(){
 // Separa el historial de pagos en dos partes:
 // - actuales: los pagos y enganches vigentes (los que sí cuentan contra la tabla actual de
 //   cada préstamo), en una sola lista ordenada por fecha.
-// - grupos: los pagos hechos ANTES de cada modificación "no sustancial" (NIF C-19), que ya
+// - grupos: los pagos hechos ANTES de cada modificación "no sustancial" (NIIF PYMES), que ya
 //   no cuentan contra la tabla recalculada pero tampoco deben desaparecer del historial —
 //   se agrupan por préstamo/modificación para mostrarse aparte, en una tarjeta desplegable.
 function listaHistorialPagos(){
@@ -2874,7 +2879,7 @@ function viewAjustes(){
     </div>
     <div class="flexrow" style="margin-top:8px;">
       <button class="btn btn-outline" onclick="abrirEstadoResultados()">Estado de resultados</button>
-      <button class="btn btn-outline" onclick="abrirReporteModificaciones()">Modificaciones (NIF C-19)</button>
+      <button class="btn btn-outline" onclick="abrirReporteModificaciones()">Modificaciones (NIIF PYMES)</button>
     </div>
     <div class="flexrow" style="margin-top:8px;">
       <button class="btn btn-outline" onclick="abrirReporteDesembolsos()">Desembolsos</button>
@@ -3579,7 +3584,7 @@ function viewRefinanciar(){
              ${esIndef?"":`<p style="font-size:13px;margin:0;">Total a pagar: <b>${money(tabla.reduce((s,x)=>s+x.cuota,0))}</b></p>`}`}
       </div>`;
       clasificacionHtml = `<div class="card" style="background:${evalNIF.esSustancial?'#FBF3E4':'#EAF3DE'};margin-bottom:16px;color:#333;">
-        <p style="font-size:12px;font-weight:700;margin:0 0 4px;color:${evalNIF.esSustancial?'#8A6416':'#3B6D11'};">Clasificación NIF C-19: ${evalNIF.esSustancial?"Modificación sustancial":"Modificación NO sustancial"}</p>
+        <p style="font-size:12px;font-weight:700;margin:0 0 4px;color:${evalNIF.esSustancial?'#8A6416':'#3B6D11'};">Clasificación NIIF PYMES: ${evalNIF.esSustancial?"Modificación sustancial":"Modificación NO sustancial"}</p>
         <p style="font-size:12px;margin:0 0 4px;color:#333;">${evalNIF.diffPct===null ? "No hay un capital neto válido contra el cual comparar; se trata como préstamo nuevo por prudencia." : `El valor presente de los pagos nuevos (descontado a la tasa original) difiere ${(evalNIF.diffPct*100).toFixed(1)}% del capital que queda como base después del enganche/monto adicional (umbral ${umbralActualVista}%). ${evalNIF.esSustancial ? "Como la diferencia llega o supera el umbral, se da de baja el préstamo anterior y este se registra como préstamo nuevo." : "Como está por debajo del umbral, se reconoce como ajuste del mismo préstamo (no se crea un préstamo nuevo)."}`}</p>
         ${(!evalNIF.esSustancial && evalNIF.diffPct!==null) ? `<p style="font-size:13px;margin:0;color:#333;">${evalNIF.gananciaPerdida>=0?"Ganancia":"Pérdida"} por modificación a reconocer: <b style="color:${evalNIF.gananciaPerdida>=0?'#3B6D11':'#A32D2D'}">${money(Math.abs(evalNIF.gananciaPerdida))}</b></p>` : ""}
       </div>`;
@@ -3592,7 +3597,7 @@ function viewRefinanciar(){
       <p style="color:#fff;font-size:22px;font-weight:700;margin:4px 0 0;">${money(capitalPendiente)}</p>
       <p style="color:rgba(255,255,255,.7);font-size:12px;margin:2px 0 0;">capital pendiente a refinanciar</p>
     </div>
-    ${clasificacionHtml || `<p class="hint nota-ayuda" style="margin-bottom:12px;">Completa la tasa, cuotas y método abajo para ver aquí la clasificación NIF C-19 (sustancial o no) de este refinanciamiento.</p>`}
+    ${clasificacionHtml || `<p class="hint nota-ayuda" style="margin-bottom:12px;">Completa la tasa, cuotas y método abajo para ver aquí la clasificación NIIF PYMES (sustancial o no) de este refinanciamiento.</p>`}
     <label><span>Enganche / abono que reduce el préstamo (L, opcional)</span><input id="rf_enganche" type="text" inputmode="decimal" value="${f.enganche}" oninput="window._rf.enganche=filtrarDecimal(this.value); render()"></label>
     <label><span>Monto adicional a desembolsar (L, opcional)</span><input id="rf_adicional" type="text" inputmode="decimal" value="${f.adicional}" oninput="window._rf.adicional=filtrarDecimal(this.value); render()"></label>
     <label><span>Tasa de interés por período (%)</span><input id="rf_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._rf.tasa=filtrarDecimal(this.value); render()"></label>
@@ -3624,12 +3629,12 @@ function guardarRefinanciamiento(){
 
   const notaNIF = evalNIF.diffPct===null
     ? ""
-    : `\n\nClasificación NIF C-19: ${evalNIF.esSustancial ? "Modificación sustancial (se da de baja el préstamo anterior)" : `Modificación NO sustancial — ${evalNIF.gananciaPerdida>=0?"ganancia":"pérdida"} por modificación de ${money(Math.abs(evalNIF.gananciaPerdida))}`}`;
+    : `\n\nClasificación NIIF PYMES: ${evalNIF.esSustancial ? "Modificación sustancial (se da de baja el préstamo anterior)" : `Modificación NO sustancial — ${evalNIF.gananciaPerdida>=0?"ganancia":"pérdida"} por modificación de ${money(Math.abs(evalNIF.gananciaPerdida))}`}`;
 
   mostrarConfirmacion(`Vas a refinanciar ${origen.codigo}:\nCapital pendiente: ${money(capitalPendiente)}\nEnganche/abono: ${money(enganche)}\nMonto adicional entregado: ${money(adicional)}\nNuevo capital: ${money(nuevoCapital)}${notaNIF}\n\n¿Confirmas?`, function(ok){
     if(!ok) return;
 
-    // Según NIF C-19: solo si la modificación es SUSTANCIAL (diferencia de valor presente
+    // Según NIIF PYMES: solo si la modificación es SUSTANCIAL (diferencia de valor presente
     // igual o mayor al umbral) se da de baja el préstamo anterior y se crea uno nuevo. Si es
     // NO sustancial (por debajo del umbral), no se crea préstamo nuevo: se ajustan las
     // condiciones del mismo préstamo y la diferencia se reconoce de inmediato como
@@ -3912,7 +3917,7 @@ function viewDetallePrestamo(){
       </div>
     </div>
     ${p.refinanciaDe ? `<p class="hint nota-ayuda" style="margin-bottom:10px;">Este préstamo nació de un refinanciamiento.</p>` : ""}
-    ${(p.modificaciones && p.modificaciones.length) ? `<p class="hint nota-ayuda" style="margin-bottom:10px;">Este préstamo ha tenido ${p.modificaciones.length} modificación(es) de condiciones sin crear un préstamo nuevo (NIF C-19, no sustancial). Última: ${fmtDate(p.modificaciones[p.modificaciones.length-1].fecha)}. Puedes deshacerla desde el menú ${ICONS.dots} de arriba.</p>` : ""}
+    ${(p.modificaciones && p.modificaciones.length) ? `<p class="hint nota-ayuda" style="margin-bottom:10px;">Este préstamo ha tenido ${p.modificaciones.length} modificación(es) de condiciones sin crear un préstamo nuevo (NIIF PYMES, no sustancial). Última: ${fmtDate(p.modificaciones[p.modificaciones.length-1].fecha)}. Puedes deshacerla desde el menú ${ICONS.dots} de arriba.</p>` : ""}
   `;
 }
 function cargarScript(src, cb){
@@ -4053,7 +4058,7 @@ function generarEstadoCuentaPDF(p, cli, r){
   y = doc.lastAutoTable.finalY + 8;
 
   // Si el préstamo nació de un refinanciamiento sustancial, o tuvo modificaciones de
-  // condiciones (NIF C-19, no sustanciales) directamente sobre él, se incluyen aquí — es
+  // condiciones (NIIF PYMES, no sustanciales) directamente sobre él, se incluyen aquí — es
   // parte de la historia del préstamo y no debía faltar en un estado de cuenta completo.
   const origenRef = p.refinanciaDe ? state.prestamos.find(x=>x.id===p.refinanciaDe) : null;
   if(origenRef || (p.modificaciones && p.modificaciones.length)){
@@ -4608,7 +4613,7 @@ function liquidarAnticipado(id){
     { textoAceptar:"Registrar y cerrar" }
   );
 }
-// Deshace la ÚLTIMA modificación "no sustancial" (NIF C-19) aplicada a este préstamo —
+// Deshace la ÚLTIMA modificación "no sustancial" (NIIF PYMES) aplicada a este préstamo —
 // la que ajustó sus condiciones EN EL MISMO préstamo (sin crear uno nuevo). Restaura
 // capital, tasa, periodo, método, cuotas, fecha de inicio y el historial de pagos/abonos
 // que tenía justo antes de esa modificación, y quita esa entrada del historial.
@@ -4655,7 +4660,7 @@ function eliminarPrestamo(id){
     msg += `\n\nEste préstamo nació de refinanciar ${origen.codigo}. Al eliminarlo, ${origen.codigo} volverá a quedar Activo con el saldo e historial que tenía justo antes de ese refinanciamiento.`;
   }
   if(p.modificaciones && p.modificaciones.length){
-    msg += `\n\nOjo: este préstamo tiene ${p.modificaciones.length} modificación(es) de condiciones (NIF C-19, no sustancial) guardadas en su propio historial. Eliminar el préstamo borra ese historial para siempre — si lo que quieres es volver a las condiciones anteriores a la última modificación, usa "Deshacer última modificación" en vez de eliminar.`;
+    msg += `\n\nOjo: este préstamo tiene ${p.modificaciones.length} modificación(es) de condiciones (NIIF PYMES, no sustancial) guardadas en su propio historial. Eliminar el préstamo borra ese historial para siempre — si lo que quieres es volver a las condiciones anteriores a la última modificación, usa "Deshacer última modificación" en vez de eliminar.`;
   }
   confirmarConClave(msg, function(ok){
     if(!ok) return;
