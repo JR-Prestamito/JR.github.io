@@ -640,7 +640,16 @@ function evaluarModificacionNIF(origen, capitalBase, flujosNuevos, opts){
   } else {
     pvNuevo = valorPresente(flujosNuevos, tasaEfectivaOriginal);
   }
-  const diffPct = Math.abs(pvNuevo-capitalBase)/capitalBase;
+  // OJO — bug real, ya corregido: para Indefinido, la cuota nueva SIEMPRE se calcula como
+  // capitalBase * tasaNueva. Si la tasa no cambió, pvNuevo = (capitalBase*tasa)/tasa =
+  // capitalBase, EXACTO, sin importar cuánto haya cambiado el capital (aunque se dupliquen
+  // o tripliquen los fondos entregados) — la prueba quedaba matemáticamente incapaz de
+  // detectar NINGÚN aumento de capital en este método. Por eso aquí (solo para Indefinido)
+  // se compara contra el capital pendiente ANTES del refinanciamiento (origen), no contra
+  // capitalBase (el capital nuevo, después del enganche/adicional) — así si el capital
+  // realmente cambió mucho, si se detecta.
+  const baseComparacion = opts.esIndefinidoNuevo ? (Number(resumen(origen).capitalPendiente)||capitalBase) : capitalBase;
+  const diffPct = Math.abs(pvNuevo-baseComparacion)/baseComparacion;
   const umbral = (Number(state.config.umbralModificacionSustancial)||10)/100;
   const esSustancial = diffPct >= umbral;
   const gananciaPerdida = esSustancial ? 0 : (pvNuevo - capitalBase);
