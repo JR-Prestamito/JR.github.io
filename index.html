@@ -47,8 +47,8 @@
   #pull-refresh-indicator .spin{width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:pr-spin .7s linear infinite;}
   @keyframes pr-spin{to{transform:rotate(360deg);}}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--cream);color:#222;overscroll-behavior-y:contain;}
-  #app{max-width:420px;margin:0 auto;min-height:100vh;position:relative;padding-bottom:70px;background:var(--cream);overscroll-behavior-y:contain;}
-  header{background:var(--navy);padding:calc(20px + env(safe-area-inset-top)) 16px 16px;}
+  #app{max-width:420px;margin:0 auto;min-height:100vh;position:relative;padding-bottom:calc(70px + env(safe-area-inset-bottom,0px));background:var(--cream);overscroll-behavior-y:contain;}
+  header{background:var(--navy);padding:calc(20px + env(safe-area-inset-top)) 16px 16px;position:sticky;top:0;z-index:400;}
   header p{color:rgba(255,255,255,.7);font-size:11px;margin:0 0 2px;letter-spacing:.03em;}
   header h1{color:#fff;font-size:19px;margin:0;font-weight:600;}
   .content{padding:16px;}
@@ -132,13 +132,12 @@
   .btn-gold{background:var(--gold);color:#fff;}
   .btn-outline{background:#fff;border:1px solid #d8d3c8;color:#333;}
   .btn-danger{background:#fff;border:1px solid #f3c9c9;color:#c0433b;}
-  .tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:420px;background:#fff;border-top:1px solid #e5e1d8;display:flex;justify-content:space-around;padding:8px 0;}
-  .tab-btn{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--gold);cursor:pointer;padding:4px 10px;}
-  .tab-btn.active{color:var(--navy);font-weight:600;}
+  .tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:420px;background:var(--navy);border-top:2px solid var(--gold);box-shadow:0 -4px 14px rgba(27,42,74,.18);display:flex;justify-content:space-around;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));}
+  .tab-btn{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:rgba(255,255,255,.6);cursor:pointer;padding:4px 10px;}
+  .tab-btn.active{color:var(--gold);font-weight:600;}
   .tab-btn svg{width:22px;height:22px;display:block;}
   .tab-icon-wrap{width:44px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:15px;transition:background-color .18s ease, transform .18s ease;}
-  .tab-btn.active .tab-icon-wrap{background:rgba(27,42,74,.11);transform:translateY(-1px);}
-  [data-theme="dark"] .tab-btn.active .tab-icon-wrap{background:rgba(255,255,255,.14);}
+  .tab-btn.active .tab-icon-wrap{background:rgba(255,255,255,.14);transform:translateY(-1px);}
   table{width:100%;border-collapse:collapse;font-size:12px;}
   th{background:#F5F3EE;text-align:left;padding:8px 6px;}
   td{padding:6px;border-top:1px solid #eee;}
@@ -147,6 +146,14 @@
   .searchbar input{border:none;padding:0;flex:1;}
   .toprow{display:flex;gap:8px;margin-bottom:16px;}
   .iconbtn{background:var(--navy);color:#fff;border:none;border-radius:12px;width:48px;height:48px;font-size:24px;line-height:1;flex-shrink:0;}
+  /* Botón flotante (+): anclado a la esquina inferior derecha del contenido de la app (no
+     del viewport), con el mismo truco de left:50%+translateX que usa .tabbar para quedar
+     centrado incluso en pantallas anchas. El wrapper no captura toques (pointer-events:none)
+     para no bloquear nada detrás; solo el botón en sí los recibe. */
+  .fab-wrap{position:fixed;left:50%;transform:translateX(-50%);width:100%;max-width:420px;bottom:calc(78px + env(safe-area-inset-bottom,0px));pointer-events:none;z-index:450;}
+  .fab{position:absolute;right:16px;bottom:0;background:var(--navy);color:#fff;border:none;width:56px;height:56px;border-radius:50%;font-size:28px;line-height:1;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(27,42,74,.4);cursor:pointer;pointer-events:auto;transition:transform .12s ease;}
+  .fab:active{transform:scale(.93);}
+  [data-theme="dark"] .fab{box-shadow:0 8px 20px rgba(0,0,0,.5);}
   .flexrow{display:flex;gap:8px;}
   .hint{font-size:12px;color:#aaa;margin-top:6px;}
   .avatar{width:36px;height:36px;border-radius:50%;background:#EEF1F6;color:var(--navy);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;}
@@ -322,15 +329,11 @@
   .panel-prox .section-title{margin-top:0;}
   .panel-prox .empty{color:#1B2A4A;opacity:.75;padding:14px 0 10px;font-size:13.5px;}
   .panel-prox .empty::before{content:"✓";display:block;width:46px;height:46px;line-height:46px;margin:0 auto 10px;border-radius:50%;background:linear-gradient(135deg,#D9A84B,#B8842A);color:#fff;font-size:22px;font-weight:700;box-shadow:0 6px 14px rgba(201,151,62,.35);}
-  .tabbar{background:linear-gradient(180deg,#22376A,#1B2A4A);border-top:2px solid var(--gold);box-shadow:0 -6px 18px rgba(27,42,74,.25);}
-  .tab-btn{color:rgba(255,255,255,.6);}
-  .tab-btn.active{color:#E6B45A;}
 
   [data-theme="dark"] .panel-prox{background:linear-gradient(180deg,#1A2130,#131925);}
   [data-theme="dark"] .panel-prox .empty{color:#E7E7EA;}
   [data-theme="dark"] .fila-inicio{background:linear-gradient(90deg,#2A2416,#1B212C 60%);}
   [data-theme="dark"] .section-title.dorado{color:#E7E7EA;}
-  .tab-btn.active .tab-icon-wrap{background:rgba(255,255,255,.14);}
 
   /* Inicio — diseño 2 (corporativo, tipografía compacta) */
   .v2-hero{margin:-16px -16px 14px;padding:2px 16px 16px;background:linear-gradient(180deg,#1B2A4A,#16223D);border-bottom:2px solid var(--gold);color:#fff;}
@@ -361,7 +364,7 @@
   [data-theme="dark"] .v2-kpi .k-l{color:rgba(255,255,255,.55);}
 
   /* Inicio — diseño 3 (diseño 1 con colores apagados, panel separado e íconos) */
-  .v3-hero{margin:4px 0 16px;padding:18px;border-radius:22px;color:#fff;position:relative;overflow:hidden;background:radial-gradient(circle at 90% 6%,rgba(201,151,62,.20) 0,rgba(201,151,62,0) 45%),linear-gradient(160deg,#33466B 0%,#283858 60%,#213050 100%);box-shadow:0 8px 20px rgba(27,42,74,.18);}
+  .v3-hero{margin:4px 0 16px;padding:18px;border-radius:22px;color:#fff;position:relative;overflow:hidden;background:radial-gradient(circle at 90% 6%,rgba(201,151,62,.28) 0,rgba(201,151,62,0) 45%),linear-gradient(155deg, var(--navy) 0%, #0F1A30 100%);box-shadow:0 8px 20px rgba(27,42,74,.24);}
   .v3-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
   .v3-lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.68);margin:0 0 4px;font-weight:600;}
   .v3-val{font-size:28px;font-weight:700;margin:0;line-height:1.1;color:#fff;}
@@ -383,9 +386,9 @@
   .v3-tile p{margin:0;}
   .v3-tile .t-lbl{font-size:11.5px;color:rgba(255,255,255,.9);font-weight:600;margin-bottom:3px;}
   .v3-tile .t-val{font-size:22px;font-weight:700;}
-  .t-verde{background:linear-gradient(135deg,#6A9877,#527F62);}
-  .t-rojo{background:linear-gradient(135deg,#BE7A73,#A2625B);cursor:pointer;}
-  .t-dorado{grid-column:1/-1;background:linear-gradient(135deg,#BC9A5B,#A2803F);display:flex;align-items:center;gap:12px;}
+  .t-verde{background:linear-gradient(135deg,#48936A,#2F7250);}
+  .t-rojo{background:linear-gradient(135deg,#D25B4A,#AC3B2E);cursor:pointer;}
+  .t-dorado{grid-column:1/-1;background:linear-gradient(135deg,#D2A44E,#AD7F28);display:flex;align-items:center;gap:12px;}
   .t-dorado .v3-ico{margin:0;}
   .t-dorado .t-lbl{margin:0;font-size:12.5px;}
   .t-dorado .t-val{margin-left:auto;}
@@ -393,8 +396,6 @@
   .panel-prox .empty::before{background:linear-gradient(135deg,#C7A566,#A98544);box-shadow:0 5px 12px rgba(169,133,68,.28);}
   .section-title.dorado::before{background:#B89552;}
   .fila-inicio{border-left-color:#B89552;}
-  .tabbar{background:#26375A;border-top:1px solid #B89552;box-shadow:0 -4px 14px rgba(27,42,74,.18);}
-  .tab-btn.active{color:var(--gold);}
   /* Modo oscuro: íconos y textos de la barra inferior siempre dorados */
   [data-theme="dark"] .tab-btn, [data-theme="dark"] .tab-btn.active{color:var(--gold);}
 </style>
@@ -3260,9 +3261,9 @@ function viewPrestamos(){
 
   let html = `<div class="toprow" style="margin-bottom:16px;">
     <input id="buscarPrestamo" style="flex:1;" placeholder="Buscar préstamo o cliente" value="${state.qPrestamos}" oninput="state.qPrestamos=this.value; render()">
-    <button class="iconbtn" style="background:#fff;color:${NAVY};border:1.5px solid ${NAVY};display:flex;align-items:center;justify-content:center;" title="Calculadora de préstamos" onclick="abrirCalculadora()">${ICONS.calculator}</button>
-    <button class="iconbtn" onclick="abrirNuevoPrestamo()">+</button>
-  </div>`;
+    <button class="iconbtn" style="display:flex;align-items:center;justify-content:center;" title="Calculadora de préstamos" onclick="abrirCalculadora()">${ICONS.calculator}</button>
+  </div>
+  <div class="fab-wrap"><button class="fab" title="Nuevo préstamo" onclick="abrirNuevoPrestamo()">+</button></div>`;
   const filtrados = state.prestamos.filter(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
     const texto = ((cli?cli.nombre:"")+" "+p.codigo).toLowerCase();
@@ -3503,7 +3504,7 @@ function viewNuevoPrestamo(){
     </div>
     <p class="hint nota-ayuda" style="margin:0 0 16px;">"Fecha 1ª cuota" es opcional — déjala vacía para que se calcule sola (un período exacto después de la fecha del préstamo). Ponla solo si quieres que la primera cuota caiga en una fecha específica (por ejemplo, el día de pago fijo del cliente); las cuotas siguientes siguen cayendo cada período después de esa.</p>
     ${previewHtml}
-    <div class="flexrow">
+    <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="window._nf=null; state.vista=${editando?"'detalle'":"'lista'"}; render()">Cancelar</button>
       <button class="btn btn-gold" onclick="guardarPrestamo()" ${state.clientes.length===0?"disabled style='opacity:.4'":""}>${editando?"Guardar cambios":"Guardar préstamo"}</button>
     </div>`;
@@ -3655,7 +3656,7 @@ function viewCalculadora(){
     ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input id="calc_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._calc.cuotas=filtrarEntero(this.value); render()"></label>`}
     <label><span>Fecha del préstamo</span><input id="calc_fecha" type="date" value="${f.fechaInicio}" oninput="window._calc.fechaInicio=this.value; render()"></label>
     ${previewHtml}
-    <button class="btn btn-gold" style="width:100%;" onclick="crearPrestamoDesdeCalculadora()" ${puedeCrear?"":"disabled style='opacity:.4'"}>Crear este préstamo</button>
+    <button class="btn btn-gold" style="width:100%;margin-top:16px;" onclick="crearPrestamoDesdeCalculadora()" ${puedeCrear?"":"disabled style='opacity:.4'"}>Crear este préstamo</button>
     ${!f.clienteId ? `<p class="hint" style="margin-top:8px;text-align:center;">Para crear el préstamo de verdad hace falta elegir un cliente ya registrado (el nombre temporal es solo para probar números).</p>` : ""}`;
 }
 function crearPrestamoDesdeCalculadora(){
