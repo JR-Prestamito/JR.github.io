@@ -48,10 +48,10 @@
   @keyframes pr-spin{to{transform:rotate(360deg);}}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--cream);color:#222;overscroll-behavior-y:contain;}
   #app{max-width:420px;margin:0 auto;min-height:100vh;position:relative;padding-bottom:calc(70px + env(safe-area-inset-bottom,0px));background:var(--cream);overscroll-behavior-y:contain;}
-  header{background:var(--navy);padding:calc(20px + env(safe-area-inset-top)) 16px 16px;position:sticky;top:0;z-index:400;}
+  header{background:var(--navy);padding:calc(20px + env(safe-area-inset-top)) 12px 16px;position:sticky;top:0;z-index:400;}
   header p{color:rgba(255,255,255,.7);font-size:11px;margin:0 0 2px;letter-spacing:.03em;}
   header h1{color:#fff;font-size:19px;margin:0;font-weight:600;}
-  .content{padding:16px;}
+  .content{padding:16px 12px;}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
   .card{border-radius:16px;padding:14px;}
   .card .lbl{font-size:12px;color:#8a8680;margin:0 0 4px;}
@@ -133,7 +133,7 @@
   .btn-outline{background:#fff;border:1px solid #d8d3c8;color:#333;}
   .btn-danger{background:#fff;border:1px solid #f3c9c9;color:#c0433b;}
   .tabbar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:420px;background:var(--navy);border-top:2px solid var(--gold);box-shadow:0 -4px 14px rgba(27,42,74,.18);display:flex;justify-content:space-around;padding:8px 0 calc(8px + env(safe-area-inset-bottom,0px));}
-  .tab-btn{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:rgba(255,255,255,.6);cursor:pointer;padding:4px 10px;}
+  .tab-btn{background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;color:rgba(255,255,255,.6);cursor:pointer;padding:4px 10px;}
   .tab-btn.active{color:var(--gold);font-weight:600;}
   .tab-btn svg{width:22px;height:22px;display:block;}
   .tab-icon-wrap{width:44px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:15px;transition:background-color .18s ease, transform .18s ease;}
@@ -146,7 +146,7 @@
   .searchbar input{border:none;padding:0;flex:1;}
   .toprow{display:flex;gap:8px;margin-bottom:16px;}
   /* Buscador fijo: se queda pegado debajo del encabezado al desplazarse por la lista */
-  .toprow.buscador{position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:var(--cream);margin:-16px -16px 12px;padding:10px 16px;box-shadow:0 5px 8px -7px rgba(0,0,0,.28);}
+  .toprow.buscador{position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:var(--cream);margin:-16px -12px 12px;padding:10px 12px;box-shadow:0 5px 8px -7px rgba(0,0,0,.28);}
   [data-theme="dark"] .toprow.buscador{background:#12161f;}
   .iconbtn{background:var(--navy);color:#fff;border:none;border-radius:12px;width:48px;height:48px;font-size:24px;line-height:1;flex-shrink:0;}
   /* Botón flotante (+): anclado a la esquina inferior derecha del contenido de la app (no
@@ -304,69 +304,24 @@
   [data-theme="dark"] .fila-amort{border-top-color:rgba(255,255,255,.08);}
   [data-theme="dark"] .fila-ajuste{background:rgba(59,109,17,.18);}
   [data-theme="dark"] .fila-total-amort{border-top-color:rgba(255,255,255,.18);background:#20283A;}
-  /* Pantalla de inicio */
-  .inicio-hero{margin:-16px -16px 18px;padding:6px 18px 22px;color:#fff;border-radius:0 0 26px 26px;position:relative;overflow:hidden;
-    background:radial-gradient(circle at 88% 8%,rgba(201,151,62,.38) 0,rgba(201,151,62,0) 42%),linear-gradient(165deg,#22376A 0%,#1B2A4A 55%,#121D36 100%);box-shadow:0 10px 24px rgba(27,42,74,.28);}
-  .inicio-hero .ih-lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.65);margin:0 0 4px;font-weight:600;}
-  .inicio-hero .ih-val{font-size:34px;font-weight:700;margin:0;line-height:1.1;color:#fff;}
-  .inicio-hero .ih-val em{font-style:normal;color:#E6B45A;}
-  .inicio-hero .ih-note{font-size:11.5px;color:rgba(255,255,255,.55);margin:6px 0 16px;}
-  .inicio-hero .ih-mini{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .inicio-hero .ih-mini div{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:10px 12px;}
-  .inicio-hero .ih-mini p{margin:0;}
-  .inicio-hero .ih-mini .m-lbl{font-size:11px;color:rgba(255,255,255,.62);margin-bottom:2px;}
-  .inicio-hero .ih-mini .m-val{font-size:16px;font-weight:700;color:#fff;}
-  .tile{border-radius:18px;padding:14px 14px 13px;color:#fff;box-shadow:0 6px 14px rgba(0,0,0,.14);}
-  .tile .t-lbl{font-size:12px;margin:0 0 6px;color:rgba(255,255,255,.85);font-weight:600;}
-  .tile .t-val{font-size:26px;font-weight:700;margin:0;}
-  .tile-verde{background:linear-gradient(135deg,#3E8E5A,#276B40);}
-  .tile-rojo{background:linear-gradient(135deg,#C9503F,#9A2F2F);cursor:pointer;}
-  .tile-clientes{grid-column:1/-1;background:linear-gradient(135deg,#C9973E,#A8761F);display:flex;justify-content:space-between;align-items:center;}
-  .tile-clientes .t-val{font-size:22px;}
-  .fila-inicio{border-left:4px solid var(--gold);background:linear-gradient(90deg,#FFF9EC,#fff 60%);box-shadow:0 2px 8px rgba(27,42,74,.07);}
+  /* Paletas de la pantalla de Inicio (resumen, tarjetas y "próximos a vencer") */
+  .fila-inicio{border-left:4px solid #B89552;background:linear-gradient(90deg,#FFF9EC,#fff 60%);box-shadow:0 2px 8px rgba(27,42,74,.07);}
+  .fila-inicio .name{font-size:13px;} .fila-inicio .sub{font-size:11px;}
+  .fila-inicio .badge{font-size:10.5px;padding:2px 8px;}
   .section-title.dorado{color:var(--navy);font-size:14px;display:flex;align-items:center;gap:8px;}
-  .section-title.dorado::before{content:"";width:4px;height:15px;border-radius:2px;background:var(--gold);}
+  .section-title.dorado::before{content:"";width:4px;height:15px;border-radius:2px;background:#B89552;}
 
-  /* Parte de abajo del inicio: panel + barra de pestañas */
-  .panel-prox{background:linear-gradient(180deg,#E6EBF4,#D6DFEE);border-radius:22px;padding:14px 14px 10px;min-height:190px;margin-bottom:8px;}
+  .panel-prox{background:linear-gradient(180deg,#E9ECF2,#DEE3EC);border-radius:22px;padding:14px 14px 10px;min-height:190px;margin-bottom:16px;}
   .panel-prox .section-title{margin-top:0;}
-  .panel-prox .empty{color:#1B2A4A;opacity:.75;padding:14px 0 10px;font-size:13.5px;}
-  .panel-prox .empty::before{content:"✓";display:block;width:46px;height:46px;line-height:46px;margin:0 auto 10px;border-radius:50%;background:linear-gradient(135deg,#D9A84B,#B8842A);color:#fff;font-size:22px;font-weight:700;box-shadow:0 6px 14px rgba(201,151,62,.35);}
+  .panel-prox .section-title.dorado{font-size:12.5px;}
+  .panel-prox .empty{color:#1B2A4A;opacity:.75;padding:14px 0 10px;font-size:12.5px;}
+  .panel-prox .empty::before{content:"✓";display:block;width:46px;height:46px;line-height:46px;margin:0 auto 10px;border-radius:50%;background:linear-gradient(135deg,#C7A566,#A98544);color:#fff;font-size:22px;font-weight:700;box-shadow:0 5px 12px rgba(169,133,68,.28);}
 
   [data-theme="dark"] .panel-prox{background:linear-gradient(180deg,#1A2130,#131925);}
   [data-theme="dark"] .panel-prox .empty{color:#E7E7EA;}
   [data-theme="dark"] .fila-inicio{background:linear-gradient(90deg,#2A2416,#1B212C 60%);}
   [data-theme="dark"] .section-title.dorado{color:#E7E7EA;}
 
-  /* Inicio — diseño 2 (corporativo, tipografía compacta) */
-  .v2-hero{margin:-16px -16px 14px;padding:2px 16px 16px;background:linear-gradient(180deg,#1B2A4A,#16223D);border-bottom:2px solid var(--gold);color:#fff;}
-  .v2-lbl{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:rgba(255,255,255,.6);margin:0 0 3px;font-weight:600;}
-  .v2-val{font-size:25px;font-weight:700;margin:0;color:#fff;line-height:1.15;}
-  .v2-stats{display:grid;grid-template-columns:1fr 1fr;margin-top:12px;padding-top:11px;border-top:1px solid rgba(255,255,255,.14);}
-  .v2-stats>div+div{border-left:1px solid rgba(255,255,255,.14);padding-left:14px;}
-  .v2-stats p{margin:0;}
-  .v2-sl{font-size:10.5px;color:rgba(255,255,255,.58);margin-bottom:2px!important;}
-  .v2-sv{font-size:14.5px;font-weight:600;color:#fff;}
-  .v2-sv.gold{color:#E6B45A;}
-  .v2-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
-  .v2-kpi{border-radius:12px;padding:9px 10px 10px;border:1px solid rgba(27,42,74,.10);border-top-width:3px;box-shadow:0 2px 6px rgba(27,42,74,.06);}
-  .v2-kpi .k-l{font-size:10.5px;color:#5E6678;margin:0 0 3px;font-weight:600;}
-  .v2-kpi .k-v{font-size:19px;font-weight:700;margin:0;}
-  .k-verde{background:#EDF5E8;border-top-color:#3E8E5A;} .k-verde .k-v{color:#2F6B1A;}
-  .k-rojo{background:#FAECEC;border-top-color:#C9503F;cursor:pointer;} .k-rojo .k-v{color:#A32D2D;}
-  .k-dorado{background:#FAF2DF;border-top-color:#C9973E;} .k-dorado .k-v{color:#8A6416;}
-  .panel-prox .section-title.dorado{font-size:12.5px;}
-  .panel-prox .empty{font-size:12.5px;}
-  .fila-inicio .name{font-size:13px;} .fila-inicio .sub{font-size:11px;}
-  .fila-inicio .badge{font-size:10.5px;padding:2px 8px;}
-  .tab-btn{font-size:10.5px;}
-  [data-theme="dark"] .v2-kpi{border-color:rgba(255,255,255,.08);}
-  [data-theme="dark"] .k-verde{background:#1B2A20;} [data-theme="dark"] .k-verde .k-v{color:#8FCB5C;}
-  [data-theme="dark"] .k-rojo{background:#2E1D1F;} [data-theme="dark"] .k-rojo .k-v{color:#F0908A;}
-  [data-theme="dark"] .k-dorado{background:#2C2618;} [data-theme="dark"] .k-dorado .k-v{color:#E8C171;}
-  [data-theme="dark"] .v2-kpi .k-l{color:rgba(255,255,255,.55);}
-
-  /* Inicio — diseño 3 (diseño 1 con colores apagados, panel separado e íconos) */
   .v3-hero{margin:4px 0 16px;padding:18px;border-radius:22px;color:#fff;position:relative;overflow:hidden;background:radial-gradient(circle at 90% 6%,rgba(201,151,62,.28) 0,rgba(201,151,62,0) 45%),linear-gradient(155deg, var(--navy) 0%, #0F1A30 100%);box-shadow:0 8px 20px rgba(27,42,74,.24);}
   .v3-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
   .v3-lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.68);margin:0 0 4px;font-weight:600;}
@@ -375,14 +330,14 @@
   .v3-note{font-size:11px;color:rgba(255,255,255,.58);margin:6px 0 14px;}
   .v3-ico{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.12);display:inline-flex;align-items:center;justify-content:center;flex:none;color:#fff;}
   .v3-ico svg{width:20px;height:20px;}
-  .v3-mini{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .v3-mini{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .v3-mini>div{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:9px 10px;display:flex;gap:9px;align-items:center;}
   .v3-mini .v3-ico{width:30px;height:30px;border-radius:10px;}
   .v3-mini .v3-ico svg{width:16px;height:16px;}
   .v3-mini p{margin:0;}
   .v3-mini .m-lbl{font-size:10.5px;color:rgba(255,255,255,.58);margin-bottom:1px;}
   .v3-mini .m-val{font-size:14px;font-weight:700;color:#fff;}
-  .v3-tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
+  .v3-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
   .v3-tile{border-radius:18px;padding:13px;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.10);}
   .v3-tile .v3-ico{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);margin-bottom:10px;}
   .v3-tile .v3-ico svg{width:17px;height:17px;}
@@ -395,10 +350,6 @@
   .t-dorado .v3-ico{margin:0;}
   .t-dorado .t-lbl{margin:0;font-size:12.5px;}
   .t-dorado .t-val{margin-left:auto;}
-  .panel-prox{background:linear-gradient(180deg,#E9ECF2,#DEE3EC);}
-  .panel-prox .empty::before{background:linear-gradient(135deg,#C7A566,#A98544);box-shadow:0 5px 12px rgba(169,133,68,.28);}
-  .section-title.dorado::before{background:#B89552;}
-  .fila-inicio{border-left-color:#B89552;}
   /* Modo oscuro: íconos y textos de la barra inferior siempre dorados */
   [data-theme="dark"] .tab-btn, [data-theme="dark"] .tab-btn.active{color:var(--gold);}
 </style>
@@ -618,7 +569,6 @@ let state = {
   config: JSON.parse(localStorage.getItem(jrKey("jr_config")) || '{"tasaMoraDiaria":0}'),
   vista: (_navPrevia && _navPrevia.vista) || "lista",
   seleccionId: (_navPrevia && _navPrevia.seleccionId) || null,
-  showFormCliente: (_navPrevia && _navPrevia.showFormCliente) || false,
   clienteEditId: (_navPrevia && _navPrevia.clienteEditId) || null,
   q: "",
   qPrestamos: ""
@@ -631,7 +581,7 @@ function guardarNav(){
   try{
     sessionStorage.setItem(jrKey("jr_nav"), JSON.stringify({
       tab: state.tab, vista: state.vista, seleccionId: state.seleccionId,
-      showFormCliente: state.showFormCliente, clienteEditId: state.clienteEditId,
+      clienteEditId: state.clienteEditId,
       _nf: window._nf || null, _rf: window._rf || null, _calc: window._calc || null
     }));
   }catch(e){}
@@ -1222,8 +1172,32 @@ function resumen(p){
       moraTotal, totalPagado };
   }
   if(p.refinanciado){
+    // OJO: aquí NO se puede reusar el mismo truco que liquidadoAnticipado (marcar todas las
+    // filas como pagadas). Una liquidación anticipada sí paga TODO lo que falta con un solo
+    // monto (aunque el interés se prorratee distinto a la tabla original). Un refinanciamiento
+    // es distinto: el saldo pendiente de este préstamo se trasladó al préstamo NUEVO — de este
+    // préstamo, en la vida real, solo se llegaron a cobrar las cuotas que de verdad se
+    // pagaron antes de refinanciar, y el resto del plazo original nunca se cobró aquí. Antes
+    // se marcaban TODAS las filas como "✓ Pagada" (pagosHechos: tabla.length), lo cual no
+    // descuadraba ningún total (el saldo ya se fuerza a 0 abajo, porque vive en el préstamo
+    // nuevo) pero sí mostraba mal la tabla de amortización y el contador "Cuotas pagadas",
+    // como si se hubieran cobrado cuotas que en realidad se reemplazaron por el refinanciamiento.
+    // Se calcula igual que en el caso general: cuánto de la tabla ORIGINAL queda cubierto por
+    // lo realmente pagado (totalPagado), acumulando cuota por cuota.
+    let cumRef = 0, cuotasCompletasRef = 0;
+    for(let i=0;i<tabla.length;i++){
+      cumRef += tabla[i].cuota;
+      if(totalPagado+0.01 >= cumRef) cuotasCompletasRef = i+1; else break;
+    }
+    // La tabla, el recibo y el PDF de este préstamo ya NO muestran las cuotas que quedaron
+    // sin cobrar: como nunca se van a cobrar aquí (se reemplazaron por el préstamo nuevo),
+    // dejarlas visibles como "Pendiente" —o peor, "Vencida" si su fecha ya pasó— es engañoso.
+    // totalCuotasOriginal guarda cuántas traía la tabla completa ANTES de recortarla, solo
+    // para poder seguir mostrando "X de Y cuotas originales" en el contador, sin tener que
+    // mostrar las filas de más.
+    const totalCuotasOriginal = tabla.length;
     return { cuota: tabla[0]?tabla[0].cuota:0, saldoPendiente:0, capitalPendiente:0, estado:"Refinanciado", proximaFecha:null,
-      tabla, pagosHechos: tabla.length, cuotaActual:null, abonadoEnCuotaActual:0, faltaEnCuotaActual:0,
+      tabla: tabla.slice(0, cuotasCompletasRef), totalCuotasOriginal, pagosHechos: cuotasCompletasRef, cuotaActual:null, abonadoEnCuotaActual:0, faltaEnCuotaActual:0,
       moraTotal, totalPagado };
   }
 
@@ -1589,6 +1563,9 @@ function render(){
   if(state.tab==="prestamos" && (state.vista==="detalle" || state.vista==="cartera" || state.vista==="refinanciar" || state.vista==="nuevo" || state.vista==="calculadora" || state.vista==="contrato")){
     html += `<button class="backbtn" onclick="${state.vista==="nuevo"?`window._nf=null; state.vista=${(window._nf&&window._nf.editId)?"'detalle'":"'lista'"}; render();`:(state.vista==="calculadora"?"window._calc=null; state.vista='lista'; render();":(state.vista==="contrato"?"state.vista='detalle'; render();":"volverLista()"))}">‹</button>`;
   }
+  if(state.tab==="clientes" && state.vista==="nuevo"){
+    html += `<button class="backbtn" onclick="state.clienteEditId=null; state.vista='lista'; render();">‹</button>`;
+  }
   if(state.tab==="pagos" && state.vista==="recibo"){
     html += `<button class="backbtn" onclick="state.vista='lista'; render();">‹</button>`;
   }
@@ -1620,10 +1597,11 @@ function render(){
   const tituloDesembolsos = state.tab==="inicio" && state.vista==="reporteDesembolsos" ? "Reporte de desembolsos" : null;
   const tituloHistorialPagos = state.tab==="inicio" && state.vista==="reporteHistorialPagos" ? "Historial de pagos" : null;
   const tituloNuevoPrestamo = state.tab==="prestamos" && state.vista==="nuevo" ? ((window._nf && window._nf.editId) ? `Editando ${window._nf.codigo}` : "Nuevo préstamo") : null;
+  const tituloNuevoCliente = state.tab==="clientes" && state.vista==="nuevo" ? (state.clienteEditId ? "Editar cliente" : "Nuevo cliente") : null;
   const tituloCalculadora = state.tab==="prestamos" && state.vista==="calculadora" ? "Calculadora" : null;
   const tituloContrato = state.tab==="prestamos" && state.vista==="contrato" ? "Contrato de préstamo" : null;
   document.title = nombreApp();
-  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||tituloCalculadora||tituloContrato||titles[state.tab])))}</h1></div>
+  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||tituloNuevoCliente||tituloCalculadora||tituloContrato||titles[state.tab])))}</h1></div>
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
     html += menuOpcionesHtml("inicio", [
@@ -2094,7 +2072,7 @@ function viewReportePDF(){
     </tr>`;
   }).join("");
   return `
-    <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
+    <div id="reporte-imprimible" style="margin:0 -12px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Reporte general · ${fmtDate(hoyISO())}</p>
       <div class="grid2" style="margin-bottom:16px;">
@@ -2364,7 +2342,7 @@ function viewEstadoResultados(){
       <td style="padding:2px 6px;text-align:right;font-size:12px;color:#8a8680;">${money(valor)}</td>
     </tr>`;
   return `
-    <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
+    <div id="reporte-imprimible" style="margin:0 -12px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Estado de resultados (base efectivo) · ${fmtDate(hoyISO())}</p>
       <p style="font-weight:700;margin:0 0 6px;">Ingresos</p>
@@ -2543,7 +2521,7 @@ function viewReporteModificaciones(){
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;${Math.abs(e.gananciaPerdida)>=0.005?(e.gananciaPerdida>=0?"color:#3B6D11":"color:#c0433b"):""}">${Math.abs(e.gananciaPerdida)>=0.005?money(e.gananciaPerdida):"—"}</td>
     </tr>`).join("");
   return `
-    <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
+    <div id="reporte-imprimible" style="margin:0 -12px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Reporte de modificaciones y refinanciamientos (NIIF PYMES) · ${fmtDate(hoyISO())}</p>
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha refinanciado ni modificado ningún préstamo.</p>` : `
@@ -2661,7 +2639,7 @@ function viewReporteDesembolsos(){
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(e.monto)}</td>
     </tr>`).join("");
   return `
-    <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
+    <div id="reporte-imprimible" style="margin:0 -12px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Reporte de desembolsos · ${fmtDate(hoyISO())}</p>
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha desembolsado ningún préstamo.</p>` : `
@@ -2820,7 +2798,7 @@ function viewReporteHistorialPagos(){
       <td style="padding:5px 6px;text-align:right;white-space:nowrap;font-weight:600;">${money(e.monto+e.mora)}</td>
     </tr>`).join("");
   return `
-    <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
+    <div id="reporte-imprimible" style="margin:0 -12px 16px;padding:16px 10px;">
       <h2>${nombreApp().toUpperCase()}</h2>
       <p class="hint" style="margin:0 0 14px;">Historial de pagos · ${fmtDate(hoyISO())}</p>
       ${todos.length===0 ? `<p class="hint">Todavía no se ha registrado ningún pago.</p>` : `
@@ -3025,7 +3003,7 @@ function viewAjustesClave(){
     state._huellaAjustesYaIntentada = true;
     setTimeout(usarHuellaAjustes, 0);
   }
-  return `<div id="panelAjustesClave" style="position:relative;overflow:hidden;margin:-16px -16px 0;min-height:calc(100vh - 132px);background:linear-gradient(160deg, ${NAVY} 0%, #0F1A30 100%);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:56px 24px 40px;box-sizing:border-box;">
+  return `<div id="panelAjustesClave" style="position:relative;overflow:hidden;margin:-16px -12px 0;min-height:calc(100vh - 132px);background:linear-gradient(160deg, ${NAVY} 0%, #0F1A30 100%);display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:56px 24px 40px;box-sizing:border-box;">
     <div style="position:absolute;top:-60px;right:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle, rgba(201,151,62,.35) 0%, rgba(201,151,62,0) 70%);"></div>
     <div style="position:absolute;bottom:-80px;left:-60px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.08) 0%, rgba(255,255,255,0) 70%);"></div>
     <p style="position:relative;font-size:16px;color:#fff;margin:0 0 24px;font-weight:700;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;">
@@ -3223,26 +3201,12 @@ function viewAjustes(){
 }
 
 function viewClientes(){
+  if(state.vista==="nuevo") return viewNuevoCliente();
   const filtrados = state.clientes.filter(c => (c.nombre+c.codigo).toLowerCase().includes(state.q.toLowerCase()));
   let html = `<div class="toprow buscador">
     <input id="buscarCliente" style="flex:1;" placeholder="Buscar cliente" value="${state.q}" oninput="state.q=this.value; render()">
   </div>
-  ${state.showFormCliente ? "" : `<div class="fab-wrap"><button class="fab" title="Nuevo cliente" onclick="abrirFormCliente(null)">+</button></div>`}`;
-
-  if(state.showFormCliente){
-    const ed = state.clienteEditId ? state.clientes.find(c=>c.id===state.clienteEditId) : null;
-    html += `<div class="row-card" style="display:block;">
-      <p style="font-weight:600;margin:0 0 10px;">${ed?"Editar cliente":"Nuevo cliente"}</p>
-      <label><span>Nombre</span><input id="f_nombre" value="${ed?ed.nombre:""}"></label>
-      <label><span>Celular</span><input id="f_celular" placeholder="9999-9999 (8 dígitos)" value="${ed?ed.celular||"":""}"></label>
-      <label><span>Cédula</span><input id="f_cedula" placeholder="0000-0000-00000 (13 dígitos)" value="${ed?ed.cedula||"":""}"></label>
-      <label><span>Dirección</span><input id="f_direccion" value="${ed?ed.direccion||"":""}"></label>
-      <div class="flexrow">
-        <button class="btn btn-outline" onclick="state.showFormCliente=false; state.clienteEditId=null; render()">Cancelar</button>
-        <button class="btn btn-gold" onclick="guardarCliente()">${ed?"Guardar cambios":"Guardar cliente"}</button>
-      </div>
-    </div>`;
-  }
+  <div class="fab-wrap"><button class="fab" title="Nuevo cliente" onclick="abrirFormCliente(null)">+</button></div>`;
 
   if(filtrados.length===0) html += `<p class="empty">No hay clientes todavía.</p>`;
   if(filtrados.length>0) html += `<div class="panel-prox panel-lista"><p class="section-title dorado">Clientes (${filtrados.length})</p>`;
@@ -3256,9 +3220,21 @@ function viewClientes(){
   if(filtrados.length>0) html += `</div>`;
   return html;
 }
+function viewNuevoCliente(){
+  const ed = state.clienteEditId ? state.clientes.find(c=>c.id===state.clienteEditId) : null;
+  return `
+    <label><span>Nombre</span><input id="f_nombre" value="${ed?ed.nombre:""}"></label>
+    <label><span>Celular</span><input id="f_celular" placeholder="9999-9999 (8 dígitos)" value="${ed?ed.celular||"":""}"></label>
+    <label><span>Cédula</span><input id="f_cedula" placeholder="0000-0000-00000 (13 dígitos)" value="${ed?ed.cedula||"":""}"></label>
+    <label><span>Dirección</span><input id="f_direccion" value="${ed?ed.direccion||"":""}"></label>
+    <div class="flexrow" style="margin-top:16px;">
+      <button class="btn btn-outline" onclick="state.clienteEditId=null; state.vista='lista'; render()">Cancelar</button>
+      <button class="btn btn-gold" onclick="guardarCliente()">${ed?"Guardar cambios":"Guardar cliente"}</button>
+    </div>`;
+}
 function abrirFormCliente(id){
   state.clienteEditId = id;
-  state.showFormCliente = true;
+  state.vista = "nuevo";
   render();
 }
 
@@ -3301,7 +3277,7 @@ function guardarCliente(){
     const codigo = nextCode("C", state.clientes);
     state.clientes.push({ id: uid(), codigo, ...datos });
   }
-  state.showFormCliente = false;
+  state.vista = "lista";
   state.clienteEditId = null;
   save(); render();
 }
@@ -4069,7 +4045,7 @@ function viewDetallePrestamo(){
       <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Capital</p><p style="font-size:15px;font-weight:600;margin:0;">${money(p.capital)}</p></div>
       <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Cuota</p><p style="font-size:15px;font-weight:600;margin:0;">${money(r.cuota)}</p></div>
       <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Próxima fecha</p><p style="font-size:15px;font-weight:600;margin:0;">${r.proximaFecha?fmtDate(r.proximaFecha):"—"}</p></div>
-      <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Cuotas pagadas</p><p style="font-size:15px;font-weight:600;margin:0;">${r.pagosHechos}${p.metodo.includes("Indefinido")?"":" / "+r.tabla.length}</p></div>
+      <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Cuotas pagadas</p><p style="font-size:15px;font-weight:600;margin:0;">${r.pagosHechos}${p.metodo.includes("Indefinido")?"":" / "+(r.totalCuotasOriginal||r.tabla.length)}</p></div>
     </div>
     ${necesitaRecordatorio ? `
     <div class="row-card" style="display:block;">
@@ -4107,7 +4083,7 @@ function viewDetallePrestamo(){
     </div>
     ${esIndefDetalle ? `<p class="hint nota-ayuda" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija. La siguiente cuota aparece sola en la tabla un día después de la fecha de la anterior, se haya pagado o no — así siempre hay una cuota pendiente esperando, sin importar cuánto tiempo lleve el cliente sin pagar.</p>` : ""}
     ${filasConAjuste.size>0 ? `<p class="hint nota-ayuda" style="margin:4px 0 10px;"><span style="color:#3B6D11;font-weight:700;">*</span> Las filas resaltadas en verde tuvieron un abono a capital extra además de su cuota normal.</p>` : ""}
-    <div id="tabla-imprimible" style="margin:0 -16px 16px;padding:16px 6px;">
+    <div id="tabla-imprimible" style="margin:0 -12px 16px;padding:16px 6px;">
       <h2 class="solo-imprimir">${nombreApp().toUpperCase()}</h2>
       <p class="hint solo-imprimir" style="margin:0 0 10px;">${p.codigo} · ${cli?cli.nombre:"—"} · Capital ${money(p.capital)} · Tasa ${p.tasa}% · ${p.periodo} · ${p.metodo}</p>
       <div class="tabla-card" style="margin-bottom:0;">
@@ -4125,6 +4101,7 @@ function viewDetallePrestamo(){
         ${paginadorAmort}
       </div>
     </div>
+    ${p.refinanciado ? `<p class="hint nota-ayuda" style="margin-bottom:10px;">Este préstamo se refinanció el ${fmtDate(p.fechaRefinanciado)}. La tabla de arriba solo muestra las cuotas que en verdad se cobraron antes de eso — el resto del plazo original se reemplazó por el préstamo nuevo.</p>` : ""}
     ${p.refinanciaDe ? `<p class="hint nota-ayuda" style="margin-bottom:10px;">Este préstamo nació de un refinanciamiento.</p>` : ""}
     ${(p.modificaciones && p.modificaciones.length) ? `<p class="hint nota-ayuda" style="margin-bottom:10px;">Este préstamo ha tenido ${p.modificaciones.length} modificación(es) de condiciones sin crear un préstamo nuevo (NIIF PYMES, no sustancial). Última: ${fmtDate(p.modificaciones[p.modificaciones.length-1].fecha)}. Puedes deshacerla desde el menú ${ICONS.dots} de arriba.</p>` : ""}
   `;
@@ -4923,16 +4900,31 @@ function viewPagos(){
   );
   if(prestamosConMovs.length===0) return `<p class="empty">Aún no se han registrado pagos.</p>`;
 
-  const notaPago = (pg)=>{
-    if(pg.tipo==="enganche") return "Enganche al refinanciar";
-    if(pg.liquidacion) return "Liquidación anticipada";
-    if(pg.tipo==="abono_capital") return "Abono a capital";
-    if(pg.mora>0) return `Incluye mora ${money(pg.mora)}`;
-    return "";
+  // Un cobro con abono a capital queda guardado como DOS registros en p.pagos (la cuota y
+  // el abono, enlazados por pagoCuota.abonoId / pagoAbono.cuotaId) para poder desglosar la
+  // tabla de amortización — pero de cara al usuario es UN solo cobro. buscarLigado()
+  // encuentra la otra mitad (en el mismo arreglo que se está listando: vigentes o
+  // archivados) para fusionar ambas en una sola tarjeta con un solo recibo.
+  const buscarLigado = (lista, pg)=>{
+    const idLigado = pg.abonoId || (pg.tipo==="abono_capital" ? pg.cuotaId : null);
+    return idLigado ? lista.find(x=>x.id===idLigado) : null;
   };
-  const filaVigente = (p, pg)=>{
-    const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
-    const nota = notaPago(pg);
+  const notaPago = (pg, abonoLigado)=>{
+    let nota = "";
+    if(pg.tipo==="enganche") nota = "Enganche al refinanciar";
+    else if(pg.liquidacion) nota = "Liquidación anticipada";
+    else if(pg.tipo==="abono_capital") nota = "Abono a capital";
+    else if(pg.mora>0) nota = `Incluye mora ${money(pg.mora)}`;
+    if(abonoLigado) nota += (nota?" · ":"")+`incluye abono a capital de ${money(abonoLigado.monto)}`;
+    return nota;
+  };
+  const filaPago = (p, pg, lista, conBorrar)=>{
+    // Las filas de tipo abono_capital que ya se muestran fusionadas dentro de la cuota que
+    // las originó no se dibujan aparte, para no duplicar la tarjeta (y el botón de recibo).
+    if(pg.tipo==="abono_capital" && pg.cuotaId && buscarLigado(lista, pg)) return "";
+    const abonoLigado = buscarLigado(lista, pg);
+    const total = (Number(pg.monto)||0) + (Number(pg.mora)||0) + (abonoLigado ? (Number(abonoLigado.monto)||0) : 0);
+    const nota = notaPago(pg, abonoLigado && pg.tipo!=="abono_capital" ? abonoLigado : null);
     return `<div class="row-card">
       <div style="cursor:pointer;min-width:0;" onclick="verRecibo('${p.id}','${pg.id||""}')">
         <p class="name">${money(total)}</p>
@@ -4940,23 +4932,12 @@ function viewPagos(){
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;">
         <button class="printbtn" title="Ver recibo" onclick="verRecibo('${p.id}','${pg.id||""}')">🧾</button>
-        <button class="printbtn" title="Eliminar pago" onclick="eliminarPago('${p.id}','${pg.id||""}')">🗑</button>
+        ${conBorrar?`<button class="printbtn" title="Eliminar pago" onclick="eliminarPago('${p.id}','${pg.id||""}')">🗑</button>`:""}
       </div>
     </div>`;
   };
-  const filaArchivada = (p, pg)=>{
-    const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
-    const nota = notaPago(pg);
-    return `<div class="row-card">
-      <div style="cursor:pointer;min-width:0;" onclick="verRecibo('${p.id}','${pg.id||""}')">
-        <p class="name">${money(total)}</p>
-        <p class="sub">${fmtDate(pg.fecha)}${nota?" · "+nota:""}</p>
-      </div>
-      <div style="display:flex;gap:6px;flex-shrink:0;">
-        <button class="printbtn" title="Ver recibo" onclick="verRecibo('${p.id}','${pg.id||""}')">🧾</button>
-      </div>
-    </div>`;
-  };
+  const filaVigente = (p, pg, lista)=> filaPago(p, pg, lista, true);
+  const filaArchivada = (p, pg, lista)=> filaPago(p, pg, lista, false);
 
   const fechaMasReciente = (p)=>{
     const fechas = [...(p.pagos||[]).map(pg=>pg.fecha), ...(p.modificaciones||[]).flatMap(m=>(m.pagosPrevios||[]).map(pg=>pg.fecha))];
@@ -4978,7 +4959,11 @@ function viewPagos(){
 
     const totalGeneral = totalVigente + totalArchivado;
     const numModificaciones = (p.modificaciones||[]).length;
-    const numPagosTotal = vigentes.length + archivados.length;
+    // Cuenta transacciones reales, no registros: un cobro con abono a capital son 2
+    // registros en el arreglo pero 1 sola transacción (misma cuenta que ve el usuario en la
+    // lista de abajo, ya fusionada).
+    const contarTransacciones = (lista)=> lista.filter(pg=> !(pg.tipo==="abono_capital" && pg.cuotaId && buscarLigado(lista,pg))).length;
+    const numPagosTotal = contarTransacciones(vigentes) + contarTransacciones(archivados);
     // Misma fórmula de "capital neto realmente desembolsado" que usan el Reporte general y
     // el Estado de resultados: si viene de refinanciar, solo cuenta lo entregado en efectivo
     // en ese momento; si tuvo modificaciones no sustanciales, suma también lo adicional de
@@ -5000,8 +4985,8 @@ function viewPagos(){
         <div><p class="hint" style="margin:0 0 2px;white-space:nowrap;">Total cobrado</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(totalGeneral)}</p></div>
       </div>
       <div style="padding:12px 16px;">
-        ${vigentes.length ? `<p class="hint" style="margin:0 0 6px;">Pagos vigentes (${vigentes.length}) · ${money(totalVigente)}</p>${vigentes.map(pg=>filaVigente(p,pg)).join("")}` : ""}
-        ${archivados.length ? `<p class="hint" style="margin:${vigentes.length?"10px":"0"} 0 6px;">De antes de modificar (${archivados.length})</p>${archivados.map(pg=>filaArchivada(p,pg)).join("")}` : ""}
+        ${vigentes.length ? `<p class="hint" style="margin:0 0 6px;">Pagos vigentes (${vigentes.length}) · ${money(totalVigente)}</p>${vigentes.map(pg=>filaVigente(p,pg,vigentes)).join("")}` : ""}
+        ${archivados.length ? `<p class="hint" style="margin:${vigentes.length?"10px":"0"} 0 6px;">De antes de modificar (${archivados.length})</p>${archivados.map(pg=>filaArchivada(p,pg,archivados)).join("")}` : ""}
       </div>
     </details>`;
   });
@@ -5015,31 +5000,40 @@ function eliminarPago(prestamoId, pagoId){
   const idx = pagoId ? pagos.findIndex(pg=>pg.id===pagoId) : pagos.length-1;
   if(idx<0) return;
   const pg = pagos[idx];
-  const total = (Number(pg.monto)||0) + (Number(pg.mora)||0);
+  // Si este pago está enlazado con su abono a capital (o es el abono enlazado a su cuota),
+  // son la MISMA transacción partida en dos registros — se eliminan siempre juntos, para no
+  // dejar huérfana la mitad que no se tocó.
+  const idPareja = pg.abonoId || (pg.tipo==="abono_capital" ? pg.cuotaId : null);
+  const idxPareja = idPareja ? pagos.findIndex(x=>x.id===idPareja) : -1;
+  const pareja = idxPareja>=0 ? pagos[idxPareja] : null;
+  const total = (Number(pg.monto)||0) + (Number(pg.mora)||0) + (pareja ? (Number(pareja.monto)||0) : 0);
   const cli = state.clientes.find(c=>c.id===p.clienteId);
   let msg = `¿Eliminar el pago de ${money(total)} del ${fmtDate(pg.fecha)} (${p.codigo}${cli?" · "+cli.nombre:""})?\n\n`+
     `El préstamo recalculará sus cuotas pendientes sin este pago. Esta acción no se puede deshacer.`;
-  if(pg.tipo==="abono_capital") msg += `\n\nEste pago incluye un abono a capital — la tabla de amortización también se actualizará, quitando el efecto de ese abono.`;
+  if(pg.tipo==="abono_capital" || (pareja && pareja.tipo==="abono_capital")) msg += `\n\nEste pago incluye un abono a capital — la tabla de amortización también se actualizará, quitando el efecto de ese abono.`;
   confirmarConClave(msg, function(ok){
     if(!ok) return;
-    if(pg.liquidacion) p.liquidadoAnticipado = false;
-    if(pg.tipo==="abono_capital" && (p.ajustesCapital||[]).length){
-      // Se busca primero por el enlace directo (pagoId); si el ajuste es de antes de que
-      // existiera ese enlace, se usa como respaldo la fecha+monto (que es como quedó
-      // guardado el ajuste en ese momento) para no dejarlo huérfano en la tabla.
-      const porId = p.ajustesCapital.findIndex(a=>a.pagoId===pg.id);
-      if(porId>=0) p.ajustesCapital.splice(porId,1);
-      else {
-        const porFechaMonto = p.ajustesCapital.findIndex(a=>a.fecha===pg.fecha && round2(a.monto)===round2(pg.monto));
-        if(porFechaMonto>=0) p.ajustesCapital.splice(porFechaMonto,1);
+    [pg, pareja].filter(Boolean).forEach(function(reg){
+      if(reg.liquidacion) p.liquidadoAnticipado = false;
+      if(reg.tipo==="abono_capital" && (p.ajustesCapital||[]).length){
+        // Se busca primero por el enlace directo (pagoId); si el ajuste es de antes de que
+        // existiera ese enlace, se usa como respaldo la fecha+monto (que es como quedó
+        // guardado el ajuste en ese momento) para no dejarlo huérfano en la tabla.
+        const porId = p.ajustesCapital.findIndex(a=>a.pagoId===reg.id);
+        if(porId>=0) p.ajustesCapital.splice(porId,1);
+        else {
+          const porFechaMonto = p.ajustesCapital.findIndex(a=>a.fecha===reg.fecha && round2(a.monto)===round2(reg.monto));
+          if(porFechaMonto>=0) p.ajustesCapital.splice(porFechaMonto,1);
+        }
       }
-    }
+    });
     // Si el préstamo estaba marcado como liquidado (por haber alcanzado el saldo completo
     // con un abono a capital, sin pasar por "Liquidar anticipado"), se destraba aquí también:
     // al quitar el pago, ya no es seguro que siga completamente pagado — resumen() vuelve a
     // calcular el estado real con lo que queda.
     if(p.liquidadoAnticipado) p.liquidadoAnticipado = false;
-    pagos.splice(idx,1);
+    // Se elimina primero el índice más alto para no desfasar el otro al hacer splice.
+    [idx, idxPareja].filter(i=>i>=0).sort((a,b)=>b-a).forEach(i=>pagos.splice(i,1));
     p.pagos = pagos;
     if(state.vista==="recibo") state.vista = "lista";
     save(); render();
