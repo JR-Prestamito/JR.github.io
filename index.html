@@ -145,6 +145,9 @@
   .searchbar{display:flex;align-items:center;gap:8px;border:1px solid #d8d3c8;border-radius:10px;padding:8px 12px;flex:1;background:#fff;}
   .searchbar input{border:none;padding:0;flex:1;}
   .toprow{display:flex;gap:8px;margin-bottom:16px;}
+  /* Buscador fijo: se queda pegado debajo del encabezado al desplazarse por la lista */
+  .toprow.buscador{position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:var(--cream);margin:-16px -16px 12px;padding:10px 16px;box-shadow:0 5px 8px -7px rgba(0,0,0,.28);}
+  [data-theme="dark"] .toprow.buscador{background:#12161f;}
   .iconbtn{background:var(--navy);color:#fff;border:none;border-radius:12px;width:48px;height:48px;font-size:24px;line-height:1;flex-shrink:0;}
   /* Botón flotante (+): anclado a la esquina inferior derecha del contenido de la app (no
      del viewport), con el mismo truco de left:50%+translateX que usa .tabbar para quedar
@@ -372,14 +375,14 @@
   .v3-note{font-size:11px;color:rgba(255,255,255,.58);margin:6px 0 14px;}
   .v3-ico{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.12);display:inline-flex;align-items:center;justify-content:center;flex:none;color:#fff;}
   .v3-ico svg{width:20px;height:20px;}
-  .v3-mini{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .v3-mini{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
   .v3-mini>div{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:9px 10px;display:flex;gap:9px;align-items:center;}
   .v3-mini .v3-ico{width:30px;height:30px;border-radius:10px;}
   .v3-mini .v3-ico svg{width:16px;height:16px;}
   .v3-mini p{margin:0;}
   .v3-mini .m-lbl{font-size:10.5px;color:rgba(255,255,255,.58);margin-bottom:1px;}
   .v3-mini .m-val{font-size:14px;font-weight:700;color:#fff;}
-  .v3-tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+  .v3-tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;}
   .v3-tile{border-radius:18px;padding:13px;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.10);}
   .v3-tile .v3-ico{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);margin-bottom:10px;}
   .v3-tile .v3-ico svg{width:17px;height:17px;}
@@ -1547,6 +1550,11 @@ function quitarClaveAcceso(){
   });
 }
 
+function medirEncabezado(){
+  const h = document.querySelector("#app header");
+  if(h && h.offsetHeight > 0) document.documentElement.style.setProperty("--header-h", h.offsetHeight + "px");
+}
+window.addEventListener("resize", medirEncabezado);
 function render(){
   document.documentElement.setAttribute("data-theme", state.config.temaOscuro ? "dark" : "light");
   document.documentElement.setAttribute("data-ayudas", state.config.mostrarAyudas ? "on" : "off");
@@ -1690,11 +1698,6 @@ function render(){
 
     // Si se entró a Ajustes desde el menú de una sección específica (ej. "Clave de acceso"),
     // se salta directo ahí en vez de dejar al usuario buscarla desplazándose a mano.
-    if(state.tab==="inicio" && state.vista==="ajustes" && state._irAjustesSeccion){
-      const destino = document.getElementById(state._irAjustesSeccion);
-      if(destino) destino.scrollIntoView({behavior:"smooth", block:"start"});
-      state._irAjustesSeccion = null;
-    }
     // Restaura el foco (y la posición del cursor) en el mismo campo, si seguía existiendo.
     if(activoId){
       const nuevo = document.getElementById(activoId);
@@ -1707,6 +1710,18 @@ function render(){
     }
     window.scrollTo(0, mismaVista ? scrollY : 0);
     prepararNotasLargas();
+    medirEncabezado();
+    // El salto a la sección va DESPUÉS de restaurar el scroll (antes iba antes, y el
+    // window.scrollTo(0,0) de arriba lo cancelaba: por eso el menú ⋮ no llevaba a la sección).
+    if(state.tab==="inicio" && state.vista==="ajustes" && state._irAjustesSeccion){
+      const destino = document.getElementById(state._irAjustesSeccion);
+      if(destino){
+        destino.scrollIntoView({block:"start"});
+        destino.classList.add("sec-destacada");
+        setTimeout(function(){ destino.classList.remove("sec-destacada"); }, 1800);
+      }
+      state._irAjustesSeccion = null;
+    }
     // Algunos navegadores "recuerdan" por su cuenta el último valor que el usuario eligió
     // en un <select>, e ignoran cuál <option> quedó marcada como "selected" en el HTML
     // nuevo al reconstruir la pantalla — por eso a veces el selector de WhatsApp se
@@ -2159,15 +2174,69 @@ function abrirEstadoResultados(){
   state.vista = "estadoResultados";
   render();
 }
-function generarEstadoResultadosPDF(){
-  let interesesCobrados=0, capitalCobrado=0, moraCobrada=0, enganches=0, pagosPrevios=0, desembolsos=0, gananciaPerdidaModificaciones=0;
-  state.prestamos.forEach(p=>{
+
+// Reparte los cobros hechos ANTES de cada modificación "no sustancial" (los que quedaron
+// archivados en m.pagosPrevios) entre interés, capital, abonos a capital, mora y enganche.
+// - Mora, enganche y abonos a capital salen EXACTOS (cada pago ya trae su tipo y su mora).
+// - Interés vs. capital: si TODOS los pagos del grupo traen el reparto guardado (interes/capital,
+//   que se guarda al registrar el pago) se usa tal cual; si no, se ESTIMA reconstruyendo el
+//   préstamo como era antes de modificarse (capital, tasa, método, cuotas y fecha anteriores).
+// Siempre se cumple: interes + capital + mora + enganche = lo cobrado (monto + mora) de esos pagos.
+function desgloseCobrosArchivados(p){
+  const res = { interes:0, capital:0, abonos:0, mora:0, enganche:0, estimado:false };
+  (p.modificaciones||[]).forEach(function(m, idx){
+    const pagos = m.pagosPrevios || [];
+    if(!pagos.length) return;
+    const num = function(x){ return Number(x)||0; };
+    pagos.forEach(function(pg){
+      res.mora += num(pg.mora);
+      if(pg.tipo==="enganche") res.enganche += num(pg.monto);
+    });
+    const cuotasYAbonos = pagos.filter(function(pg){ return pg.tipo!=="enganche"; });
+    res.abonos += cuotasYAbonos.filter(function(pg){ return pg.tipo==="abono_capital"; }).reduce(function(s,pg){ return s+num(pg.monto); },0);
+    const totalG = cuotasYAbonos.reduce(function(s,pg){ return s+num(pg.monto); },0);
+    let i = 0, c = 0;
+    if(cuotasYAbonos.length && cuotasYAbonos.every(function(pg){ return pg.interes!==undefined && pg.capital!==undefined; })){
+      cuotasYAbonos.forEach(function(pg){ i += num(pg.interes); c += num(pg.capital); });
+    } else if(cuotasYAbonos.length){
+      res.estimado = true;
+      try{
+        const previo = Object.assign({}, p, {
+          id: p.id+"_previo"+idx, capital:m.capitalAnterior, tasa:m.tasaAnterior, periodo:m.periodoAnterior,
+          metodo:m.metodoAnterior, cuotas:m.cuotasAnterior, fechaInicio:m.fechaInicioAnterior||p.fechaInicio,
+          pagos:pagos, ajustesCapital:m.ajustesPrevios||[], modificaciones:[], liquidadoAnticipado:false
+        });
+        const d = desglosePagado(previo); i = d.interes; c = d.capital;
+      }catch(e){ i = 0; c = 0; }
+      // Lo que la tabla no alcance a repartir se deja como capital, para que el total nunca cambie.
+      c += totalG - (i + c);
+    }
+    res.interes += i; res.capital += c;
+  });
+  return res;
+}
+// Totales de ingresos cobrados de TODOS los préstamos (cobros vigentes + archivados).
+// "capital" = todo el capital cobrado (cuotas + abonos a capital); "abonos" es la parte que
+// vino de abonos extra, y "capitalCuotas" el resto (lo que trae cada cuota).
+function desgloseIngresosCobrados(){
+  const t = { intereses:0, capital:0, abonos:0, capitalCuotas:0, mora:0, enganches:0, hayEstimado:false };
+  state.prestamos.forEach(function(p){
     const d = desglosePagado(p);
-    interesesCobrados += d.interes;
-    capitalCobrado += d.capital;
-    moraCobrada += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.mora)||0),0);
-    enganches += enganchesDe(p);
-    pagosPrevios += pagosPreviosDe(p);
+    const a = desgloseCobrosArchivados(p);
+    const pagos = p.pagos || [];
+    t.intereses += d.interes + a.interes;
+    t.capital += d.capital + a.capital;
+    t.abonos += pagos.filter(function(pg){ return pg.tipo==="abono_capital"; }).reduce(function(s,pg){ return s+(Number(pg.monto)||0); },0) + a.abonos;
+    t.mora += pagos.reduce(function(s,pg){ return s+(Number(pg.mora)||0); },0) + a.mora;
+    t.enganches += enganchesDe(p) + a.enganche;
+    if(a.estimado) t.hayEstimado = true;
+  });
+  t.capitalCuotas = t.capital - t.abonos;
+  return t;
+}
+function generarEstadoResultadosPDF(){
+  let desembolsos=0, gananciaPerdidaModificaciones=0;
+  state.prestamos.forEach(p=>{
     // Nota: una refinanciación SUSTANCIAL (la única que deja p.refinanciaDe en el
     // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIIF PYMES — esa
     // columna solo aplica a modificaciones NO sustanciales, que van en p.modificaciones
@@ -2178,7 +2247,8 @@ function generarEstadoResultadosPDF(){
       gananciaPerdidaModificaciones += Number(m.gananciaPerdida)||0;
     });
   });
-  const ingresos = interesesCobrados + capitalCobrado + moraCobrada + enganches + pagosPrevios;
+  const T = desgloseIngresosCobrados();
+  const ingresos = T.intereses + T.capital + T.mora + T.enganches;
   const mostrarGananciaModif = state.config.mostrarGananciaModificaciones===true;
   const utilidad = ingresos - desembolsos + (mostrarGananciaModif ? gananciaPerdidaModificaciones : 0);
   const { jsPDF } = window.jspdf;
@@ -2192,11 +2262,12 @@ function generarEstadoResultadosPDF(){
     startY: 30,
     head: [["Ingresos","Monto"]],
     body: [
-      ["Intereses cobrados", money(interesesCobrados)],
-      ["Abonos a capital cobrados", money(capitalCobrado)],
-      ["Mora cobrada", money(moraCobrada)],
-      ["Enganches al refinanciar", money(enganches)],
-      ["Pagos antes de modificaciones (histórico)", money(pagosPrevios)]
+      ["Intereses cobrados", money(T.intereses)],
+      ["Capital cobrado", money(T.capital)],
+      ["      De cuotas", money(T.capitalCuotas)],
+      ["      Por abonos a capital", money(T.abonos)],
+      ["Mora cobrada", money(T.mora)],
+      ["Enganches al refinanciar", money(T.enganches)]
     ],
     foot: [["Total ingresos", money(ingresos)]],
     columnStyles: { 1: { halign: "right" } },
@@ -2244,7 +2315,7 @@ function generarEstadoResultadosPDF(){
   }
   doc.setFontSize(7.5);
   doc.setTextColor(120,120,120);
-  const nota = "Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como \"desembolso\" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo). Cuando un refinanciamiento se clasifica como \"modificación no sustancial\" (NIIF para las PYMES, Sección 11), la diferencia se reconoce aquí como ganancia o pérdida.";
+  const nota = ("Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como \"desembolso\" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo). Cuando un refinanciamiento se clasifica como \"modificación no sustancial\" (NIIF para las PYMES, Sección 11), la diferencia se reconoce aquí como ganancia o pérdida.") + (T.hayEstimado ? " Los cobros hechos antes de modificar un préstamo, cuando se registraron antes de que la app guardara el reparto, se dividen entre interés y capital por estimación (los abonos a capital, la mora y el total son exactos)." : "");
   doc.text(doc.splitTextToSize(nota, 180), 14, startY);
   doc.setTextColor(0,0,0);
   return doc;
@@ -2261,14 +2332,8 @@ function compartirEstadoResultadosPDF(){
   });
 }
 function viewEstadoResultados(){
-  let interesesCobrados=0, capitalCobrado=0, moraCobrada=0, enganches=0, pagosPrevios=0, desembolsos=0, gananciaPerdidaModificaciones=0;
+  let desembolsos=0, gananciaPerdidaModificaciones=0;
   state.prestamos.forEach(p=>{
-    const d = desglosePagado(p);
-    interesesCobrados += d.interes;
-    capitalCobrado += d.capital;
-    moraCobrada += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.mora)||0),0);
-    enganches += enganchesDe(p);
-    pagosPrevios += pagosPreviosDe(p);
     // Nota: una refinanciación SUSTANCIAL (la única que deja p.refinanciaDe en el
     // préstamo nuevo) nunca tiene ganancia/pérdida por definición de NIIF PYMES — esa
     // columna solo aplica a modificaciones NO sustanciales, que van en p.modificaciones
@@ -2286,12 +2351,17 @@ function viewEstadoResultados(){
       gananciaPerdidaModificaciones += Number(m.gananciaPerdida)||0;
     });
   });
-  const ingresos = interesesCobrados + capitalCobrado + moraCobrada + enganches + pagosPrevios;
+  const T = desgloseIngresosCobrados();
+  const ingresos = T.intereses + T.capital + T.mora + T.enganches;
   const mostrarGananciaModif = state.config.mostrarGananciaModificaciones===true;
   const utilidad = ingresos - desembolsos + (mostrarGananciaModif ? gananciaPerdidaModificaciones : 0);
   const fila = (label, valor, negrita)=>`<tr class="${negrita?"fila-total-amort":"fila-amort"}">
       <td style="padding:${negrita?"6px 6px":"4px 6px"};${negrita?"font-weight:700;":""}">${label}</td>
       <td style="padding:${negrita?"6px 6px":"4px 6px"};text-align:right;${negrita?"font-weight:700;":""}">${money(valor)}</td>
+    </tr>`;
+  const filaSub = (label, valor)=>`<tr class="fila-amort">
+      <td style="padding:2px 6px 2px 22px;font-size:12px;color:#8a8680;">${label}</td>
+      <td style="padding:2px 6px;text-align:right;font-size:12px;color:#8a8680;">${money(valor)}</td>
     </tr>`;
   return `
     <div id="reporte-imprimible" style="margin:0 -16px 16px;padding:16px 10px;">
@@ -2300,11 +2370,12 @@ function viewEstadoResultados(){
       <p style="font-weight:700;margin:0 0 6px;">Ingresos</p>
       <div class="tabla-card">
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
-        ${fila("Intereses cobrados", interesesCobrados)}
-        ${fila("Abonos a capital cobrados", capitalCobrado)}
-        ${fila("Mora cobrada", moraCobrada)}
-        ${fila("Enganches al refinanciar", enganches)}
-        ${fila("Pagos antes de modificaciones (histórico)", pagosPrevios)}
+        ${fila("Intereses cobrados", T.intereses)}
+        ${fila("Capital cobrado", T.capital)}
+        ${filaSub("De cuotas", T.capitalCuotas)}
+        ${filaSub("Por abonos a capital", T.abonos)}
+        ${fila("Mora cobrada", T.mora)}
+        ${fila("Enganches al refinanciar", T.enganches)}
         ${fila("Total ingresos", ingresos, true)}
       </table>
       </div>
@@ -2329,6 +2400,7 @@ function viewEstadoResultados(){
       </table>
       </div>
       <p class="hint nota-ayuda" style="margin-top:14px;">Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como "desembolso" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo) — el resto del capital nuevo es el saldo pendiente del préstamo anterior reacomodado, no dinero que volvió a salir de la caja. Cuando un refinanciamiento se clasifica como "modificación no sustancial" según NIIF para las PYMES, Sección 11 (prueba del 10% de valor presente), la diferencia se reconoce aquí como ganancia o pérdida; cuando es "sustancial", se trata como préstamo nuevo sin efecto adicional en este renglón.</p>
+      ${T.hayEstimado ? `<p class="hint nota-ayuda" style="margin-top:8px;">Los cobros hechos antes de modificar un préstamo, cuando se registraron antes de que la app guardara el reparto, se dividen entre interés y capital por estimación. Los abonos a capital, la mora y el total son exactos.</p>` : ""}
     </div>
     <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
 }
@@ -2873,21 +2945,21 @@ function viewInicio(){
 
   const modoOscuro = !!state.config.temaOscuro;
   let html = `<div class="v3-hero">
-    <div class="v3-top">
+    <div class="v3-top" onclick="irA('prestamos')">
       <div><p class="v3-lbl">Capital actual prestado</p>
       <p class="v3-val"><em>L</em> ${money(capitalActual).replace(/^L\s*/,"")}</p></div>
       <span class="v3-ico">${ICO_INI.banco}</span>
     </div>
     <p class="v3-note">Saldo de capital que tus clientes todavía te deben (sin interés de cuotas futuras).</p>
     <div class="v3-mini">
-      <div><span class="v3-ico">${ICO_INI.dinero}</span><div><p class="m-lbl">Capital prestado</p><p class="m-val">${money(prestado)}</p></div></div>
-      <div><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(cobrado)}</p></div></div>
+      <div onclick="irA('prestamos')"><span class="v3-ico">${ICO_INI.dinero}</span><div><p class="m-lbl">Capital prestado</p><p class="m-val">${money(prestado)}</p></div></div>
+      <div onclick="irA('pagos')"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(cobrado)}</p></div></div>
     </div>
   </div>
   <div class="v3-tiles">
-    <div class="v3-tile t-verde"><span class="v3-ico">${ICO_INI.tendencia}</span><p class="t-lbl">Préstamos activos</p><p class="t-val">${activos}</p></div>
+    <div class="v3-tile t-verde" onclick="irA('prestamos')"><span class="v3-ico">${ICO_INI.tendencia}</span><p class="t-lbl">Préstamos activos</p><p class="t-val">${activos}</p></div>
     <div class="v3-tile t-rojo" onclick="verCartera()"><span class="v3-ico">${ICO_INI.alerta}</span><p class="t-lbl">Cuotas vencidas</p><p class="t-val">${vencidos}</p></div>
-    <div class="v3-tile t-dorado"><span class="v3-ico">${ICO_INI.personas}</span><p class="t-lbl">Clientes registrados</p><p class="t-val">${state.clientes.length}</p></div>
+    <div class="v3-tile t-dorado" onclick="irA('clientes')"><span class="v3-ico">${ICO_INI.personas}</span><p class="t-lbl">Clientes registrados</p><p class="t-val">${state.clientes.length}</p></div>
   </div>
   <div class="panel-prox"><p class="section-title dorado">Próximos a vencer</p>`;
 
@@ -3152,10 +3224,10 @@ function viewAjustes(){
 
 function viewClientes(){
   const filtrados = state.clientes.filter(c => (c.nombre+c.codigo).toLowerCase().includes(state.q.toLowerCase()));
-  let html = `<div class="toprow">
+  let html = `<div class="toprow buscador">
     <input id="buscarCliente" style="flex:1;" placeholder="Buscar cliente" value="${state.q}" oninput="state.q=this.value; render()">
-    <button class="iconbtn" onclick="abrirFormCliente(null)">+</button>
-  </div>`;
+  </div>
+  ${state.showFormCliente ? "" : `<div class="fab-wrap"><button class="fab" title="Nuevo cliente" onclick="abrirFormCliente(null)">+</button></div>`}`;
 
   if(state.showFormCliente){
     const ed = state.clienteEditId ? state.clientes.find(c=>c.id===state.clienteEditId) : null;
@@ -3173,13 +3245,15 @@ function viewClientes(){
   }
 
   if(filtrados.length===0) html += `<p class="empty">No hay clientes todavía.</p>`;
+  if(filtrados.length>0) html += `<div class="panel-prox panel-lista"><p class="section-title dorado">Clientes (${filtrados.length})</p>`;
   filtrados.forEach(c=>{
-    html += `<div class="row-card">
-      <div class="flex-gap" style="cursor:pointer;" onclick="abrirFormCliente('${c.id}')"><div class="avatar">${c.nombre.slice(0,2).toUpperCase()}</div>
+    html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="abrirFormCliente('${c.id}')">
+      <div class="flex-gap"><div class="avatar">${c.nombre.slice(0,2).toUpperCase()}</div>
       <div><p class="name">${c.nombre}</p><p class="sub">${c.codigo} · ${c.celular||"sin celular"}</p></div></div>
-      <button onclick="eliminarCliente('${c.id}')" style="background:none;border:none;color:#bbb;font-size:16px;">✕</button>
+      <button onclick="event.stopPropagation(); eliminarCliente('${c.id}')" style="background:none;border:none;color:#bbb;font-size:16px;padding:8px 6px;">✕</button>
     </div>`;
   });
+  if(filtrados.length>0) html += `</div>`;
   return html;
 }
 function abrirFormCliente(id){
@@ -3259,7 +3333,7 @@ function viewPrestamos(){
   if(state.vista==="refinanciar") return viewRefinanciar();
   if(state.vista==="calculadora") return viewCalculadora();
 
-  let html = `<div class="toprow" style="margin-bottom:16px;">
+  let html = `<div class="toprow buscador" style="margin-bottom:16px;">
     <input id="buscarPrestamo" style="flex:1;" placeholder="Buscar préstamo o cliente" value="${state.qPrestamos}" oninput="state.qPrestamos=this.value; render()">
     <button class="iconbtn" style="display:flex;align-items:center;justify-content:center;" title="Calculadora de préstamos" onclick="abrirCalculadora()">${ICONS.calculator}</button>
   </div>
@@ -3277,7 +3351,7 @@ function viewPrestamos(){
     const r = resumen(p);
     const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
     const nVenc = atraso>0 ? cuotasVencidas(r) : 0;
-    return `<div class="row-card" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
+    return `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
       <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
       <p class="sub">${p.codigo} · ${p.metodo.split(" (")[0]}</p>
       <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(r.saldoPendiente)}</p></div>
@@ -3299,14 +3373,17 @@ function viewPrestamos(){
   ];
   grupos.forEach(g=>{
     if(g.lista.length===0) return;
-    html += `<p class="section-title" style="margin-top:16px;">${g.label.toUpperCase()} (${g.lista.length})</p>`;
+    html += `<div class="panel-prox panel-lista"><p class="section-title dorado">${g.label} (${g.lista.length})</p>`;
     g.lista.forEach(p=>{ html += filaPrestamo(p); });
+    html += `</div>`;
   });
   return html;
 }
 function verDetalle(id){ state.tab="prestamos"; state.seleccionId=id; state.vista="detalle"; state.paginaAmortizacion=null; render(); }
 function cambiarPaginaAmortizacion(delta){ state.paginaAmortizacion = Math.max(0, (state.paginaAmortizacion||0) + delta); render(); }
 function volverLista(){ state.vista="lista"; render(); }
+// Ir a una sección desde el inicio (igual que tocar la pestaña de abajo).
+function irA(tab){ state.tab = tab; state.vista = "lista"; state.q = ""; state.qPrestamos = ""; render(); }
 function verCartera(){ state.tab="prestamos"; state.vista="cartera"; render(); }
 
 const PLANTILLA_RECORDATORIO_DEFECTO = "Hola {nombre}, su préstamo {codigo} tiene {cuotas} vencida(s) desde el {fecha} ({dias} de atraso), por un total de {monto}. Le agradecemos ponerse al día lo antes posible. Cualquier duda, con gusto le atendemos. ¡Gracias!";
@@ -3429,7 +3506,7 @@ function viewCartera(){
     .sort((a,b)=> b.atraso - a.atraso);
 
   if(vencidos.length===0){
-    return `<p class="empty">No tienes cuotas vencidas. 🎉</p>`;
+    return `<div class="panel-prox panel-lista"><p class="section-title dorado">Cartera vencida</p><p class="empty">No tienes cuotas vencidas. 🎉</p></div>`;
   }
 
   let html = "";
@@ -3446,17 +3523,18 @@ function viewCartera(){
   grupos.forEach(g=>{
     const enGrupo = vencidos.filter(x=> x.atraso>=g.min && x.atraso<=g.max);
     if(enGrupo.length===0) return;
-    html += `<p class="cartera-grupo">${g.label} (${enGrupo.length})</p>`;
+    html += `<div class="panel-prox panel-lista"><p class="section-title dorado">${g.label} (${enGrupo.length})</p>`;
     enGrupo.forEach(({p, r, atraso})=>{
       const cli = state.clientes.find(c=>c.id===p.clienteId);
       const nVencCard = cuotasVencidas(r);
-      html += `<div class="row-card" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
+      html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
         <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
         <p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p>
         <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(r.cuotaActual?r.cuotaActual.cuota:r.cuota)}</p></div>
         <span class="badge b-vencido">${atraso} día${atraso===1?"":"s"} · ${nVencCard} cuota${nVencCard===1?"":"s"}</span>
       </div>`;
     });
+    html += `</div>`;
   });
   return html;
 }
@@ -4377,12 +4455,12 @@ function conceptoPago(pg){
   if(pg.mora>0) return "Cuota + mora por atraso";
   return "Cuota";
 }
-function generarReciboPDF(p, cli, pg, r, numRecibo, contexto){
+function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
   const { jsPDF } = window.jspdf; // tamaño angosto de recibo/ticket (80mm), no una hoja completa
   const doc = new jsPDF({unit:"mm", format:[80,170]});
   dibujarMarcaAgua(doc, siglasApp(), 80, 170);
-  const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0);
-  const concepto = conceptoPago(pg);
+  const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0) + (abonoLigado ? (Number(abonoLigado.monto)||0) : 0);
+  const concepto = conceptoPago(pg) + (abonoLigado ? " + abono a capital" : "");
   const cx = 40, xL = 6, xR = 74;
   let y = 10;
   doc.setFontSize(12); doc.text(nombreApp().toUpperCase(), cx, y, {align:"center"}); y += 6;
@@ -4397,7 +4475,14 @@ function generarReciboPDF(p, cli, pg, r, numRecibo, contexto){
   linea("Préstamo", p.codigo);
   linea("Método", p.metodo);
   linea("Concepto", concepto);
-  if(pg.mora>0){ linea("Cuota", money(pg.monto)); linea("Mora", money(pg.mora)); }
+  if(pg.interes!=null && pg.capital!=null && pg.tipo!=="abono_capital"){
+    linea("Cuota", money(pg.monto));
+    if(pg.interes>0) linea("  Interés", money(pg.interes));
+    if(pg.capital>0) linea("  Capital", money(pg.capital));
+    if(abonoLigado) linea("Abono a capital", money(abonoLigado.monto));
+    if(pg.mora>0) linea("Mora", money(pg.mora));
+  } else if(pg.tipo==="abono_capital"){ linea("Abono a capital", money(pg.monto)); }
+  else if(pg.mora>0){ linea("Cuota", money(pg.monto)); linea("Mora", money(pg.mora)); }
   y += 1; doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 7;
   doc.setFontSize(11); linea("Total pagado", money(totalPago));
   doc.setFontSize(8); linea("Saldo pendiente", money(r.saldoPendiente));
@@ -4597,11 +4682,13 @@ function compartirReciboPDF(){
   }
   if(!pg) pg = pagos[pagos.length-1];
   if(!pg) return;
+  const resuelto1 = resolverPagoRecibo(p, pg);
+  pg = resuelto1.pg;
   const numRecibo = pg.id ? pg.id.slice(-6).toUpperCase() : String(idx+1).padStart(4,"0");
   const r = resumen(p);
   cargarPDFLibs(function(){
     try{
-      const doc = generarReciboPDF(p, cli, pg, r, numRecibo, "compartir");
+      const doc = generarReciboPDF(p, cli, pg, r, numRecibo, "compartir", resuelto1.abonoLigado);
       const blob = doc.output("blob");
       compartirOdescargarPDF(blob, `recibo-R-${numRecibo}.pdf`, `Recibo de pago R-${numRecibo}`);
     }catch(err){
@@ -4637,10 +4724,12 @@ function imprimirRecibo(){
   }
   if(!pg) pg = pagos[pagos.length-1];
   if(!pg) return;
+  const resuelto2 = resolverPagoRecibo(p, pg);
+  pg = resuelto2.pg;
   const numRecibo = pg.id ? pg.id.slice(-6).toUpperCase() : String(idx+1).padStart(4,"0");
   const r = resumen(p);
   cargarPDFLibs(function(){
-    const doc = generarReciboPDF(p, cli, pg, r, numRecibo, "imprimir");
+    const doc = generarReciboPDF(p, cli, pg, r, numRecibo, "imprimir", resuelto2.abonoLigado);
     imprimirPDFDoc(doc);
   });
 }
@@ -4681,10 +4770,20 @@ function registrarPago(id){
     p.pagos = p.pagos || [];
     const fEl = document.getElementById("fechaPago");
     const fechaPago = (fEl && fEl.value) ? fEl.value : hoyISO();
-    p.pagos.push({ id:uid(), fecha:fechaPago, monto:montoCuota, mora, tipo:"cuota" });
+    // Se guarda cuánto de este cobro fue interés y cuánto capital (según la tabla de este
+    // momento): la diferencia del reparto total antes y después de agregar el pago.
+    const pagoCuota = { id:uid(), fecha:fechaPago, monto:montoCuota, mora, tipo:"cuota" };
+    const repartoAntes = desglosePagado(p);
+    p.pagos.push(pagoCuota);
+    const repartoDespues = desglosePagado(p);
+    pagoCuota.interes = round2(Math.max(0, Math.min(montoCuota, repartoDespues.interes - repartoAntes.interes)));
+    pagoCuota.capital = round2(montoCuota - pagoCuota.interes);
     if(excedente > 0.01){
       const idAbono = uid();
-      p.pagos.push({ id:idAbono, fecha:fechaPago, monto:excedente, mora:0, tipo:"abono_capital" });
+      // Se enlazan los dos pagos entre sí (misma fecha, mismo cobro) para que el recibo
+      // los pueda mostrar juntos como una sola transacción, en vez de dos recibos sueltos.
+      pagoCuota.abonoId = idAbono;
+      p.pagos.push({ id:idAbono, fecha:fechaPago, monto:excedente, mora:0, tipo:"abono_capital", interes:0, capital:excedente, cuotaId:pagoCuota.id });
       // Registrar el abono como un ajuste real de saldo (no solo un pago más), para que
       // generarTablaDinamica() recalcule cuota/plazo según el método a partir de aquí.
       // Si el abono alcanza para cubrir todo el saldo pendiente, se marca como liquidado
@@ -4747,7 +4846,7 @@ function liquidarAnticipado(id){
     function(ok){
       if(!ok) return;
       p.pagos = p.pagos || [];
-      p.pagos.push({ id:uid(), fecha:fechaLiq, monto:total, mora:0, liquidacion:true });
+      p.pagos.push({ id:uid(), fecha:fechaLiq, monto:total, mora:0, liquidacion:true, interes: round2(interes), capital: round2(capitalPendiente) });
       p.liquidadoAnticipado = true;
       save(); render();
     },
@@ -4887,7 +4986,7 @@ function viewPagos(){
     const capitalNeto = (p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p))
       + (p.modificaciones||[]).reduce((s,m)=>s+(Number(m.adicional)||0),0);
 
-    return `<details class="tabla-card" style="margin:0 -16px 10px;border-radius:0;">
+    return `<details class="tabla-card fila-pago">
       <summary style="padding:12px 16px;">
         <div style="min-width:0;">
           <p style="font-size:15px;font-weight:700;margin:0;">${nombre}</p>
@@ -4907,7 +5006,7 @@ function viewPagos(){
     </details>`;
   });
 
-  return tarjetas.join("");
+  return `<div class="panel-prox panel-lista"><p class="section-title dorado">Pagos por préstamo (${tarjetas.length})</p>${tarjetas.join("")}</div>`;
 }
 function eliminarPago(prestamoId, pagoId){
   const p = state.prestamos.find(x=>x.id===prestamoId);
@@ -4973,6 +5072,27 @@ function menuOpcionesRecibo(){
     { icono: ICONS.trash, texto:"Eliminar este pago", onclick:`eliminarPago('${p.id}','${pg.id||""}')`, peligro:true }
   ]);
 }
+function buscarPagoPorId(p, id){
+  if(!id) return null;
+  const enPagos = (p.pagos||[]).find(x=>x.id===id);
+  if(enPagos) return enPagos;
+  for(const m of (p.modificaciones||[])){
+    const enc = (m.pagosPrevios||[]).find(x=>x.id===id);
+    if(enc) return enc;
+  }
+  return null;
+}
+// Si un pago de cuota tuvo también un abono a capital el mismo cobro (o viceversa), se
+// resuelve siempre hacia el lado de la cuota y se devuelve el abono ligado aparte, para
+// mostrar las dos partes juntas en un solo recibo en vez de dos recibos sueltos.
+function resolverPagoRecibo(p, pg){
+  if(pg.tipo==="abono_capital" && pg.cuotaId){
+    const cuotaLigada = buscarPagoPorId(p, pg.cuotaId);
+    if(cuotaLigada) pg = cuotaLigada;
+  }
+  const abonoLigado = pg.abonoId ? buscarPagoPorId(p, pg.abonoId) : null;
+  return { pg, abonoLigado };
+}
 function viewRecibo(){
   const sel = state.reciboSel || {};
   const p = state.prestamos.find(x=>x.id===sel.prestamoId);
@@ -4989,10 +5109,13 @@ function viewRecibo(){
   }
   if(!pg) pg = pagos[pagos.length-1];
   if(!pg){ state.vista="lista"; return viewPagos(); }
+  const resuelto = resolverPagoRecibo(p, pg);
+  pg = resuelto.pg;
+  const abonoLigado = resuelto.abonoLigado;
   const numRecibo = pg.id ? pg.id.slice(-6).toUpperCase() : String(idx+1).padStart(4,"0");
-  const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0);
+  const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0) + (abonoLigado ? (Number(abonoLigado.monto)||0) : 0);
   const r = resumen(p);
-  let concepto = conceptoPago(pg);
+  let concepto = conceptoPago(pg) + (abonoLigado ? " + abono a capital" : "");
 
   return `
     <div id="recibo-imprimible" style="position:relative;overflow:hidden;">
@@ -5006,8 +5129,15 @@ function viewRecibo(){
       <div class="rline"><span>Préstamo</span><b>${p.codigo}</b></div>
       <div class="rline"><span>Método</span><b>${p.metodo}</b></div>
       <div class="rline"><span>Concepto</span><b>${concepto}</b></div>
-      ${pg.mora>0 ? `<div class="rline"><span>Cuota</span><b>${money(pg.monto)}</b></div>
-      <div class="rline"><span>Mora</span><b>${money(pg.mora)}</b></div>` : ""}
+      ${pg.interes!=null && pg.capital!=null && pg.tipo!=="abono_capital" ? `
+      <div class="rline"><span>Cuota</span><b>${money(pg.monto)}</b></div>
+      ${pg.interes>0 ? `<div class="rline" style="padding-left:14px;color:#666;"><span>· Interés</span><span>${money(pg.interes)}</span></div>` : ""}
+      ${pg.capital>0 ? `<div class="rline" style="padding-left:14px;color:#666;"><span>· Capital</span><span>${money(pg.capital)}</span></div>` : ""}
+      ${abonoLigado ? `<div class="rline"><span>Abono a capital</span><b>${money(abonoLigado.monto)}</b></div>` : ""}
+      ${pg.mora>0 ? `<div class="rline"><span>Mora</span><b>${money(pg.mora)}</b></div>` : ""}
+      ` : (pg.tipo==="abono_capital" ? `<div class="rline"><span>Abono a capital</span><b>${money(pg.monto)}</b></div>` :
+      (pg.mora>0 ? `<div class="rline"><span>Cuota</span><b>${money(pg.monto)}</b></div>
+      <div class="rline"><span>Mora</span><b>${money(pg.mora)}</b></div>` : ""))}
       <div class="rline rtotal" style="border-bottom:none;padding-top:14px;"><span>Total pagado</span><span>${money(totalPago)}</span></div>
       <div class="rline"><span>Saldo pendiente actual del préstamo</span><b>${money(r.saldoPendiente)}</b></div>
       <p class="hint" style="margin-top:18px;">Gracias por su pago.</p>
@@ -5583,6 +5713,19 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 </script>
 <style>
   #aviso-conexion{position:fixed;top:calc(3px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);z-index:9998;background:rgba(138,100,22,.95);color:#fff;font-size:10.5px;font-weight:600;padding:2px 10px;border-radius:99px;display:none;white-space:nowrap;pointer-events:none;}
+
+  /* Listas con el estilo de "Próximos a vencer" (clientes, préstamos, pagos) */
+  .panel-prox.panel-lista{min-height:0;margin:0 -6px 14px;padding-left:10px;padding-right:10px;}
+  .tabla-card.fila-pago{border:none;border-left:4px solid #B89552;border-radius:14px;margin:0 0 10px;background:linear-gradient(90deg,#FFF9EC,#fff 60%);box-shadow:0 2px 8px rgba(27,42,74,.07);}
+  [data-theme="dark"] .tabla-card.fila-pago{background:linear-gradient(90deg,#2A2416,#1B212C 60%);}
+  /* Tarjetas del inicio tocables */
+  .v3-hero .v3-top,.v3-mini>div,.v3-tile{cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s ease;}
+  .v3-mini>div:active,.v3-tile:active,.v3-hero .v3-top:active{transform:scale(.97);}
+
+  /* Ajustes: al saltar a una sección desde el menú ⋮, que no quede tapada por el encabezado fijo */
+  [id^="sec-"]{scroll-margin-top:calc(var(--header-h,78px) + 10px);}
+  .sec-destacada{animation:secDestello 1.8s ease;}
+  @keyframes secDestello{0%,60%{box-shadow:0 0 0 3px var(--gold);}100%{box-shadow:0 0 0 0 rgba(201,151,62,0);}}
 </style>
 <div id="aviso-conexion"></div>
 <script>
