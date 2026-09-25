@@ -5318,11 +5318,19 @@ async function licVerificar(clave){
   return { ok:false, red:true, motivo:"No se pudo verificar la licencia. Intenta de nuevo." };
 }
 
+// La pantalla de licencia va en un recuadro APARTE, encima de la app (nunca reemplaza
+// document.body): así, cuando la licencia resulta válida, el <div id="app"> de abajo
+// sigue intacto y la app se puede dibujar. Antes se hacía document.body.innerHTML,
+// que borraba el #app y dejaba la app congelada en "Verificando licencia…".
 function licPantalla(html){
-  document.body.innerHTML = `
-<div style="position:fixed;inset:0;z-index:99999;background:#1B2A4A;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;text-align:center;">
-${html}
-</div>`;
+  let ov = document.getElementById("lic-overlay");
+  if(!ov){ ov = document.createElement("div"); ov.id = "lic-overlay"; document.body.appendChild(ov); }
+  ov.style.cssText = "position:fixed;inset:0;z-index:99999;background:#1B2A4A;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;text-align:center;";
+  ov.innerHTML = html;
+}
+function licQuitarPantalla(){
+  const ov = document.getElementById("lic-overlay");
+  if(ov) ov.remove();
 }
 
 function licPedirClave(mensajeError){
@@ -5345,6 +5353,7 @@ ${mensajeError ? `<p style="color:#F3A0A0;font-size:13px;margin:0 0 10px;max-wid
     if(r.ok){
       localStorage.setItem("jrp_licencia", clave);
       localStorage.setItem("jrp_licencia_ok_ts", String(Date.now()));
+      licQuitarPantalla();
       render();
       if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
     } else {
@@ -5363,6 +5372,7 @@ async function licArrancar(){
   const r = await licVerificar(claveGuardada);
   if(r.ok){
     localStorage.setItem("jrp_licencia_ok_ts", String(Date.now()));
+    licQuitarPantalla();
     render();
     if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
     return;
@@ -5373,6 +5383,7 @@ async function licArrancar(){
     const ultimaOk = Number(localStorage.getItem("jrp_licencia_ok_ts") || 0);
     const diasSinValidar = (Date.now() - ultimaOk) / (1000*60*60*24);
     if(ultimaOk && diasSinValidar < LIC_DIAS_GRACIA){
+      licQuitarPantalla();
       render();
       return;
     }
