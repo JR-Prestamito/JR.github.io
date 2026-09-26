@@ -182,6 +182,8 @@
      solo entre filas), como una hoja de cálculo, en vez de líneas sueltas por fila. */
   .amort-grid th, .amort-grid td{border:1px solid #e5e1d8;}
   .amort-grid{border-collapse:collapse;}
+  .thead-fijo th{position:sticky;top:0;background:#F5F3EE;z-index:1;}
+  [data-theme="dark"] .thead-fijo th{background:#20283A;}
   [data-theme="dark"] .amort-grid th, [data-theme="dark"] .amort-grid td{border-color:rgba(255,255,255,.1);}
   .fila-header-desplegable{background:#F5F3EE;}
   [data-theme="dark"] .fila-header-desplegable{background:#20283A;}
@@ -2063,12 +2065,12 @@ function viewReportePDF(){
     const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
     const estado = atraso>0 ? "Vencido" : r.estado;
     return `<tr class="fila-amort">
-      <td style="padding:5px 6px;white-space:nowrap;">${p.codigo}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${cli?cli.nombre:"—"}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${money(p.capital)}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${estado}</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(r.saldoPendiente)}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${r.proximaFecha?fmtDate(r.proximaFecha):"—"}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${p.codigo}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${cli?cli.nombre:"—"}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${money(p.capital)}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${estado}</td>
+      <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(r.saldoPendiente)}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${r.proximaFecha?fmtDate(r.proximaFecha):"—"}</td>
     </tr>`;
   }).join("");
   return `
@@ -2082,12 +2084,12 @@ function viewReportePDF(){
         <div><p class="hint" style="margin:0;">Préstamos</p><p style="font-weight:700;margin:2px 0;">${state.prestamos.length}</p></div>
       </div>
       <div class="tabla-card">
-      <div style="overflow:auto;max-height:250px;-webkit-overflow-scrolling:touch;">
-      <table style="width:100%;min-width:560px;border-collapse:collapse;font-size:12px;">
-        <thead><tr style="background:#F5F3EE;">
-          <th style="text-align:left;padding:5px 6px;">Código</th><th style="text-align:left;padding:5px 6px;">Cliente</th>
-          <th style="text-align:left;padding:5px 6px;">Capital</th><th style="text-align:left;padding:5px 6px;">Estado</th>
-          <th style="text-align:right;padding:5px 6px;">Saldo</th><th style="text-align:left;padding:5px 6px;">Próx. fecha</th>
+      <div style="overflow:auto;max-height:242px;-webkit-overflow-scrolling:touch;">
+      <table class="amort-grid" style="width:auto;border-collapse:collapse;font-size:11px;">
+        <thead><tr class="thead-fijo" style="background:#F5F3EE;">
+          <th style="text-align:left;padding:4px 5px;white-space:nowrap;">Código</th><th style="text-align:left;padding:4px 5px;white-space:nowrap;">Cliente</th>
+          <th style="text-align:left;padding:4px 5px;white-space:nowrap;">Capital</th><th style="text-align:left;padding:4px 5px;white-space:nowrap;">Estado</th>
+          <th style="text-align:right;padding:4px 5px;white-space:nowrap;">Saldo</th><th style="text-align:left;padding:4px 5px;white-space:nowrap;">Próx. fecha</th>
         </tr></thead>
         <tbody>${filas || `<tr><td colspan="6" style="padding:14px;text-align:center;color:#aaa;">Sin préstamos registrados.</td></tr>`}</tbody>
       </table>
@@ -2449,22 +2451,17 @@ function generarReporteModificacionesPDF(){
     startY: 28,
     head: [["Fecha","Préstamo","Cliente","Clasif.","Capital antes","Capital después","Tasa antes","Tasa después","Ganancia/\n(pérdida)"]],
     body: filas.length?filas:[["—","—","Todavía no se ha refinanciado ni modificado ningún préstamo.","","","","","",""]],
-    styles: { fontSize: 7, cellPadding: 2 },
-    headStyles: { fillColor: [27,42,74], fontSize: 6.5 },
-    // Los anchos se calculan según el largo de los DATOS de cada columna (no del encabezado)
-    // — así ningún dato se parte en dos líneas, aunque el encabezado sí pueda partirse (por
-    // ejemplo "Tasa antes" o "Ganancia/(pérdida)" en dos líneas) para dejarle espacio a los
-    // datos. Capital antes/después llevan más ancho de margen por si la cifra crece.
+    // Mismo formato que la tabla de amortización: sin anchos fijos por columna, para que
+    // autoTable calcule solo el ancho de cada una según su contenido (queda más compacta
+    // y se adapta si algún dato es más largo o más corto de lo normal).
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [27,42,74] },
     columnStyles: {
-      0: { cellWidth: 21 },
-      1: { cellWidth: 30 },
-      2: { cellWidth: 25 },
-      3: { cellWidth: 20 },
-      4: { cellWidth: 20, halign: "right" },
-      5: { cellWidth: 21, halign: "right" },
-      6: { cellWidth: 12, halign: "right" },
-      7: { cellWidth: 12, halign: "right" },
-      8: { cellWidth: 20, halign: "right" }
+      4: { halign: "right" },
+      5: { halign: "right" },
+      6: { halign: "right" },
+      7: { halign: "right" },
+      8: { halign: "right" }
     }
   });
   let startY = doc.lastAutoTable.finalY + 5;
@@ -2510,15 +2507,15 @@ function viewReporteModificaciones(){
   const totalSustanciales = eventos.filter(e=>e.tipo==="sustancial").length;
   const totalNoSustanciales = eventos.filter(e=>e.tipo==="no_sustancial").length;
   const filas = eventos.map(e=>`<tr class="fila-amort">
-      <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}${e.tipo==="sustancial"&&e.codigoOrigen!=="—"?` <span style="color:#888;font-size:11px;">(de ${e.codigoOrigen})</span>`:""}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${e.cliente}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${e.tipo==="sustancial"?"Sustancial":"No sustancial"}</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.capitalAntes!=null?money(e.capitalAntes):"—"}</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(e.capitalDespues)}</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.tasaAntes!=null?e.tasaAntes+"%":"—"}</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.tasaDespues}%</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;${Math.abs(e.gananciaPerdida)>=0.005?(e.gananciaPerdida>=0?"color:#3B6D11":"color:#c0433b"):""}">${Math.abs(e.gananciaPerdida)>=0.005?money(e.gananciaPerdida):"—"}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${e.codigo}${e.tipo==="sustancial"&&e.codigoOrigen!=="—"?` <span style="color:#888;font-size:10px;">(de ${e.codigoOrigen})</span>`:""}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${e.cliente}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${e.tipo==="sustancial"?"Sustancial":"No sustancial"}</td>
+      <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${e.capitalAntes!=null?money(e.capitalAntes):"—"}</td>
+      <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(e.capitalDespues)}</td>
+      <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${e.tasaAntes!=null?e.tasaAntes+"%":"—"}</td>
+      <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${e.tasaDespues}%</td>
+      <td style="padding:4px 5px;text-align:right;white-space:nowrap;${Math.abs(e.gananciaPerdida)>=0.005?(e.gananciaPerdida>=0?"color:#3B6D11":"color:#c0433b"):""}">${Math.abs(e.gananciaPerdida)>=0.005?money(e.gananciaPerdida):"—"}</td>
     </tr>`).join("");
   return `
     <div id="reporte-imprimible" style="margin:0 -12px 16px;padding:16px 10px;">
@@ -2526,13 +2523,13 @@ function viewReporteModificaciones(){
       <p class="hint" style="margin:0 0 14px;">Reporte de modificaciones y refinanciamientos (NIIF PYMES) · ${fmtDate(hoyISO())}</p>
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha refinanciado ni modificado ningún préstamo.</p>` : `
       <div class="tabla-card">
-      <div style="overflow:auto;max-height:250px;-webkit-overflow-scrolling:touch;">
-      <table style="width:100%;min-width:780px;border-collapse:collapse;font-size:12px;">
-        <thead><tr style="background:#F5F3EE;">
-          <th style="padding:5px 6px;text-align:left;white-space:nowrap;">Fecha</th><th style="padding:5px 6px;text-align:left;white-space:nowrap;">Préstamo</th><th style="padding:5px 6px;text-align:left;white-space:nowrap;">Cliente</th>
-          <th style="padding:5px 6px;text-align:left;white-space:nowrap;">Clasificación</th><th style="padding:5px 6px;text-align:right;white-space:nowrap;min-width:110px;">Capital antes</th>
-          <th style="padding:5px 6px;text-align:right;white-space:nowrap;min-width:110px;">Capital después</th><th style="padding:5px 6px;text-align:right;white-space:nowrap;">Tasa antes</th>
-          <th style="padding:5px 6px;text-align:right;white-space:nowrap;">Tasa después</th><th style="padding:5px 6px;text-align:right;white-space:normal;line-height:1.25;min-width:90px;">Ganancia/<br>(pérdida)</th>
+      <div style="overflow:auto;max-height:242px;-webkit-overflow-scrolling:touch;">
+      <table class="amort-grid" style="width:auto;border-collapse:collapse;font-size:11px;">
+        <thead><tr class="thead-fijo" style="background:#F5F3EE;">
+          <th style="padding:4px 5px;text-align:left;white-space:nowrap;">Fecha</th><th style="padding:4px 5px;text-align:left;white-space:nowrap;">Préstamo</th><th style="padding:4px 5px;text-align:left;white-space:nowrap;">Cliente</th>
+          <th style="padding:4px 5px;text-align:left;white-space:normal;line-height:1.2;">Clasifi-<br>cación</th><th style="padding:4px 5px;text-align:right;white-space:normal;line-height:1.2;">Capital<br>antes</th>
+          <th style="padding:4px 5px;text-align:right;white-space:normal;line-height:1.2;">Capital<br>después</th><th style="padding:4px 5px;text-align:right;white-space:normal;line-height:1.2;">Tasa<br>antes</th>
+          <th style="padding:4px 5px;text-align:right;white-space:normal;line-height:1.2;">Tasa<br>después</th><th style="padding:4px 5px;text-align:right;white-space:normal;line-height:1.2;">Ganancia/<br>(pérdida)</th>
         </tr></thead>
         <tbody>${filas}</tbody>
       </table>
@@ -2605,7 +2602,7 @@ function generarReporteDesembolsosPDF(){
     body: filas.length?filas:[["—","—","Todavía no se ha desembolsado ningún préstamo.","",""]],
     foot: [["","","","Total desembolsado", money(total)]],
     columnStyles: { 4: { halign: "right" } },
-    styles: { fontSize: 8, cellPadding: 2.5 },
+    styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [27,42,74] },
     footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" }
   });
@@ -2632,11 +2629,11 @@ function viewReporteDesembolsos(){
   const eventos = listaDesembolsos();
   const total = eventos.reduce((s,e)=>s+e.monto,0);
   const filas = eventos.map(e=>`<tr class="fila-amort">
-      <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${e.cliente}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${e.concepto}</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(e.monto)}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${e.codigo}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${e.cliente}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${e.concepto}</td>
+      <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(e.monto)}</td>
     </tr>`).join("");
   return `
     <div id="reporte-imprimible" style="margin:0 -12px 16px;padding:16px 10px;">
@@ -2644,12 +2641,12 @@ function viewReporteDesembolsos(){
       <p class="hint" style="margin:0 0 14px;">Reporte de desembolsos · ${fmtDate(hoyISO())}</p>
       ${eventos.length===0 ? `<p class="hint">Todavía no se ha desembolsado ningún préstamo.</p>` : `
       <div class="tabla-card">
-      <div style="overflow:auto;max-height:250px;-webkit-overflow-scrolling:touch;">
-      <table style="width:100%;min-width:600px;border-collapse:collapse;font-size:12px;">
-        <thead><tr style="background:#F5F3EE;">
-          <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Préstamo</th>
-          <th style="padding:5px 6px;text-align:left;">Cliente</th><th style="padding:5px 6px;text-align:left;">Concepto</th>
-          <th style="padding:5px 6px;text-align:right;">Monto</th>
+      <div style="overflow:auto;max-height:242px;-webkit-overflow-scrolling:touch;">
+      <table class="amort-grid" style="width:auto;border-collapse:collapse;font-size:11px;">
+        <thead><tr class="thead-fijo" style="background:#F5F3EE;">
+          <th style="padding:4px 5px;text-align:left;white-space:nowrap;">Fecha</th><th style="padding:4px 5px;text-align:left;white-space:nowrap;">Préstamo</th>
+          <th style="padding:4px 5px;text-align:left;white-space:nowrap;">Cliente</th><th style="padding:4px 5px;text-align:left;white-space:nowrap;">Concepto</th>
+          <th style="padding:4px 5px;text-align:right;white-space:nowrap;">Monto</th>
         </tr></thead>
         <tbody>${filas}</tbody>
       </table>
@@ -2757,7 +2754,7 @@ function generarHistorialPagosPDF(){
     body: filas.length?filas:[["—","—","Todavía no se ha registrado ningún pago.","","","",""]],
     foot: [["","","","Total cobrado", money(totalMonto), money(totalMora), money(totalMonto+totalMora)]],
     columnStyles: { 4: { halign: "right" }, 5: { halign: "right" }, 6: { halign: "right" } },
-    styles: { fontSize: 7.5, cellPadding: 2.5 },
+    styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [27,42,74] },
     footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" }
   });
@@ -2789,13 +2786,13 @@ function viewReporteHistorialPagos(){
   const totalMonto = todos.reduce((s,e)=>s+e.monto,0);
   const totalMora = todos.reduce((s,e)=>s+e.mora,0);
   const filas = todos.map(e=>`<tr class="fila-amort">
-      <td style="padding:5px 6px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${e.codigo}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${e.cliente}</td>
-      <td style="padding:5px 6px;white-space:nowrap;">${e.concepto}</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${money(e.monto)}</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;">${e.mora>0?money(e.mora):"—"}</td>
-      <td style="padding:5px 6px;text-align:right;white-space:nowrap;font-weight:600;">${money(e.monto+e.mora)}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${fmtDateCompacto(e.fecha)}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${e.codigo}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${e.cliente}</td>
+      <td style="padding:4px 5px;white-space:nowrap;">${e.concepto}</td>
+      <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(e.monto)}</td>
+      <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${e.mora>0?money(e.mora):"—"}</td>
+      <td style="padding:4px 5px;text-align:right;white-space:nowrap;font-weight:600;">${money(e.monto+e.mora)}</td>
     </tr>`).join("");
   return `
     <div id="reporte-imprimible" style="margin:0 -12px 16px;padding:16px 10px;">
@@ -2803,13 +2800,13 @@ function viewReporteHistorialPagos(){
       <p class="hint" style="margin:0 0 14px;">Historial de pagos · ${fmtDate(hoyISO())}</p>
       ${todos.length===0 ? `<p class="hint">Todavía no se ha registrado ningún pago.</p>` : `
       <div class="tabla-card">
-      <div style="overflow:auto;max-height:250px;-webkit-overflow-scrolling:touch;">
-      <table style="width:100%;min-width:660px;border-collapse:collapse;font-size:12px;">
-        <thead><tr style="background:#F5F3EE;">
-          <th style="padding:5px 6px;text-align:left;">Fecha</th><th style="padding:5px 6px;text-align:left;">Préstamo</th>
-          <th style="padding:5px 6px;text-align:left;">Cliente</th><th style="padding:5px 6px;text-align:left;">Concepto</th>
-          <th style="padding:5px 6px;text-align:right;">Monto</th><th style="padding:5px 6px;text-align:right;">Mora</th>
-          <th style="padding:5px 6px;text-align:right;">Total</th>
+      <div style="overflow:auto;max-height:242px;-webkit-overflow-scrolling:touch;">
+      <table class="amort-grid" style="width:auto;border-collapse:collapse;font-size:11px;">
+        <thead><tr class="thead-fijo" style="background:#F5F3EE;">
+          <th style="padding:4px 5px;text-align:left;white-space:nowrap;">Fecha</th><th style="padding:4px 5px;text-align:left;white-space:nowrap;">Préstamo</th>
+          <th style="padding:4px 5px;text-align:left;white-space:nowrap;">Cliente</th><th style="padding:4px 5px;text-align:left;white-space:nowrap;">Concepto</th>
+          <th style="padding:4px 5px;text-align:right;white-space:nowrap;">Monto</th><th style="padding:4px 5px;text-align:right;white-space:nowrap;">Mora</th>
+          <th style="padding:4px 5px;text-align:right;white-space:nowrap;">Total</th>
         </tr></thead>
         <tbody>${filas}</tbody>
       </table>
@@ -4411,14 +4408,14 @@ function compartirTablaCalculadoraPDF(){
     }
   });
 }
-function dibujarMarcaAgua(doc, texto, w, h){
-  // Marca de agua tenue de fondo (iniciales del negocio), en diagonal. Si el navegador no
-  // soporta la API de transparencia de jsPDF, simplemente se omite sin romper el recibo.
+function dibujarMarcaAgua(doc, texto, w, h, tamano){
+  // Marca de agua tenue de fondo, en diagonal. Si el navegador no soporta la API de
+  // transparencia de jsPDF, simplemente se omite sin romper el documento.
   try{
     doc.saveGraphicsState();
     doc.setGState(new doc.GState({opacity:0.07}));
     doc.setFont("helvetica","bold");
-    doc.setFontSize(60);
+    doc.setFontSize(tamano || 60);
     doc.setTextColor(27,42,74);
     doc.text(texto, w/2, h/2, {align:"center", angle:45});
     doc.restoreGraphicsState();
@@ -4435,7 +4432,7 @@ function conceptoPago(pg){
 function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
   const { jsPDF } = window.jspdf; // tamaño angosto de recibo/ticket (80mm), no una hoja completa
   const doc = new jsPDF({unit:"mm", format:[80,170]});
-  dibujarMarcaAgua(doc, siglasApp(), 80, 170);
+  dibujarMarcaAgua(doc, "PAGADO", 80, 170, 26);
   const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0) + (abonoLigado ? (Number(abonoLigado.monto)||0) : 0);
   const concepto = conceptoPago(pg) + (abonoLigado ? " + abono a capital" : "");
   const cx = 40, xL = 6, xR = 74;
