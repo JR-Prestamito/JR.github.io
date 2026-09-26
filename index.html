@@ -1562,8 +1562,8 @@ function render(){
   const titles = {inicio:"Resumen", clientes:"Clientes", prestamos:"Préstamos", pagos:"Historial de pagos"};
   let html = `<header><div style="display:flex;align-items:center;justify-content:space-between;">
     <div style="display:flex;align-items:center;">`;
-  if(state.tab==="prestamos" && (state.vista==="detalle" || state.vista==="cartera" || state.vista==="refinanciar" || state.vista==="nuevo" || state.vista==="calculadora" || state.vista==="contrato")){
-    html += `<button class="backbtn" onclick="${state.vista==="nuevo"?`window._nf=null; state.vista=${(window._nf&&window._nf.editId)?"'detalle'":"'lista'"}; render();`:(state.vista==="calculadora"?"window._calc=null; state.vista='lista'; render();":(state.vista==="contrato"?"state.vista='detalle'; render();":"volverLista()"))}">‹</button>`;
+  if(state.tab==="prestamos" && (state.vista==="detalle" || state.vista==="cartera" || state.vista==="refinanciar" || state.vista==="nuevo" || state.vista==="calculadora" || state.vista==="contrato" || state.vista==="colaRecordatorio")){
+    html += `<button class="backbtn" onclick="${state.vista==="nuevo"?`window._nf=null; state.vista=${(window._nf&&window._nf.editId)?"'detalle'":"'lista'"}; render();`:(state.vista==="calculadora"?"window._calc=null; state.vista='lista'; render();":(state.vista==="contrato"?"state.vista='detalle'; render();":(state.vista==="colaRecordatorio"?"salirDeColaRecordatorios()":"volverLista()")))}">‹</button>`;
   }
   if(state.tab==="clientes" && state.vista==="nuevo"){
     html += `<button class="backbtn" onclick="state.clienteEditId=null; state.vista='lista'; render();">‹</button>`;
@@ -1603,7 +1603,7 @@ function render(){
   const tituloCalculadora = state.tab==="prestamos" && state.vista==="calculadora" ? "Calculadora" : null;
   const tituloContrato = state.tab==="prestamos" && state.vista==="contrato" ? "Contrato de préstamo" : null;
   document.title = nombreApp();
-  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||tituloNuevoCliente||tituloCalculadora||tituloContrato||titles[state.tab])))}</h1></div>
+  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="prestamos"&&state.vista==="colaRecordatorio"?"Enviar recordatorios":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||tituloNuevoCliente||tituloCalculadora||tituloContrato||titles[state.tab]))))}</h1></div>
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
     html += menuOpcionesHtml("inicio", [
@@ -1708,7 +1708,7 @@ function render(){
     // quedaba pegado en la última opción elegida sin importar cuál se marcara. Se corrige
     // forzando el valor real después de pintar, en vez de confiar solo en "selected".
     const selWA = document.getElementById("f_whatsappApp");
-    if(selWA) selWA.value = state.config.whatsappApp==="business" ? "business" : "normal";
+    if(selWA) selWA.value = (state.config.whatsappApp==="business"||state.config.whatsappApp==="normal") ? state.config.whatsappApp : "auto";
   }
   if(_esNavegacion && document.startViewTransition){
     document.startViewTransition(() => {
@@ -3151,8 +3151,9 @@ function viewAjustes(){
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Elige con cuál app debe intentar abrir el botón "Enviar WhatsApp" en Cartera vencida. En Android, si la app elegida no está instalada, cae de vuelta a WhatsApp normal. En iPhone, esta opción no hace diferencia (Apple no permite elegir entre las dos apps desde un enlace) y siempre se abre la app de WhatsApp que tengas configurada como predeterminada.</p>
     <label><span>App</span>
       <select id="f_whatsappApp" onchange="state.config.whatsappApp=this.value; save(); setTimeout(render,0);">
-        <option value="normal" ${(!state.config.whatsappApp||state.config.whatsappApp==="normal")?"selected":""}>WhatsApp normal</option>
-        <option value="business" ${state.config.whatsappApp==="business"?"selected":""}>WhatsApp Business</option>
+        <option value="auto" ${(!state.config.whatsappApp||state.config.whatsappApp==="auto")?"selected":""}>El predeterminado del celular</option>
+        <option value="normal" ${state.config.whatsappApp==="normal"?"selected":""}>WhatsApp normal (Android)</option>
+        <option value="business" ${state.config.whatsappApp==="business"?"selected":""}>WhatsApp Business (Android)</option>
       </select>
     </label>
   </div>`}
@@ -3303,6 +3304,7 @@ function viewPrestamos(){
   if(state.vista==="detalle") return viewDetallePrestamo();
   if(state.vista==="contrato") return viewContratoPrestamo();
   if(state.vista==="cartera") return viewCartera();
+  if(state.vista==="colaRecordatorio") return viewColaRecordatorio();
   if(state.vista==="refinanciar") return viewRefinanciar();
   if(state.vista==="calculadora") return viewCalculadora();
 
@@ -3460,8 +3462,9 @@ function linkWhatsapp(cli, mensaje){
   // así que ahí se sigue usando el enlace normal de siempre — de todas formas esta opción
   // no hace diferencia en iPhone (Apple no deja elegir entre las dos apps desde un enlace).
   const esAndroid = /Android/i.test(navigator.userAgent||"");
-  if(esAndroid){
-    const paquete = state.config.whatsappApp==="business" ? "com.whatsapp.w4b" : "com.whatsapp";
+  const appElegida = state.config.whatsappApp || "auto";
+  if(esAndroid && appElegida!=="auto"){
+    const paquete = appElegida==="business" ? "com.whatsapp.w4b" : "com.whatsapp";
     return `intent://send?phone=${numero}&text=${texto}#Intent;scheme=whatsapp;package=${paquete};S.browser_fallback_url=${encodeURIComponent(linkNormal)};end`;
   }
   return linkNormal;
@@ -3471,6 +3474,102 @@ function linkSms(cli, mensaje){
   const digitos = soloDigitos(cli.celular);
   if(digitos.length!==8) return null;
   return `sms:+504${digitos}?&body=${encodeURIComponent(mensaje)}`;
+}
+
+// ── Envío masivo de recordatorios (manual, uno por uno con un solo toque) ────
+// WhatsApp no permite mandar mensajes a varios contactos con un solo clic real
+// (eso solo existe con la API de WhatsApp Business, de pago y con plantillas
+// aprobadas). Esta cola arma la lista completa y, con un toque en cada tarjeta,
+// abre WhatsApp ya con el mensaje escrito y pasa sola al siguiente cliente.
+function construirColaRecordatorios(tipo){
+  const base = state.prestamos.map(p=>({p, r:resumen(p)}))
+    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && (
+      tipo==="vencidos" ? diasAtraso(x.r.proximaFecha)>0 : [0,1].includes(diasParaVencer(x.r.proximaFecha))
+    ));
+  const items = [];
+  let sinNumero = 0;
+  base.forEach(({p,r})=>{
+    const cli = state.clientes.find(c=>c.id===p.clienteId);
+    let mensaje;
+    if(tipo==="vencidos"){
+      const atraso = diasAtraso(r.proximaFecha);
+      const pendiente = calcularPendiente(p, r);
+      mensaje = mensajeRecordatorio(p, cli, r, atraso, pendiente);
+    } else {
+      mensaje = mensajePendiente(p, cli, r);
+    }
+    const link = linkWhatsapp(cli, mensaje);
+    if(!link){ sinNumero++; return; }
+    items.push({
+      prestamoId: p.id,
+      nombre: cli ? cli.nombre : "Cliente eliminado",
+      codigo: p.codigo,
+      cuota: money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota),
+      link
+    });
+  });
+  return { items, sinNumero };
+}
+function iniciarColaRecordatorios(tipo){
+  const { items, sinNumero } = construirColaRecordatorios(tipo);
+  if(items.length===0){
+    mostrarConfirmacion(sinNumero>0
+      ? `Ninguno de los ${sinNumero} cliente(s) tiene un celular válido registrado (8 dígitos). Agrégalo en la ficha de cada cliente para poder enviarle recordatorio.`
+      : "No hay cuotas para recordar en este momento.",
+      function(){}, { textoCancelar:"Cerrar", textoAceptar:"Entendido" });
+    return;
+  }
+  state._cola = { tipo, items, idx:0, enviados:0, sinNumero };
+  state.tab = "prestamos";
+  state.vista = "colaRecordatorio";
+  render();
+}
+function marcarEnviadoYSiguiente(){
+  const cola = state._cola;
+  if(!cola) return;
+  cola.enviados = (cola.enviados||0) + 1;
+  cola.idx++;
+  render();
+}
+function omitirEnvioActual(){
+  const cola = state._cola;
+  if(!cola) return;
+  cola.idx++;
+  render();
+}
+function salirDeColaRecordatorios(){
+  mostrarConfirmacion("¿Salir del envío masivo? Los que faltan en la lista no se marcarán como enviados.", function(ok){
+    if(ok){ state._cola = null; state.vista = "lista"; render(); }
+  });
+}
+function viewColaRecordatorio(){
+  const cola = state._cola;
+  if(!cola || !cola.items || cola.items.length===0){
+    return `<p class="empty">No hay recordatorios pendientes de enviar.</p>
+      <button class="btn btn-outline" style="margin-top:12px;" onclick="state._cola=null; state.vista='lista'; render();">Volver</button>`;
+  }
+  const total = cola.items.length;
+  const actual = cola.items[cola.idx];
+
+  if(!actual){
+    return `<div class="card" style="background:#EAF3DE;margin-bottom:16px;">
+        <p style="margin:0;font-weight:600;">Terminaste de repasar la lista.</p>
+        <p class="hint" style="margin:6px 0 0;">${cola.enviados} enviado(s) de ${total}${cola.sinNumero?`, ${cola.sinNumero} sin celular registrado (no se incluyeron)`:""}.</p>
+      </div>
+      <button class="btn btn-gold" onclick="state._cola=null; state.vista='lista'; render();">Listo</button>`;
+  }
+
+  return `
+    <p class="hint" style="margin:0 0 14px;">Enviando ${cola.idx+1} de ${total}${cola.sinNumero?` · ${cola.sinNumero} sin celular (no incluidos)`:""}. Cada tarjeta abre WhatsApp con el mensaje ya escrito — solo debes presionar enviar allá y esta app pasa sola al siguiente.</p>
+    <div class="card" style="margin-bottom:16px;">
+      <p class="name" style="margin:0 0 4px;">${actual.nombre}</p>
+      <p class="sub" style="margin:0 0 14px;">${actual.codigo} · ${actual.cuota}</p>
+      <a class="btn btn-gold" style="text-decoration:none;display:block;text-align:center;box-sizing:border-box;" href="${actual.link}" target="_blank" rel="noopener" onclick="setTimeout(marcarEnviadoYSiguiente,400)">Abrir WhatsApp y enviar</a>
+    </div>
+    <div class="flexrow">
+      <button class="btn btn-outline" onclick="omitirEnvioActual()">Omitir este</button>
+      <button class="btn btn-danger" onclick="salirDeColaRecordatorios()">Salir</button>
+    </div>`;
 }
 function viewCartera(){
   const vencidos = state.prestamos.map(p=>({p, r:resumen(p)}))
@@ -3492,6 +3591,7 @@ function viewCartera(){
   ];
 
   html += `<p class="hint" style="margin:0 0 12px;">${vencidos.length} préstamo(s) con cuotas vencidas, agrupados por días de atraso. Toca uno para ver el préstamo y registrar el pago.</p>`;
+  html += `<button class="btn btn-gold" style="margin-bottom:16px;" onclick="iniciarColaRecordatorios('vencidos')">Enviar recordatorios a todos los vencidos</button>`;
 
   grupos.forEach(g=>{
     const enGrupo = vencidos.filter(x=> x.atraso>=g.min && x.atraso<=g.max);
