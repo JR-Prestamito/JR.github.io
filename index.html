@@ -4166,7 +4166,7 @@ function viewDetallePrestamo(){
       <p class="hint" style="color:#A32D2D;margin:0 0 6px;">${atraso>0 ? `Cuota vencida (${atraso} día${atraso===1?"":"s"} · ${nVenc} cuota${nVenc===1?"":"s"})` : (diasFaltan===0 ? "Por cobrar hoy" : "Por cobrar mañana")}</p>
       ${(waRec||smsRec) ? `<div class="flexrow">
         ${waRec?`<a class="btn btn-outline" style="text-decoration:none;text-align:center;" href="${waRec}" target="_blank" rel="noopener" onclick="abrirEnlaceExterno()">Enviar WhatsApp</a>`:""}
-        ${smsRec?`<a class="btn btn-outline" style="text-decoration:none;text-align:center;" href="${smsRec}" onclick="abrirEnlaceExterno()">Enviar SMS</a>`:""}
+        ${smsRec?`<a class="btn btn-outline" style="text-decoration:none;text-align:center;" href="${smsRec}" target="_blank" rel="noopener" onclick="abrirEnlaceExterno()">Enviar SMS</a>`:""}
       </div>` : `<p class="hint" style="margin:0;">Este cliente no tiene celular registrado — agrégalo en su ficha para poder enviarle recordatorio.</p>`}
     </div>` : ""}
     ${r.estado==="Activo" ? `
@@ -5395,8 +5395,126 @@ function recargarApp(){
   }, { passive: true });
 })();
 
-render();
-if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
+const LIC_SUPABASE_URL = "https://kbskmdtgwnagdigtdlze.supabase.co";
+const LIC_SUPABASE_KEY = "sb_publishable_AnwNz39_voG8r7XnjCG6Vg_75jK9Aa7";
+const LIC_PLAN = "pro"; // esta copia del archivo solo acepta licencias del plan "pro"
+const LIC_DIAS_GRACIA = 5; // días que puede seguir usándose sin internet antes de exigir reconexión
+
+function licDeviceId(){
+  let id = localStorage.getItem("jrp_device_id");
+  if(!id){
+    id = (crypto.randomUUID ? crypto.randomUUID() : ("dev-" + Date.now() + "-" + Math.random().toString(16).slice(2)));
+    localStorage.setItem("jrp_device_id", id);
+  }
+  return id;
+}
+
+async function licVerificar(clave){
+  const deviceId = licDeviceId();
+  let data;
+  try{
+    const resp = await fetch(`${LIC_SUPABASE_URL}/rest/v1/rpc/verificar_licencia`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: LIC_SUPABASE_KEY,
+        Authorization: `Bearer ${LIC_SUPABASE_KEY}`
+      },
+      body: JSON.stringify({ p_clave: clave, p_dispositivo: deviceId, p_plan: LIC_PLAN })
+    });
+    if(!resp.ok) throw new Error("http " + resp.status);
+    data = await resp.json();
+  } catch(e){
+    return { ok:false, red:true, motivo:"No se pudo conectar para verificar la licencia. Revisa tu conexión a internet e intenta de nuevo." };
+  }
+  if(data === "ok") return { ok:true };
+  if(data === "invalida") return { ok:false, motivo:"Esa clave de licencia no existe." };
+  if(data === "inactiva") return { ok:false, motivo:"Esta licencia está desactivada." };
+  if(data === "vencida") return { ok:false, motivo:"Esta licencia venció. Contacta al proveedor de la app para renovarla." };
+  if(data === "otro_dispositivo") return { ok:false, motivo:"Esta licencia ya está en uso en otro dispositivo." };
+  if(data === "producto_incorrecto") return { ok:false, motivo:"Esa clave no es para esta versión de la app." };
+  return { ok:false, red:true, motivo:"No se pudo verificar la licencia. Intenta de nuevo." };
+}
+
+// La pantalla de licencia va en un recuadro APARTE, encima de la app (nunca reemplaza
+// document.body): así, cuando la licencia resulta válida, el <div id="app"> de abajo
+// sigue intacto y la app se puede dibujar. Antes se hacía document.body.innerHTML,
+// que borraba el #app y dejaba la app congelada en "Verificando licencia…".
+function licPantalla(html){
+  let ov = document.getElementById("lic-overlay");
+  if(!ov){ ov = document.createElement("div"); ov.id = "lic-overlay"; document.body.appendChild(ov); }
+  ov.style.cssText = "position:fixed;inset:0;z-index:99999;background:#1B2A4A;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;text-align:center;";
+  ov.innerHTML = html;
+}
+function licQuitarPantalla(){
+  const ov = document.getElementById("lic-overlay");
+  if(ov) ov.remove();
+}
+
+function licPedirClave(mensajeError){
+  licPantalla(`
+<div style="font-size:40px;margin-bottom:6px;">🔒</div>
+<h2 style="color:#fff;margin:0 0 6px;font-size:18px;">Licencia requerida</h2>
+<p style="color:#B9C2D6;font-size:13px;margin:0 0 16px;max-width:280px;">Ingresa la clave de licencia para usar esta app en este dispositivo.</p>
+${mensajeError ? `<p style="color:#F3A0A0;font-size:13px;margin:0 0 10px;max-width:280px;">${mensajeError}</p>` : ""}
+<input id="licClaveInput" type="text" placeholder="Clave de licencia" autocapitalize="off" autocorrect="off" style="width:240px;text-align:center;font-size:16px;padding:12px;border-radius:12px;border:none;margin-bottom:10px;">
+<button id="licEntrarBtn" style="width:240px;padding:12px;border-radius:12px;border:none;background:#C9973E;color:#1B2A4A;font-weight:700;font-size:15px;">Entrar</button>
+`);
+  const input = document.getElementById("licClaveInput");
+  const btn = document.getElementById("licEntrarBtn");
+  input.focus();
+  async function intentar(){
+    const clave = (input.value || "").trim();
+    if(!clave) return;
+    btn.disabled = true; btn.textContent = "Verificando…";
+    const r = await licVerificar(clave);
+    if(r.ok){
+      localStorage.setItem("jrp_licencia", clave);
+      localStorage.setItem("jrp_licencia_ok_ts", String(Date.now()));
+      licQuitarPantalla();
+      render();
+      if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
+    } else {
+      btn.disabled = false; btn.textContent = "Entrar";
+      licPedirClave(r.motivo);
+    }
+  }
+  btn.addEventListener("click", intentar);
+  input.addEventListener("keydown", function(e){ if(e.key === "Enter") intentar(); });
+}
+
+async function licArrancar(){
+  const claveGuardada = localStorage.getItem("jrp_licencia");
+  if(!claveGuardada){ licPedirClave(); return; }
+  licPantalla(`<div style="font-size:40px;margin-bottom:6px;">🔒</div><p style="color:#B9C2D6;font-size:13px;">Verificando licencia…</p>`);
+  const r = await licVerificar(claveGuardada);
+  if(r.ok){
+    localStorage.setItem("jrp_licencia_ok_ts", String(Date.now()));
+    licQuitarPantalla();
+    render();
+    if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
+    return;
+  }
+  if(r.red){
+    // No se pudo conectar: si se validó bien hace poco, se deja seguir trabajando sin
+    // internet dentro de un margen de días; pasado ese margen, hace falta conexión.
+    const ultimaOk = Number(localStorage.getItem("jrp_licencia_ok_ts") || 0);
+    const diasSinValidar = (Date.now() - ultimaOk) / (1000*60*60*24);
+    if(ultimaOk && diasSinValidar < LIC_DIAS_GRACIA){
+      licQuitarPantalla();
+      render();
+      return;
+    }
+    licPedirClave(r.motivo);
+    return;
+  }
+  // Respuesta definitiva del servidor (no es un problema de conexión): se borra la
+  // clave guardada y se vuelve a pedir, mostrando el motivo real.
+  localStorage.removeItem("jrp_licencia");
+  licPedirClave(r.motivo);
+}
+
+licArrancar();
 </script>
 <script type="text/plain" id="lib-jspdf">/** @license
  *
