@@ -3159,7 +3159,7 @@ function viewAjustes(){
     <p class="hint nota-ayuda" style="margin:0 0 10px;">El recibo lleva una marca de agua de fondo con las iniciales de tu negocio (${siglasApp()}) para que no se pueda falsificar fácilmente. Por defecto, el recibo sale <b>sin firma</b> cuando lo envías por WhatsApp/PDF y <b>con línea de firma</b> cuando lo imprimes en papel — puedes forzar una sola opción para ambos casos aquí:</p>
     <label style="margin-bottom:0;"><span>Al final del recibo</span>
       <select id="f_reciboFirma" onchange="state.config.reciboFirma=this.value; save(); render();">
-        <option value="automatico" ${(!state.config.reciboFirma||state.config.reciboFirma==="automatico")?"selected":""}>Automático: sin firma al enviar, con firma al imprimir</option>
+        <option value="automatico" ${(!state.config.reciboFirma||state.config.reciboFirma==="automatico")?"selected":""}>Automático: nota al enviar, línea de firma al imprimir (mismo tamaño)</option>
         <option value="sinfirma" ${state.config.reciboFirma==="sinfirma"?"selected":""}>Siempre nota: "Recibo válido sin firma"</option>
         <option value="firma" ${state.config.reciboFirma==="firma"?"selected":""}>Siempre línea para firma de quien recibe el pago</option>
         <option value="ninguno" ${state.config.reciboFirma==="ninguno"?"selected":""}>Ninguno, en ambos casos</option>
@@ -4562,9 +4562,11 @@ function conceptoPago(pg){
 }
 function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
   const { jsPDF } = window.jspdf;
-  // Recibo angosto tipo ticket (80mm). El ALTO ya no es fijo: se mide lo que realmente lleva
-  // el recibo y la hoja se corta a esa medida (más un margen), para que no sobre papel.
-  const W = 80, xL = 7, xR = 73, cx = W/2, anchoUtil = xR - xL;
+  // Recibo angosto tipo ticket (80mm). El ALTO no es fijo: se mide lo que lleva el recibo y la
+  // hoja se corta a esa medida (más un margen), para que no sobre papel.
+  // El recibo para ENVIAR y el de IMPRIMIR tienen exactamente el mismo tamaño y diseño.
+  const F = 1;                                 // factor de tamaño de letra y de espaciado
+  const W = 80, xL = 7, xR = W - xL, cx = W/2, anchoUtil = xR - xL;
   const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0) + (abonoLigado ? (Number(abonoLigado.monto)||0) : 0);
   const concepto = conceptoPago(pg) + (abonoLigado ? " + abono a capital" : "");
 
@@ -4602,46 +4604,50 @@ function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
     return { lineas: doc.splitTextToSize(texto, maxAncho), tam:t };
   };
 
-  const dibujar = (doc) => {
-    let y = 9;
+  // paraMedir=true: en modo "automático" se mide como si llevara la línea de firma (la versión
+  // más alta), para que la hoja de ENVIAR y la de IMPRIMIR tengan exactamente el mismo alto.
+  const dibujar = (doc, paraMedir) => {
+    const conFirma = usarFirma || (paraMedir && modoFirma==="automatico");
+    const conNota = usarSinFirma && !conFirma;
+    let y = 9 * F;
     doc.setFont("helvetica","bold"); doc.setTextColor(20);
-    const tit = textoAjustado(doc, nombreApp().toUpperCase(), anchoUtil, 12, 8);
-    doc.text(tit.lineas, cx, y, {align:"center"}); y += 4.5 + (tit.lineas.length-1)*4;
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(120);
-    doc.text("Recibo de pago", cx, y, {align:"center"}); doc.setTextColor(20); y += 3.5;
-    doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 5;
+    const tit = textoAjustado(doc, nombreApp().toUpperCase(), anchoUtil, 12*F, 8);
+    doc.text(tit.lineas, cx, y, {align:"center"}); y += 4.5*F + (tit.lineas.length-1)*4*F;
+    doc.setFont("helvetica","normal"); doc.setFontSize(7.5*F); doc.setTextColor(120);
+    doc.text("Recibo de pago", cx, y, {align:"center"}); doc.setTextColor(20); y += 3.5*F;
+    doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 5*F;
 
     filas.forEach(([tipo, label, valor])=>{
       const esSub = tipo==="s", esB = tipo==="b";
-      const sangria = esSub ? 4 : 0;
-      const tamLabel = esSub ? 7.5 : 8.5;
+      const sangria = esSub ? 4*F : 0;
+      const tamLabel = (esSub ? 7.5 : 8.5) * F;
       doc.setFont("helvetica", esSub ? "italic" : "normal");
       doc.setFontSize(tamLabel);
       doc.setTextColor(esSub ? 110 : 20);
       const anchoLabel = doc.getTextWidth(label);
       doc.text(label, xL + sangria, y);
       doc.setFont("helvetica", esB ? "bold" : (esSub ? "italic" : "normal"));
-      const v = textoAjustado(doc, String(valor), anchoUtil - sangria - anchoLabel - 2.5, tamLabel, 6);
+      const v = textoAjustado(doc, String(valor), anchoUtil - sangria - anchoLabel - 2.5, tamLabel, tamLabel*0.85);
       doc.text(v.lineas[0], xR, y, {align:"right"});
-      for(let i=1;i<v.lineas.length;i++){ y += 3.4; doc.text(v.lineas[i], xR, y, {align:"right"}); }
-      y += esSub ? 4 : 5;
+      for(let i=1;i<v.lineas.length;i++){ y += 3.4*F; doc.text(v.lineas[i], xR, y, {align:"right"}); }
+      y += (esSub ? 4 : 5) * F;
     });
     doc.setFont("helvetica","normal"); doc.setTextColor(20);
-    doc.setDrawColor(190); doc.line(xL, y-1.5, xR, y-1.5); y += 4;
+    doc.setDrawColor(190); doc.line(xL, y-1.5*F, xR, y-1.5*F); y += 4*F;
 
-    doc.setFont("helvetica","bold"); doc.setFontSize(11);
-    doc.text("Total pagado", xL, y); doc.text(money(totalPago), xR, y, {align:"right"}); y += 6;
-    doc.setFont("helvetica","normal"); doc.setFontSize(8);
-    doc.text("Saldo pendiente", xL, y); doc.text(money(r.saldoPendiente), xR, y, {align:"right"}); y += 7;
-    doc.setFontSize(8); doc.text("Gracias por su pago.", cx, y, {align:"center"});
-    if(usarFirma){
+    doc.setFont("helvetica","bold"); doc.setFontSize(11*F);
+    doc.text("Total pagado", xL, y); doc.text(money(totalPago), xR, y, {align:"right"}); y += 6*F;
+    doc.setFont("helvetica","normal"); doc.setFontSize(8*F);
+    doc.text("Saldo pendiente", xL, y); doc.text(money(r.saldoPendiente), xR, y, {align:"right"}); y += 7*F;
+    doc.setFontSize(8*F); doc.text("Gracias por su pago.", cx, y, {align:"center"});
+    if(conFirma){
       y += 13;
       doc.setDrawColor(120); doc.line(xL+6, y, xR-6, y);
       y += 4; doc.setFontSize(7.5); doc.setTextColor(110);
       doc.text("Firma de quien recibe el pago", cx, y, {align:"center"});
       doc.setTextColor(20);
-    } else if(usarSinFirma){
-      y += 5; doc.setFontSize(7.5); doc.setTextColor(110);
+    } else if(conNota){
+      y += 5*F; doc.setFontSize(7.5*F); doc.setTextColor(110);
       doc.text("Recibo válido sin firma.", cx, y, {align:"center"});
       doc.setTextColor(20);
     }
@@ -4650,8 +4656,8 @@ function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
 
   // 1ª pasada: se dibuja en una hoja alta de prueba solo para medir hasta dónde llega el
   // contenido. 2ª pasada: se crea la hoja real con esa altura + margen inferior y se dibuja.
-  const medida = new jsPDF({unit:"mm", format:[W, 400]});
-  const yFinal = dibujar(medida);
+  const medida = new jsPDF({unit:"mm", format:[W, 500]});
+  const yFinal = dibujar(medida, true);
   const H = Math.max(75, Math.ceil(yFinal + 9));
   const doc = new jsPDF({unit:"mm", format:[W, H]});
   dibujarMarcaAgua(doc, "PAGADO", W, H, 26);
@@ -5318,7 +5324,7 @@ function viewRecibo(){
           <p class="hint" style="margin-top:4px;">Firma de quien recibe el pago</p>
         </div>` : ""}
       ${(state.config.reciboFirma||"automatico")==="sinfirma" ? `<p class="hint" style="margin-top:16px;text-align:center;">Recibo válido sin firma.</p>` : ""}
-      ${(state.config.reciboFirma||"automatico")==="automatico" ? `<p class="hint" style="margin-top:16px;text-align:center;">Al imprimir sale con línea de firma · al enviarlo sale sin firma.</p>` : ""}
+      ${(state.config.reciboFirma||"automatico")==="automatico" ? `<p class="hint" style="margin-top:16px;text-align:center;">Al imprimir sale con línea de firma · al enviarlo sale con la nota "sin firma" · ambos con el mismo tamaño.</p>` : ""}
     </div>
     <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='lista'; render();">Volver</button>`;
 }
@@ -5579,7 +5585,9 @@ async function licArrancar(){
   licPedirClave(r.motivo);
 }
 
-licArrancar();
+// Copia sin licencia: arranca directo (para volver a exigirla: licArrancar();)
+render();
+if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
 </script>
 <script type="text/plain" id="lib-jspdf">/** @license
  *
