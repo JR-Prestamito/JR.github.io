@@ -168,6 +168,10 @@
   #recibo-imprimible h2{font-size:16px;margin:0 0 2px;color:var(--navy);}
   #recibo-imprimible .rline{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px dashed #eee;}
   #recibo-imprimible .rtotal{font-size:17px;font-weight:700;color:var(--navy);}
+  /* Desglose de la cuota (interés/capital): más chico, gris, cursiva y con sangría, para que se
+     vea como parte de la cuota y no como un cobro aparte. */
+  #recibo-imprimible .rsub{padding:2px 0 2px 16px;font-size:11.5px;font-style:italic;color:#7a766e;border-bottom:none;}
+  [data-theme="dark"] #recibo-imprimible .rsub{color:rgba(255,255,255,.55);}
   .marca-agua{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:46px;letter-spacing:2px;font-weight:800;color:var(--navy);opacity:0.07;pointer-events:none;white-space:nowrap;z-index:0;}
   #recibo-imprimible > *:not(.marca-agua){position:relative;z-index:1;}
   #reporte-imprimible{background:#fff;border:1px solid #e5e1d8;border-radius:16px;padding:20px;}
@@ -214,6 +218,7 @@
     #recibo-imprimible h2{font-size:14px!important;text-align:center;}
     #recibo-imprimible .rline{font-size:9.5px!important;padding:3px 0!important;}
     #recibo-imprimible .rtotal{font-size:12px!important;}
+    #recibo-imprimible .rsub{font-size:8.5px!important;padding:1px 0 1px 12px!important;}
     #reporte-imprimible{padding:10px!important;}
     #reporte-imprimible h2{font-size:14px!important;}
     .solo-imprimir{display:block;}
@@ -4525,15 +4530,25 @@ function compartirTablaCalculadoraPDF(){
   });
 }
 function dibujarMarcaAgua(doc, texto, w, h, tamano){
-  // Marca de agua tenue de fondo, en diagonal. Si el navegador no soporta la API de
-  // transparencia de jsPDF, simplemente se omite sin romper el documento.
+  // Marca de agua tenue de fondo, en diagonal y centrada de verdad en la hoja. jsPDF gira el
+  // texto alrededor de su punto de inicio (no de su centro), así que se calcula ese punto de
+  // inicio para que el CENTRO del texto (a lo largo y a lo alto) caiga justo en el centro de
+  // la hoja. Si el navegador no soporta la API de transparencia de jsPDF, se omite sin romper.
   try{
+    const fs = tamano || 60;
     doc.saveGraphicsState();
     doc.setGState(new doc.GState({opacity:0.07}));
     doc.setFont("helvetica","bold");
-    doc.setFontSize(tamano || 60);
+    doc.setFontSize(fs);
     doc.setTextColor(27,42,74);
-    doc.text(texto, w/2, h/2, {align:"center", angle:45});
+    const ang = Math.PI/4;                       // 45 grados
+    const ancho = doc.getTextWidth(texto);       // largo del texto, en mm
+    const altoMayus = fs * 0.3528 * 0.72;        // altura aproximada de las mayúsculas, en mm
+    const ux = Math.cos(ang), uy = -Math.sin(ang);   // hacia dónde corre el texto
+    const vx = -Math.sin(ang), vy = -Math.cos(ang);  // hacia dónde queda "arriba" del texto
+    const x0 = w/2 - (ancho/2)*ux - (altoMayus/2)*vx;
+    const y0 = h/2 - (ancho/2)*uy - (altoMayus/2)*vy;
+    doc.text(texto, x0, y0, {angle:45});
     doc.restoreGraphicsState();
     doc.setFont("helvetica","normal");
     doc.setTextColor(20);
@@ -4546,51 +4561,101 @@ function conceptoPago(pg){
   return "Cuota";
 }
 function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
-  const { jsPDF } = window.jspdf; // tamaño angosto de recibo/ticket (80mm), no una hoja completa
-  const doc = new jsPDF({unit:"mm", format:[80,170]});
-  dibujarMarcaAgua(doc, "PAGADO", 80, 170, 26);
+  const { jsPDF } = window.jspdf;
+  // Recibo angosto tipo ticket (80mm). El ALTO ya no es fijo: se mide lo que realmente lleva
+  // el recibo y la hoja se corta a esa medida (más un margen), para que no sobre papel.
+  const W = 80, xL = 7, xR = 73, cx = W/2, anchoUtil = xR - xL;
   const totalPago = (Number(pg.monto)||0) + (Number(pg.mora)||0) + (abonoLigado ? (Number(abonoLigado.monto)||0) : 0);
   const concepto = conceptoPago(pg) + (abonoLigado ? " + abono a capital" : "");
-  const cx = 40, xL = 6, xR = 74;
-  let y = 10;
-  doc.setFontSize(12); doc.text(nombreApp().toUpperCase(), cx, y, {align:"center"}); y += 6;
-  doc.setFontSize(8); doc.setTextColor(120); doc.text("Recibo de pago", cx, y, {align:"center"}); doc.setTextColor(20); y += 5;
-  doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 6;
-  doc.setFontSize(9);
-  const linea = (label, valor) => { doc.text(label, xL, y); doc.text(String(valor), xR, y, {align:"right"}); y += 6; };
-  linea("No. recibo", "R-"+numRecibo);
-  linea("Fecha", fmtDate(pg.fecha));
-  linea("Cliente", cli?cli.nombre:"—");
-  if(cli && cli.cedula) linea("Cédula", cli.cedula);
-  linea("Préstamo", p.codigo);
-  linea("Método", p.metodo);
-  linea("Concepto", concepto);
+
+  // tipos de fila: "n" dato normal · "b" monto principal (negrita) · "s" desglose (chico, gris,
+  // cursiva y con sangría, para que se note que es parte de la cuota y NO un cobro aparte)
+  const filas = [
+    ["n","No. recibo","R-"+numRecibo],
+    ["n","Fecha",fmtDate(pg.fecha)],
+    ["n","Cliente",cli?cli.nombre:"—"]
+  ];
+  if(cli && cli.cedula) filas.push(["n","Cédula",cli.cedula]);
+  filas.push(["n","Préstamo",p.codigo], ["n","Método",p.metodo], ["n","Concepto",concepto]);
   if(pg.interes!=null && pg.capital!=null && pg.tipo!=="abono_capital"){
-    linea("Cuota", money(pg.monto));
-    if(pg.interes>0) linea("  Interés", money(pg.interes));
-    if(pg.capital>0) linea("  Capital", money(pg.capital));
-    if(abonoLigado) linea("Abono a capital", money(abonoLigado.monto));
-    if(pg.mora>0) linea("Mora", money(pg.mora));
-  } else if(pg.tipo==="abono_capital"){ linea("Abono a capital", money(pg.monto)); }
-  else if(pg.mora>0){ linea("Cuota", money(pg.monto)); linea("Mora", money(pg.mora)); }
-  y += 1; doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 7;
-  doc.setFontSize(11); linea("Total pagado", money(totalPago));
-  doc.setFontSize(8); linea("Saldo pendiente", money(r.saldoPendiente));
-  y += 6; doc.setFontSize(8); doc.text("Gracias por su pago.", cx, y, {align:"center"});
+    filas.push(["b","Cuota",money(pg.monto)]);
+    if(pg.interes>0) filas.push(["s","Incluye interés",money(pg.interes)]);
+    if(pg.capital>0) filas.push(["s","Incluye capital",money(pg.capital)]);
+    if(abonoLigado) filas.push(["b","Abono a capital",money(abonoLigado.monto)]);
+    if(pg.mora>0) filas.push(["b","Mora",money(pg.mora)]);
+  } else if(pg.tipo==="abono_capital"){
+    filas.push(["b","Abono a capital",money(pg.monto)]);
+  } else if(pg.mora>0){
+    filas.push(["b","Cuota",money(pg.monto)], ["b","Mora",money(pg.mora)]);
+  }
+
   const modoFirma = state.config.reciboFirma || "automatico";
   const usarFirma = modoFirma==="firma" || (modoFirma==="automatico" && contexto==="imprimir");
   const usarSinFirma = modoFirma==="sinfirma" || (modoFirma==="automatico" && contexto!=="imprimir");
-  if(usarFirma){
-    y += 14;
-    doc.setDrawColor(120); doc.line(xL+6, y, xR-6, y);
-    y += 4; doc.setFontSize(7.5); doc.setTextColor(110);
-    doc.text("Firma de quien recibe el pago", cx, y, {align:"center"});
-    doc.setTextColor(20);
-  } else if(usarSinFirma){
-    y += 9; doc.setFontSize(7.5); doc.setTextColor(110);
-    doc.text("Recibo válido sin firma.", cx, y, {align:"center"});
-    doc.setTextColor(20);
-  }
+
+  // Escribe un texto ajustándolo al ancho disponible: primero le baja la letra (hasta un
+  // mínimo legible) y, si aun así no cabe, lo parte en varias líneas.
+  const textoAjustado = (doc, texto, maxAncho, tamano, minimo) => {
+    let t = tamano; doc.setFontSize(t);
+    while(doc.getTextWidth(texto) > maxAncho && t > minimo){ t -= 0.5; doc.setFontSize(t); }
+    if(doc.getTextWidth(texto) <= maxAncho) return { lineas:[texto], tam:t };
+    return { lineas: doc.splitTextToSize(texto, maxAncho), tam:t };
+  };
+
+  const dibujar = (doc) => {
+    let y = 9;
+    doc.setFont("helvetica","bold"); doc.setTextColor(20);
+    const tit = textoAjustado(doc, nombreApp().toUpperCase(), anchoUtil, 12, 8);
+    doc.text(tit.lineas, cx, y, {align:"center"}); y += 4.5 + (tit.lineas.length-1)*4;
+    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(120);
+    doc.text("Recibo de pago", cx, y, {align:"center"}); doc.setTextColor(20); y += 3.5;
+    doc.setDrawColor(190); doc.line(xL, y, xR, y); y += 5;
+
+    filas.forEach(([tipo, label, valor])=>{
+      const esSub = tipo==="s", esB = tipo==="b";
+      const sangria = esSub ? 4 : 0;
+      const tamLabel = esSub ? 7.5 : 8.5;
+      doc.setFont("helvetica", esSub ? "italic" : "normal");
+      doc.setFontSize(tamLabel);
+      doc.setTextColor(esSub ? 110 : 20);
+      const anchoLabel = doc.getTextWidth(label);
+      doc.text(label, xL + sangria, y);
+      doc.setFont("helvetica", esB ? "bold" : (esSub ? "italic" : "normal"));
+      const v = textoAjustado(doc, String(valor), anchoUtil - sangria - anchoLabel - 2.5, tamLabel, 6);
+      doc.text(v.lineas[0], xR, y, {align:"right"});
+      for(let i=1;i<v.lineas.length;i++){ y += 3.4; doc.text(v.lineas[i], xR, y, {align:"right"}); }
+      y += esSub ? 4 : 5;
+    });
+    doc.setFont("helvetica","normal"); doc.setTextColor(20);
+    doc.setDrawColor(190); doc.line(xL, y-1.5, xR, y-1.5); y += 4;
+
+    doc.setFont("helvetica","bold"); doc.setFontSize(11);
+    doc.text("Total pagado", xL, y); doc.text(money(totalPago), xR, y, {align:"right"}); y += 6;
+    doc.setFont("helvetica","normal"); doc.setFontSize(8);
+    doc.text("Saldo pendiente", xL, y); doc.text(money(r.saldoPendiente), xR, y, {align:"right"}); y += 7;
+    doc.setFontSize(8); doc.text("Gracias por su pago.", cx, y, {align:"center"});
+    if(usarFirma){
+      y += 13;
+      doc.setDrawColor(120); doc.line(xL+6, y, xR-6, y);
+      y += 4; doc.setFontSize(7.5); doc.setTextColor(110);
+      doc.text("Firma de quien recibe el pago", cx, y, {align:"center"});
+      doc.setTextColor(20);
+    } else if(usarSinFirma){
+      y += 5; doc.setFontSize(7.5); doc.setTextColor(110);
+      doc.text("Recibo válido sin firma.", cx, y, {align:"center"});
+      doc.setTextColor(20);
+    }
+    return y;
+  };
+
+  // 1ª pasada: se dibuja en una hoja alta de prueba solo para medir hasta dónde llega el
+  // contenido. 2ª pasada: se crea la hoja real con esa altura + margen inferior y se dibuja.
+  const medida = new jsPDF({unit:"mm", format:[W, 400]});
+  const yFinal = dibujar(medida);
+  const H = Math.max(75, Math.ceil(yFinal + 9));
+  const doc = new jsPDF({unit:"mm", format:[W, H]});
+  dibujarMarcaAgua(doc, "PAGADO", W, H, 26);
+  dibujar(doc);
   return doc;
 }
 // --- Contrato de préstamo (pagaré) ---
@@ -5238,8 +5303,8 @@ function viewRecibo(){
       <div class="rline"><span>Concepto</span><b>${concepto}</b></div>
       ${pg.interes!=null && pg.capital!=null && pg.tipo!=="abono_capital" ? `
       <div class="rline"><span>Cuota</span><b>${money(pg.monto)}</b></div>
-      ${pg.interes>0 ? `<div class="rline" style="padding-left:14px;color:#666;"><span>· Interés</span><span>${money(pg.interes)}</span></div>` : ""}
-      ${pg.capital>0 ? `<div class="rline" style="padding-left:14px;color:#666;"><span>· Capital</span><span>${money(pg.capital)}</span></div>` : ""}
+      ${pg.interes>0 ? `<div class="rline rsub"><span>Incluye interés</span><span>${money(pg.interes)}</span></div>` : ""}
+      ${pg.capital>0 ? `<div class="rline rsub"><span>Incluye capital</span><span>${money(pg.capital)}</span></div>` : ""}
       ${abonoLigado ? `<div class="rline"><span>Abono a capital</span><b>${money(abonoLigado.monto)}</b></div>` : ""}
       ${pg.mora>0 ? `<div class="rline"><span>Mora</span><b>${money(pg.mora)}</b></div>` : ""}
       ` : (pg.tipo==="abono_capital" ? `<div class="rline"><span>Abono a capital</span><b>${money(pg.monto)}</b></div>` :
