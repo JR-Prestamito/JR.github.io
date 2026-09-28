@@ -5585,9 +5585,7 @@ async function licArrancar(){
   licPedirClave(r.motivo);
 }
 
-// Copia sin licencia: arranca directo (para volver a exigirla: licArrancar();)
-render();
-if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
+licArrancar();
 </script>
 <script type="text/plain" id="lib-jspdf">/** @license
  *
