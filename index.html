@@ -147,6 +147,8 @@
   .toprow{display:flex;gap:8px;margin-bottom:16px;}
   /* Buscador fijo: se queda pegado debajo del encabezado al desplazarse por la lista */
   .toprow.buscador{position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:var(--cream);margin:-16px -12px 12px;padding:10px 12px;box-shadow:0 5px 8px -7px rgba(0,0,0,.28);}
+  .inicio-sync-bar{position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:var(--cream);margin:-16px -12px 10px;padding:6px 12px;font-size:12px;font-weight:600;text-align:center;box-shadow:0 5px 8px -7px rgba(0,0,0,.28);}
+  [data-theme="dark"] .inicio-sync-bar{background:#12161f;}
   [data-theme="dark"] .toprow.buscador{background:#12161f;}
   .iconbtn{background:var(--navy);color:#fff;border:none;border-radius:12px;width:48px;height:48px;font-size:24px;line-height:1;flex-shrink:0;}
   /* Botón flotante (+): anclado a la esquina inferior derecha del contenido de la app (no
@@ -2863,12 +2865,15 @@ async function subirNube(silencioso){
     if(data.ok){
       state.config.ultimaSubida = new Date().toISOString();
       state.config.syncPendiente = false;
+      state.config.syncError = false;
       save({ sinAutoSync:true });
       if(!silencioso) mostrarAlerta("Datos subidos correctamente a la nube.");
     } else {
+      state.config.syncError = true;
       if(!silencioso) mostrarAlerta("Error al subir: " + (data.error || "desconocido"));
     }
   } catch(err){
+    state.config.syncError = true;
     if(!silencioso) mostrarAlerta("No se pudo conectar con la nube. Revisa la URL, la clave y tu conexión a internet.");
   }
   state.syncBusy = null; render();
@@ -2897,6 +2902,7 @@ async function _descargarNubeInterna(url, key){
         state.config.tasaMoraDiaria = data.datos.config.tasaMoraDiaria;
       }
       state.config.ultimaDescarga = new Date().toISOString();
+      state.config.syncError = false;
       save({sinAutoSync:true});
       mostrarAlerta("Datos descargados correctamente.");
     } else if(data.ok && !data.datos){
@@ -2926,21 +2932,19 @@ function viewInicio(){
   if(state.vista==="reporteHistorialPagos") return viewReporteHistorialPagos();
   if(state.vista==="ajustesClave") return viewAjustesClave();
   if(state.vista==="ajustes") return viewAjustes();
-  let prestado=0, cobrado=0, activos=0, vencidos=0, capitalActual=0;
+  let prestado=0, activos=0, vencidos=0, capitalActual=0;
   state.prestamos.forEach(p=>{
     const r = resumen(p);
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
-    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + pagosPreviosDe(p);
     capitalActual += Number(r.capitalPendiente)||0;
     if(r.estado==="Activo"){ activos++; if(r.proximaFecha && diasAtraso(r.proximaFecha)>0) vencidos++; }
   });
-  let prox = state.prestamos.map(p=>({p, r:resumen(p)}))
-    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && [0,1].includes(diasParaVencer(x.r.proximaFecha)))
-    .sort((a,b)=> new Date(a.r.proximaFecha) - new Date(b.r.proximaFecha));
+  const T = desgloseIngresosCobrados();
 
   const modoOscuro = !!state.config.temaOscuro;
-  let html = `<div class="v3-hero">
+  let html = estadoSyncInicio();
+  html += `<div class="v3-hero">
     <div class="v3-top" onclick="irA('prestamos')">
       <div><p class="v3-lbl">Capital actual prestado</p>
       <p class="v3-val"><em>L</em> ${money(capitalActual).replace(/^L\s*/,"")}</p></div>
@@ -2949,23 +2953,31 @@ function viewInicio(){
     <p class="v3-note">Saldo de capital que tus clientes todavía te deben (sin interés de cuotas futuras).</p>
     <div class="v3-mini">
       <div onclick="abrirReporteDesembolsos()"><span class="v3-ico">${ICO_INI.dinero}</span><div><p class="m-lbl">Capital prestado</p><p class="m-val">${money(prestado)}</p></div></div>
-      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(cobrado)}</p></div></div>
+      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Capital cobrado</p><p class="m-val" style="color:var(--gold);">${money(T.capital)}</p></div></div>
+      <div onclick="abrirReporteHistorialPagos()" style="grid-column:1/-1;"><span class="v3-ico">${ICO_INI.tendencia}</span><div><p class="m-lbl">Intereses cobrados</p><p class="m-val" style="color:var(--gold);">${money(T.intereses)}</p></div></div>
     </div>
   </div>
   <div class="v3-tiles">
     <div class="v3-tile t-verde" onclick="irA('prestamos')"><span class="v3-ico">${ICO_INI.tendencia}</span><p class="t-lbl">Préstamos activos</p><p class="t-val">${activos}</p></div>
     <div class="v3-tile t-rojo" onclick="verCartera()"><span class="v3-ico">${ICO_INI.alerta}</span><p class="t-lbl">Cuotas vencidas</p><p class="t-val">${vencidos}</p></div>
     <div class="v3-tile t-dorado" onclick="irA('clientes')"><span class="v3-ico">${ICO_INI.personas}</span><p class="t-lbl">Clientes registrados</p><p class="t-val">${state.clientes.length}</p></div>
-  </div>
-  <div class="panel-prox"><p class="section-title dorado">Próximos a vencer</p>`;
-
-  if(prox.length===0) html += `<p class="empty">${state.prestamos.length===0 ? "Todavía no tienes préstamos registrados." : "No tienes cuotas por cobrar hoy ni mañana."}</p>`;
-  prox.forEach(({p,r})=>{
-    const cli = state.clientes.find(c=>c.id===p.clienteId);
-    html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')"><div><p class="name">${cli?cli.nombre:"—"}</p><p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p></div>${badge("Por cobrar")}</div>`;
-  });
-  html += `</div>`;
+  </div>`;
   return html;
+}
+// Franja de un solo renglón, pegada al encabezado (ver .inicio-sync-bar), que resume el
+// estado de la copia en la nube sin ocupar una sección completa. Si no hay nube
+// configurada, no se muestra nada (nada que reportar, y así Inicio queda más compacto).
+function estadoSyncInicio(){
+  const configurado = !!((state.config.syncUrl||"").trim() && (state.config.syncKey||"").trim());
+  if(!configurado) return "";
+  let texto, color;
+  if(state.syncBusy==="push"){ texto = "☁️ Sincronizando..."; color = GOLD; }
+  else if(state.syncBusy==="pull"){ texto = "☁️ Descargando..."; color = GOLD; }
+  else if(state.config.syncError){ texto = "⚠️ Sin conexión con la nube"; color = "#AC3B2E"; }
+  else if(state.config.syncPendiente){ texto = "☁️ Cambios por subir..."; color = GOLD; }
+  else if(state.config.ultimaSubida){ texto = "☁️ Nube al día"; color = "#2F7250"; }
+  else { texto = "☁️ Nube conectada"; color = "#8a8680"; }
+  return `<div class="inicio-sync-bar" style="color:${color};">${texto}</div>`;
 }
 function abrirAjustes(seccion){
   state.tab = "inicio";
@@ -3618,16 +3630,29 @@ function viewColaRecordatorio(){
     </div>`;
 }
 function viewCartera(){
+  const prox = state.prestamos.map(p=>({p, r:resumen(p)}))
+    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && [0,1].includes(diasParaVencer(x.r.proximaFecha)))
+    .sort((a,b)=> new Date(a.r.proximaFecha) - new Date(b.r.proximaFecha));
   const vencidos = state.prestamos.map(p=>({p, r:resumen(p)}))
     .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasAtraso(x.r.proximaFecha)>0)
     .map(x=>({...x, atraso: diasAtraso(x.r.proximaFecha)}))
     .sort((a,b)=> b.atraso - a.atraso);
 
-  if(vencidos.length===0){
-    return `<div class="panel-prox panel-lista"><p class="section-title dorado">Cartera vencida</p><p class="empty">No tienes cuotas vencidas. 🎉</p></div>`;
+  if(vencidos.length===0 && prox.length===0){
+    return `<div class="panel-prox panel-lista"><p class="section-title dorado">Cartera vencida</p><p class="empty">No tienes cuotas vencidas ni próximas a vencer. 🎉</p></div>`;
   }
 
   let html = "";
+
+  if(prox.length>0){
+    html += `<div class="panel-prox panel-lista"><p class="section-title dorado">Próximos a vencer</p>`;
+    prox.forEach(({p,r})=>{
+      const cli = state.clientes.find(c=>c.id===p.clienteId);
+      html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')"><div><p class="name">${cli?cli.nombre:"—"}</p><p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p></div>${badge("Por cobrar")}</div>`;
+    });
+    html += `</div>`;
+  }
+  if(vencidos.length===0) return html;
 
   const grupos = [
     { label:"1 a 15 días", min:1, max:15 },
