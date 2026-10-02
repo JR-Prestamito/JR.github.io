@@ -147,7 +147,8 @@
   .toprow{display:flex;gap:8px;margin-bottom:16px;}
   /* Buscador fijo: se queda pegado debajo del encabezado al desplazarse por la lista */
   .toprow.buscador{position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:var(--cream);margin:-16px -12px 12px;padding:10px 12px;box-shadow:0 5px 8px -7px rgba(0,0,0,.28);}
-  .inicio-sync-bar{position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:var(--cream);margin:-16px -12px 10px;padding:6px 12px;font-size:12px;font-weight:600;text-align:center;box-shadow:0 5px 8px -7px rgba(0,0,0,.28);}
+  .inicio-sync-bar{position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:var(--cream);margin:-16px -12px 10px;padding:7px 12px;font-size:12px;font-weight:700;text-align:center;box-shadow:0 5px 8px -7px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;letter-spacing:.01em;}
+  .inicio-sync-bar .sync-chev{opacity:.55;font-weight:400;}
   [data-theme="dark"] .inicio-sync-bar{background:#12161f;}
   [data-theme="dark"] .toprow.buscador{background:#12161f;}
   .iconbtn{background:var(--navy);color:#fff;border:none;border-radius:12px;width:48px;height:48px;font-size:24px;line-height:1;flex-shrink:0;}
@@ -572,11 +573,13 @@ function migrarPrestamosAntiguos(lista){
 }
 
 let state = {
-  tab: (_navPrevia && _navPrevia.tab) || "inicio",
+  // Inicio queda fijo como punto de partida: la app siempre abre ahí, sin importar en qué
+  // pestaña se había quedado la vez anterior (antes _navPrevia.tab la restauraba).
+  tab: "inicio",
   clientes: JSON.parse(localStorage.getItem(jrKey("jr_clientes")) || "[]"),
   prestamos: migrarPrestamosAntiguos(JSON.parse(localStorage.getItem(jrKey("jr_prestamos")) || "[]")),
   config: JSON.parse(localStorage.getItem(jrKey("jr_config")) || '{"tasaMoraDiaria":0}'),
-  vista: (_navPrevia && _navPrevia.vista) || "lista",
+  vista: "lista",
   seleccionId: (_navPrevia && _navPrevia.seleccionId) || null,
   clienteEditId: (_navPrevia && _navPrevia.clienteEditId) || null,
   q: "",
@@ -2977,7 +2980,7 @@ function estadoSyncInicio(){
   else if(state.config.syncPendiente){ texto = "☁️ Cambios por subir..."; color = GOLD; }
   else if(state.config.ultimaSubida){ texto = "☁️ Nube al día"; color = "#2F7250"; }
   else { texto = "☁️ Nube conectada"; color = "#8a8680"; }
-  return `<div class="inicio-sync-bar" style="color:${color};">${texto}</div>`;
+  return `<div class="inicio-sync-bar" style="color:${color};" onclick="abrirAjustes('sec-sync')">${texto}<span class="sync-chev">›</span></div>`;
 }
 function abrirAjustes(seccion){
   state.tab = "inicio";
@@ -3644,6 +3647,47 @@ function viewCartera(){
 
   let html = "";
 
+  if(vencidos.length>0){
+    const grupos = [
+      { label:"1 a 15 días", min:1, max:15 },
+      { label:"16 a 30 días", min:16, max:30 },
+      { label:"31 a 60 días", min:31, max:60 },
+      { label:"Más de 60 días", min:61, max:Infinity }
+    ];
+
+    html += `<p class="hint" style="margin:0 0 12px;">${vencidos.length} préstamo(s) con cuotas vencidas, agrupados por días de atraso. Toca uno para ver el préstamo y registrar el pago.</p>`;
+    html += `<button class="btn btn-gold" style="margin-bottom:16px;" onclick="iniciarColaRecordatorios('vencidos')">Enviar recordatorios a todos los vencidos</button>`;
+
+    grupos.forEach(g=>{
+      const enGrupo = vencidos.filter(x=> x.atraso>=g.min && x.atraso<=g.max);
+      if(enGrupo.length===0) return;
+      html += `<div class="panel-prox panel-lista"><p class="section-title dorado">${g.label} (${enGrupo.length})</p>`;
+      enGrupo.forEach(({p, r, atraso})=>{
+        const cli = state.clientes.find(c=>c.id===p.clienteId);
+        const nVencCard = cuotasVencidas(r);
+        // Antes se mostraba solo el monto de "la cuota actual" completa (r.cuotaActual.cuota),
+        // sin restar lo que el cliente ya había abonado de esa cuota ni sumar la(s) cuota(s)
+        // siguiente(s) que también ya vencieron — así que si había un abono parcial y ya tocaba
+        // otra cuota, el monto que se veía aquí no coincidía con lo realmente pendiente (el
+        // mismo cálculo que sí usa el mensaje de recordatorio al enviarlo). Ahora usa
+        // calcularPendiente, igual que el detalle del préstamo y el mensaje de recordatorio.
+        // Aquí se muestra SOLO lo realmente vencido (sin la próxima cuota, aunque ya esté a
+        // un día), porque esta pantalla es "Cartera vencida" — mezclar algo que todavía no
+        // vence daría a entender que ya está atrasado cuando no lo está. La combinación con
+        // la próxima cuota se usa solo en el mensaje que se le envía al cliente.
+        const pend = calcularPendiente(p, r);
+        const totalPend = round2((pend.monto||0) + (pend.mora||0));
+        html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
+          <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
+          <p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p>
+          <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(totalPend)}</p></div>
+          <span class="badge b-vencido">${atraso} día${atraso===1?"":"s"} · ${nVencCard} cuota${nVencCard===1?"":"s"}</span>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+  }
+
   if(prox.length>0){
     html += `<div class="panel-prox panel-lista"><p class="section-title dorado">Próximos a vencer</p>`;
     prox.forEach(({p,r})=>{
@@ -3652,46 +3696,6 @@ function viewCartera(){
     });
     html += `</div>`;
   }
-  if(vencidos.length===0) return html;
-
-  const grupos = [
-    { label:"1 a 15 días", min:1, max:15 },
-    { label:"16 a 30 días", min:16, max:30 },
-    { label:"31 a 60 días", min:31, max:60 },
-    { label:"Más de 60 días", min:61, max:Infinity }
-  ];
-
-  html += `<p class="hint" style="margin:0 0 12px;">${vencidos.length} préstamo(s) con cuotas vencidas, agrupados por días de atraso. Toca uno para ver el préstamo y registrar el pago.</p>`;
-  html += `<button class="btn btn-gold" style="margin-bottom:16px;" onclick="iniciarColaRecordatorios('vencidos')">Enviar recordatorios a todos los vencidos</button>`;
-
-  grupos.forEach(g=>{
-    const enGrupo = vencidos.filter(x=> x.atraso>=g.min && x.atraso<=g.max);
-    if(enGrupo.length===0) return;
-    html += `<div class="panel-prox panel-lista"><p class="section-title dorado">${g.label} (${enGrupo.length})</p>`;
-    enGrupo.forEach(({p, r, atraso})=>{
-      const cli = state.clientes.find(c=>c.id===p.clienteId);
-      const nVencCard = cuotasVencidas(r);
-      // Antes se mostraba solo el monto de "la cuota actual" completa (r.cuotaActual.cuota),
-      // sin restar lo que el cliente ya había abonado de esa cuota ni sumar la(s) cuota(s)
-      // siguiente(s) que también ya vencieron — así que si había un abono parcial y ya tocaba
-      // otra cuota, el monto que se veía aquí no coincidía con lo realmente pendiente (el
-      // mismo cálculo que sí usa el mensaje de recordatorio al enviarlo). Ahora usa
-      // calcularPendiente, igual que el detalle del préstamo y el mensaje de recordatorio.
-      // Aquí se muestra SOLO lo realmente vencido (sin la próxima cuota, aunque ya esté a
-      // un día), porque esta pantalla es "Cartera vencida" — mezclar algo que todavía no
-      // vence daría a entender que ya está atrasado cuando no lo está. La combinación con
-      // la próxima cuota se usa solo en el mensaje que se le envía al cliente.
-      const pend = calcularPendiente(p, r);
-      const totalPend = round2((pend.monto||0) + (pend.mora||0));
-      html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
-        <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
-        <p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p>
-        <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(totalPend)}</p></div>
-        <span class="badge b-vencido">${atraso} día${atraso===1?"":"s"} · ${nVencCard} cuota${nVencCard===1?"":"s"}</span>
-      </div>`;
-    });
-    html += `</div>`;
-  });
   return html;
 }
 
@@ -5529,126 +5533,8 @@ function recargarApp(){
   }, { passive: true });
 })();
 
-const LIC_SUPABASE_URL = "https://kbskmdtgwnagdigtdlze.supabase.co";
-const LIC_SUPABASE_KEY = "sb_publishable_AnwNz39_voG8r7XnjCG6Vg_75jK9Aa7";
-const LIC_PLAN = "pro"; // esta copia del archivo solo acepta licencias del plan "pro"
-const LIC_DIAS_GRACIA = 5; // días que puede seguir usándose sin internet antes de exigir reconexión
-
-function licDeviceId(){
-  let id = localStorage.getItem("jrp_device_id");
-  if(!id){
-    id = (crypto.randomUUID ? crypto.randomUUID() : ("dev-" + Date.now() + "-" + Math.random().toString(16).slice(2)));
-    localStorage.setItem("jrp_device_id", id);
-  }
-  return id;
-}
-
-async function licVerificar(clave){
-  const deviceId = licDeviceId();
-  let data;
-  try{
-    const resp = await fetch(`${LIC_SUPABASE_URL}/rest/v1/rpc/verificar_licencia`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: LIC_SUPABASE_KEY,
-        Authorization: `Bearer ${LIC_SUPABASE_KEY}`
-      },
-      body: JSON.stringify({ p_clave: clave, p_dispositivo: deviceId, p_plan: LIC_PLAN })
-    });
-    if(!resp.ok) throw new Error("http " + resp.status);
-    data = await resp.json();
-  } catch(e){
-    return { ok:false, red:true, motivo:"No se pudo conectar para verificar la licencia. Revisa tu conexión a internet e intenta de nuevo." };
-  }
-  if(data === "ok") return { ok:true };
-  if(data === "invalida") return { ok:false, motivo:"Esa clave de licencia no existe." };
-  if(data === "inactiva") return { ok:false, motivo:"Esta licencia está desactivada." };
-  if(data === "vencida") return { ok:false, motivo:"Esta licencia venció. Contacta al proveedor de la app para renovarla." };
-  if(data === "otro_dispositivo") return { ok:false, motivo:"Esta licencia ya está en uso en otro dispositivo." };
-  if(data === "producto_incorrecto") return { ok:false, motivo:"Esa clave no es para esta versión de la app." };
-  return { ok:false, red:true, motivo:"No se pudo verificar la licencia. Intenta de nuevo." };
-}
-
-// La pantalla de licencia va en un recuadro APARTE, encima de la app (nunca reemplaza
-// document.body): así, cuando la licencia resulta válida, el <div id="app"> de abajo
-// sigue intacto y la app se puede dibujar. Antes se hacía document.body.innerHTML,
-// que borraba el #app y dejaba la app congelada en "Verificando licencia…".
-function licPantalla(html){
-  let ov = document.getElementById("lic-overlay");
-  if(!ov){ ov = document.createElement("div"); ov.id = "lic-overlay"; document.body.appendChild(ov); }
-  ov.style.cssText = "position:fixed;inset:0;z-index:99999;background:#1B2A4A;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;text-align:center;";
-  ov.innerHTML = html;
-}
-function licQuitarPantalla(){
-  const ov = document.getElementById("lic-overlay");
-  if(ov) ov.remove();
-}
-
-function licPedirClave(mensajeError){
-  licPantalla(`
-<div style="font-size:40px;margin-bottom:6px;">🔒</div>
-<h2 style="color:#fff;margin:0 0 6px;font-size:18px;">Licencia requerida</h2>
-<p style="color:#B9C2D6;font-size:13px;margin:0 0 16px;max-width:280px;">Ingresa la clave de licencia para usar esta app en este dispositivo.</p>
-${mensajeError ? `<p style="color:#F3A0A0;font-size:13px;margin:0 0 10px;max-width:280px;">${mensajeError}</p>` : ""}
-<input id="licClaveInput" type="text" placeholder="Clave de licencia" autocapitalize="off" autocorrect="off" style="width:240px;text-align:center;font-size:16px;padding:12px;border-radius:12px;border:none;margin-bottom:10px;">
-<button id="licEntrarBtn" style="width:240px;padding:12px;border-radius:12px;border:none;background:#C9973E;color:#1B2A4A;font-weight:700;font-size:15px;">Entrar</button>
-`);
-  const input = document.getElementById("licClaveInput");
-  const btn = document.getElementById("licEntrarBtn");
-  input.focus();
-  async function intentar(){
-    const clave = (input.value || "").trim();
-    if(!clave) return;
-    btn.disabled = true; btn.textContent = "Verificando…";
-    const r = await licVerificar(clave);
-    if(r.ok){
-      localStorage.setItem("jrp_licencia", clave);
-      localStorage.setItem("jrp_licencia_ok_ts", String(Date.now()));
-      licQuitarPantalla();
-      render();
-      if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
-    } else {
-      btn.disabled = false; btn.textContent = "Entrar";
-      licPedirClave(r.motivo);
-    }
-  }
-  btn.addEventListener("click", intentar);
-  input.addEventListener("keydown", function(e){ if(e.key === "Enter") intentar(); });
-}
-
-async function licArrancar(){
-  const claveGuardada = localStorage.getItem("jrp_licencia");
-  if(!claveGuardada){ licPedirClave(); return; }
-  licPantalla(`<div style="font-size:40px;margin-bottom:6px;">🔒</div><p style="color:#B9C2D6;font-size:13px;">Verificando licencia…</p>`);
-  const r = await licVerificar(claveGuardada);
-  if(r.ok){
-    localStorage.setItem("jrp_licencia_ok_ts", String(Date.now()));
-    licQuitarPantalla();
-    render();
-    if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
-    return;
-  }
-  if(r.red){
-    // No se pudo conectar: si se validó bien hace poco, se deja seguir trabajando sin
-    // internet dentro de un margen de días; pasado ese margen, hace falta conexión.
-    const ultimaOk = Number(localStorage.getItem("jrp_licencia_ok_ts") || 0);
-    const diasSinValidar = (Date.now() - ultimaOk) / (1000*60*60*24);
-    if(ultimaOk && diasSinValidar < LIC_DIAS_GRACIA){
-      licQuitarPantalla();
-      render();
-      return;
-    }
-    licPedirClave(r.motivo);
-    return;
-  }
-  // Respuesta definitiva del servidor (no es un problema de conexión): se borra la
-  // clave guardada y se vuelve a pedir, mostrando el motivo real.
-  localStorage.removeItem("jrp_licencia");
-  licPedirClave(r.motivo);
-}
-
-licArrancar();
+render();
+if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
 </script>
 <script type="text/plain" id="lib-jspdf">/** @license
  *
