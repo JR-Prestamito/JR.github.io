@@ -3382,7 +3382,7 @@ function volverLista(){ state.vista="lista"; render(); }
 function irA(tab){ state.tab = tab; state.vista = "lista"; state.q = ""; state.qPrestamos = ""; render(); }
 function verCartera(){ state.tab="prestamos"; state.vista="cartera"; render(); }
 
-const PLANTILLA_RECORDATORIO_DEFECTO = "Hola {nombre}, su préstamo {codigo} tiene {cuotas} vencida(s) desde el {fecha} ({dias} de atraso), por un total de {monto}. Le agradecemos ponerse al día lo antes posible. Cualquier duda, con gusto le atendemos. ¡Gracias!";
+const PLANTILLA_RECORDATORIO_DEFECTO = "Hola {nombre}, su préstamo {codigo} tiene {cuotas} vencida(s) desde el {fecha} ({dias} de atraso), por un total de {monto}{detalleProxima}. Le agradecemos ponerse al día lo antes posible. Cualquier duda, con gusto le atendemos. ¡Gracias!";
 const PLANTILLA_PENDIENTE_DEFECTO = "Hola {nombre}, le recordamos que su préstamo {codigo} tiene una cuota de {cuota} pendiente de cobro, con fecha {fecha}. Cualquier duda, con gusto le atendemos. ¡Gracias!";
 function diasParaVencer(fecha){
   if(!fecha) return null;
@@ -3404,7 +3404,7 @@ function cuotasVencidas(r){
 // la cuota en curso (aún no vencida o recién vencida) es lo mismo de siempre, pero si ya
 // se acumulan varias cuotas vencidas suma el monto de todas ellas, y calcula la mora de
 // cada una según sus propios días de atraso (no solo los de la más próxima).
-function calcularPendiente(p, r){
+function calcularPendiente(p, r, incluirProxima){
   const tasaMora = Number(state.config.tasaMoraDiaria)||0;
   const nVenc = cuotasVencidas(r);
   const diasAtr = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
@@ -3436,7 +3436,23 @@ function calcularPendiente(p, r){
       }
     }
   }
-  return { monto: round2(monto), mora: round2(mora), nVenc, diasAtr, detalleMora };
+  // Si ya hay cuota(s) vencida(s) Y justo la cuota SIGUIENTE (la primera que todavía no
+  // vence) cae hoy o mañana, se suma también a lo pendiente — así un solo recordatorio
+  // avisa el total real que hay que traer, sin esperar a que esa cuota también venza.
+  // Solo se activa cuando el que llama lo pide explícitamente (incluirProxima), para no
+  // afectar el monto que se sugiere al registrar un pago normal.
+  let proxima = null;
+  if(incluirProxima && nVenc>0){
+    const filaProxima = r.tabla[r.pagosHechos + nVenc];
+    if(filaProxima){
+      const df = diasParaVencer(filaProxima.fecha);
+      if(df===0 || df===1){
+        monto += filaProxima.cuota;
+        proxima = { fecha: filaProxima.fecha, monto: filaProxima.cuota, diasFaltan: df };
+      }
+    }
+  }
+  return { monto: round2(monto), mora: round2(mora), nVenc, diasAtr, detalleMora, proxima };
 }
 function mensajePendiente(p, cli, r){
   const cuota = money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota);
@@ -3456,12 +3472,21 @@ function mensajeRecordatorio(p, cli, r, atraso, pendiente){
   const montoTotal = money(round2((pendiente.monto||0) + (pendiente.mora||0)));
   const nVenc = pendiente.nVenc||1;
   const cuotasTexto = `${nVenc} cuota${nVenc===1?"":"s"}`;
+  // Si además de lo vencido ya se acerca la cuota siguiente (hoy o mañana), se arma una
+  // frase aparte explicando qué incluye el total, para que el monto no se vea "de más"
+  // sin una razón. Queda vacía cuando no aplica, para no dejar un hueco en el mensaje.
+  let detalleProxima = "";
+  if(pendiente.proxima){
+    const cuandoTxt = pendiente.proxima.diasFaltan===0 ? "hoy" : "mañana";
+    detalleProxima = ` (incluye ${money(pendiente.proxima.monto)} de la cuota que vence ${cuandoTxt}, ${fmtDate(pendiente.proxima.fecha)})`;
+  }
   const plantilla = (state.config.mensajeRecordatorio || "").trim() || PLANTILLA_RECORDATORIO_DEFECTO;
   return plantilla
     .replace(/\{nombre\}/g, nombre)
     .replace(/\{codigo\}/g, p.codigo)
     .replace(/\{cuota\}/g, cuota)
     .replace(/\{monto\}/g, montoTotal)
+    .replace(/\{detalleProxima\}/g, detalleProxima)
     .replace(/\{cuotas\}/g, cuotasTexto)
     .replace(/\{fecha\}/g, fmtDate(r.proximaFecha))
     .replace(/\{dias\}/g, `${atraso} día${atraso===1?"":"s"}`)
@@ -3514,7 +3539,7 @@ function construirColaRecordatorios(tipo){
     let mensaje;
     if(tipo==="vencidos"){
       const atraso = diasAtraso(r.proximaFecha);
-      const pendiente = calcularPendiente(p, r);
+      const pendiente = calcularPendiente(p, r, true);
       mensaje = mensajeRecordatorio(p, cli, r, atraso, pendiente);
     } else {
       mensaje = mensajePendiente(p, cli, r);
@@ -3621,10 +3646,22 @@ function viewCartera(){
     enGrupo.forEach(({p, r, atraso})=>{
       const cli = state.clientes.find(c=>c.id===p.clienteId);
       const nVencCard = cuotasVencidas(r);
+      // Antes se mostraba solo el monto de "la cuota actual" completa (r.cuotaActual.cuota),
+      // sin restar lo que el cliente ya había abonado de esa cuota ni sumar la(s) cuota(s)
+      // siguiente(s) que también ya vencieron — así que si había un abono parcial y ya tocaba
+      // otra cuota, el monto que se veía aquí no coincidía con lo realmente pendiente (el
+      // mismo cálculo que sí usa el mensaje de recordatorio al enviarlo). Ahora usa
+      // calcularPendiente, igual que el detalle del préstamo y el mensaje de recordatorio.
+      // Aquí se muestra SOLO lo realmente vencido (sin la próxima cuota, aunque ya esté a
+      // un día), porque esta pantalla es "Cartera vencida" — mezclar algo que todavía no
+      // vence daría a entender que ya está atrasado cuando no lo está. La combinación con
+      // la próxima cuota se usa solo en el mensaje que se le envía al cliente.
+      const pend = calcularPendiente(p, r);
+      const totalPend = round2((pend.monto||0) + (pend.mora||0));
       html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
         <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
         <p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p>
-        <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(r.cuotaActual?r.cuotaActual.cuota:r.cuota)}</p></div>
+        <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(totalPend)}</p></div>
         <span class="badge b-vencido">${atraso} día${atraso===1?"":"s"} · ${nVencCard} cuota${nVencCard===1?"":"s"}</span>
       </div>`;
     });
@@ -4132,6 +4169,7 @@ function viewDetallePrestamo(){
     </div>`;
 
   const pendiente = calcularPendiente(p, r);
+  const pendienteRecordatorio = calcularPendiente(p, r, true);
   const sugerido = pendiente.monto;
   const moraCalc = pendiente.mora;
   const nVenc = pendiente.nVenc;
@@ -4147,7 +4185,7 @@ function viewDetallePrestamo(){
   const necesitaRecordatorio = r.estado==="Activo" && r.proximaFecha && (atraso>0 || diasFaltan===1 || diasFaltan===0);
   let waRec = null, smsRec = null;
   if(necesitaRecordatorio){
-    const mensajeRec = atraso>0 ? mensajeRecordatorio(p, cli, r, atraso, pendiente) : mensajePendiente(p, cli, r);
+    const mensajeRec = atraso>0 ? mensajeRecordatorio(p, cli, r, atraso, pendienteRecordatorio) : mensajePendiente(p, cli, r);
     waRec = linkWhatsapp(cli, mensajeRec);
     smsRec = linkSms(cli, mensajeRec);
   }
@@ -4168,7 +4206,7 @@ function viewDetallePrestamo(){
     ${necesitaRecordatorio ? `
     <div class="row-card" style="display:block;">
       <p style="font-weight:700;margin:0 0 4px;">Enviar Recordatorios</p>
-      <p class="hint" style="color:#A32D2D;margin:0 0 6px;">${atraso>0 ? `Cuota vencida (${atraso} día${atraso===1?"":"s"} · ${nVenc} cuota${nVenc===1?"":"s"})` : (diasFaltan===0 ? "Por cobrar hoy" : "Por cobrar mañana")}</p>
+      <p class="hint" style="color:#A32D2D;margin:0 0 6px;">${atraso>0 ? `Cuota vencida (${atraso} día${atraso===1?"":"s"} · ${nVenc} cuota${nVenc===1?"":"s"})${pendienteRecordatorio.proxima ? ` + cuota que vence ${pendienteRecordatorio.proxima.diasFaltan===0?"hoy":"mañana"}` : ""}` : (diasFaltan===0 ? "Por cobrar hoy" : "Por cobrar mañana")}</p>
       ${(waRec||smsRec) ? `<div class="flexrow">
         ${waRec?`<a class="btn btn-outline" style="text-decoration:none;text-align:center;" href="${waRec}" target="_blank" rel="noopener" onclick="abrirEnlaceExterno()">Enviar WhatsApp</a>`:""}
         ${smsRec?`<a class="btn btn-outline" style="text-decoration:none;text-align:center;" href="${smsRec}" target="_blank" rel="noopener" onclick="abrirEnlaceExterno()">Enviar SMS</a>`:""}
