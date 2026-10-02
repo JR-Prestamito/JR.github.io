@@ -147,9 +147,6 @@
   .toprow{display:flex;gap:8px;margin-bottom:16px;}
   /* Buscador fijo: se queda pegado debajo del encabezado al desplazarse por la lista */
   .toprow.buscador{position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:var(--cream);margin:-16px -12px 12px;padding:10px 12px;box-shadow:0 5px 8px -7px rgba(0,0,0,.28);}
-  .inicio-sync-bar{position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:var(--cream);margin:-16px -12px 10px;padding:7px 12px;font-size:12px;font-weight:700;text-align:center;box-shadow:0 5px 8px -7px rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;-webkit-tap-highlight-color:transparent;letter-spacing:.01em;}
-  .inicio-sync-bar .sync-chev{opacity:.55;font-weight:400;}
-  [data-theme="dark"] .inicio-sync-bar{background:#12161f;}
   [data-theme="dark"] .toprow.buscador{background:#12161f;}
   .iconbtn{background:var(--navy);color:#fff;border:none;border-radius:12px;width:48px;height:48px;font-size:24px;line-height:1;flex-shrink:0;}
   /* Botón flotante (+): anclado a la esquina inferior derecha del contenido de la app (no
@@ -332,6 +329,23 @@
   [data-theme="dark"] .fila-inicio{background:linear-gradient(90deg,#2A2416,#1B212C 60%);}
   [data-theme="dark"] .section-title.dorado{color:#E7E7EA;}
 
+  /* Franja de estado de sincronización, arriba de todo en Inicio. El punto de color dice el
+     estado de un vistazo (apagado=sin configurar, dorado=sincronizando, verde=al día,
+     ámbar=hace rato que no sincroniza) sin tener que entrar a Ajustes a revisar. */
+  .sync-pill{display:flex;align-items:center;gap:6px;background:none;border:none;padding:0 1px;margin:-8px 0 12px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .sync-dot{width:6px;height:6px;border-radius:50%;flex:none;}
+  .sync-dot-off{background:#c7c2b6;}
+  .sync-dot-warn{background:#C9973E;}
+  .sync-dot-ok{background:#3B6D11;}
+  .sync-dot-busy{background:#C9973E;animation:syncPulso 1.1s ease-in-out infinite;}
+  @keyframes syncPulso{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.45;transform:scale(.72);}}
+  .sync-pill .sync-txt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sync-pill .sync-txt p{margin:0;font-size:11px;color:#9b9689;letter-spacing:.1px;}
+  .sync-pill .sync-txt .sync-sub{color:#b5b0a2;}
+  .sync-pill .sync-chev{color:#c2bdb0;font-size:13px;flex:none;}
+  [data-theme="dark"] .sync-pill .sync-txt p{color:rgba(255,255,255,.42);}
+  [data-theme="dark"] .sync-pill .sync-txt .sync-sub{color:rgba(255,255,255,.3);}
+  .v3-mini .v3-ico-dorado{background:rgba(201,151,62,.28);}
   .v3-hero{margin:4px 0 16px;padding:18px;border-radius:22px;color:#fff;position:relative;overflow:hidden;background:radial-gradient(circle at 90% 6%,rgba(201,151,62,.28) 0,rgba(201,151,62,0) 45%),linear-gradient(155deg, var(--navy) 0%, #0F1A30 100%);box-shadow:0 8px 20px rgba(27,42,74,.24);}
   .v3-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
   .v3-lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.68);margin:0 0 4px;font-weight:600;}
@@ -573,13 +587,11 @@ function migrarPrestamosAntiguos(lista){
 }
 
 let state = {
-  // Inicio queda fijo como punto de partida: la app siempre abre ahí, sin importar en qué
-  // pestaña se había quedado la vez anterior (antes _navPrevia.tab la restauraba).
-  tab: "inicio",
+  tab: (_navPrevia && _navPrevia.tab) || "inicio",
   clientes: JSON.parse(localStorage.getItem(jrKey("jr_clientes")) || "[]"),
   prestamos: migrarPrestamosAntiguos(JSON.parse(localStorage.getItem(jrKey("jr_prestamos")) || "[]")),
   config: JSON.parse(localStorage.getItem(jrKey("jr_config")) || '{"tasaMoraDiaria":0}'),
-  vista: "lista",
+  vista: (_navPrevia && _navPrevia.vista) || "lista",
   seleccionId: (_navPrevia && _navPrevia.seleccionId) || null,
   clienteEditId: (_navPrevia && _navPrevia.clienteEditId) || null,
   q: "",
@@ -868,6 +880,25 @@ function fmtDateNumerica(dateStr){
   if(!dateStr) return "—";
   const d = new Date(dateStr + "T00:00:00");
   return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`;
+}
+// "Hace 5 min / hace 3 h / hace 2 días..." para la franja de sincronización en Inicio.
+// Recibe un timestamp de los que ya guarda la app (new Date(...).toISOString()).
+function tiempoRelativo(timestampIso){
+  if(!timestampIso) return "";
+  const ms = Date.now() - new Date(timestampIso).getTime();
+  if(ms < 0 || isNaN(ms)) return "";
+  const min = Math.floor(ms/60000);
+  if(min < 1) return "hace un momento";
+  if(min < 60) return `hace ${min} min`;
+  const horas = Math.floor(min/60);
+  if(horas < 24) return `hace ${horas} h`;
+  const dias = Math.floor(horas/24);
+  if(dias === 1) return "ayer";
+  if(dias < 7) return `hace ${dias} días`;
+  const semanas = Math.floor(dias/7);
+  if(semanas === 1) return "hace 1 semana";
+  if(dias < 30) return `hace ${semanas} semanas`;
+  return `hace más de un mes`;
 }
 const MESES_LARGOS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 // Convierte un número entero (0 a 999,999,999) a su forma escrita en español, en
@@ -2868,15 +2899,12 @@ async function subirNube(silencioso){
     if(data.ok){
       state.config.ultimaSubida = new Date().toISOString();
       state.config.syncPendiente = false;
-      state.config.syncError = false;
       save({ sinAutoSync:true });
       if(!silencioso) mostrarAlerta("Datos subidos correctamente a la nube.");
     } else {
-      state.config.syncError = true;
       if(!silencioso) mostrarAlerta("Error al subir: " + (data.error || "desconocido"));
     }
   } catch(err){
-    state.config.syncError = true;
     if(!silencioso) mostrarAlerta("No se pudo conectar con la nube. Revisa la URL, la clave y tu conexión a internet.");
   }
   state.syncBusy = null; render();
@@ -2905,7 +2933,6 @@ async function _descargarNubeInterna(url, key){
         state.config.tasaMoraDiaria = data.datos.config.tasaMoraDiaria;
       }
       state.config.ultimaDescarga = new Date().toISOString();
-      state.config.syncError = false;
       save({sinAutoSync:true});
       mostrarAlerta("Datos descargados correctamente.");
     } else if(data.ok && !data.datos){
@@ -2935,19 +2962,52 @@ function viewInicio(){
   if(state.vista==="reporteHistorialPagos") return viewReporteHistorialPagos();
   if(state.vista==="ajustesClave") return viewAjustesClave();
   if(state.vista==="ajustes") return viewAjustes();
-  let prestado=0, activos=0, vencidos=0, capitalActual=0;
+  let prestado=0, cobrado=0, activos=0, vencidos=0, capitalActual=0;
   state.prestamos.forEach(p=>{
     const r = resumen(p);
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
+    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + pagosPreviosDe(p);
     capitalActual += Number(r.capitalPendiente)||0;
     if(r.estado==="Activo"){ activos++; if(r.proximaFecha && diasAtraso(r.proximaFecha)>0) vencidos++; }
   });
-  const T = desgloseIngresosCobrados();
-
   const modoOscuro = !!state.config.temaOscuro;
-  let html = estadoSyncInicio();
-  html += `<div class="v3-hero">
+
+  // Estado de sincronización, resumido para un vistazo rápido sin entrar a Ajustes.
+  const syncConfigurado = !!(state.config.syncUrl && state.config.syncKey);
+  const ultimaSubidaMs = state.config.ultimaSubida ? new Date(state.config.ultimaSubida).getTime() : 0;
+  const ultimaDescargaMs = state.config.ultimaDescarga ? new Date(state.config.ultimaDescarga).getTime() : 0;
+  const ultimoSyncMs = Math.max(ultimaSubidaMs, ultimaDescargaMs) || null;
+  const horasDesdeSync = ultimoSyncMs ? (Date.now()-ultimoSyncMs)/3600000 : null;
+  let syncDot, syncTit, syncSub;
+  if(state.syncBusy){
+    syncDot = "sync-dot-busy";
+    syncTit = state.syncBusy==="push" ? "Subiendo a la nube..." : "Descargando de la nube...";
+    syncSub = "Un momento";
+  } else if(!syncConfigurado){
+    syncDot = "sync-dot-off";
+    syncTit = "Sincronización no configurada";
+    syncSub = "Toca para conectar otro celular a tus datos";
+  } else if(!ultimoSyncMs){
+    syncDot = "sync-dot-warn";
+    syncTit = "Conectado, sin sincronizar todavía";
+    syncSub = "Toca para subir o descargar por primera vez";
+  } else if(horasDesdeSync > 48){
+    syncDot = "sync-dot-warn";
+    syncTit = "Hace tiempo que no sincroniza";
+    syncSub = `Última vez ${tiempoRelativo(new Date(ultimoSyncMs).toISOString())}`;
+  } else {
+    syncDot = "sync-dot-ok";
+    syncTit = "Sincronizado";
+    syncSub = `${ultimaSubidaMs>=ultimaDescargaMs?"Subido":"Descargado"} ${tiempoRelativo(new Date(ultimoSyncMs).toISOString())}`;
+  }
+
+  let html = `<div class="sync-pill" onclick="abrirAjustes('sec-sync')">
+    <span class="sync-dot ${syncDot}"></span>
+    <div class="sync-txt"><p>${syncTit} <span class="sync-sub">· ${syncSub}</span></p></div>
+    <span class="sync-chev">›</span>
+  </div>
+  <div class="v3-hero">
     <div class="v3-top" onclick="irA('prestamos')">
       <div><p class="v3-lbl">Capital actual prestado</p>
       <p class="v3-val"><em>L</em> ${money(capitalActual).replace(/^L\s*/,"")}</p></div>
@@ -2956,31 +3016,15 @@ function viewInicio(){
     <p class="v3-note">Saldo de capital que tus clientes todavía te deben (sin interés de cuotas futuras).</p>
     <div class="v3-mini">
       <div onclick="abrirReporteDesembolsos()"><span class="v3-ico">${ICO_INI.dinero}</span><div><p class="m-lbl">Capital prestado</p><p class="m-val">${money(prestado)}</p></div></div>
-      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Capital cobrado</p><p class="m-val" style="color:var(--gold);">${money(T.capital)}</p></div></div>
-      <div onclick="abrirReporteHistorialPagos()" style="grid-column:1/-1;"><span class="v3-ico">${ICO_INI.tendencia}</span><div><p class="m-lbl">Intereses cobrados</p><p class="m-val" style="color:var(--gold);">${money(T.intereses)}</p></div></div>
+      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico v3-ico-dorado">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(cobrado)}</p></div></div>
     </div>
   </div>
   <div class="v3-tiles">
     <div class="v3-tile t-verde" onclick="irA('prestamos')"><span class="v3-ico">${ICO_INI.tendencia}</span><p class="t-lbl">Préstamos activos</p><p class="t-val">${activos}</p></div>
-    <div class="v3-tile t-rojo" onclick="verCartera()"><span class="v3-ico">${ICO_INI.alerta}</span><p class="t-lbl">Cuotas vencidas</p><p class="t-val">${vencidos}</p></div>
+    <div class="v3-tile ${vencidos>0?"t-rojo":"t-verde"}" onclick="verCartera()"><span class="v3-ico">${vencidos>0?ICO_INI.alerta:ICO_INI.tendencia}</span><p class="t-lbl">${vencidos>0?"Cuotas vencidas":"Cuotas al día"}</p><p class="t-val">${vencidos>0?vencidos:"✓"}</p></div>
     <div class="v3-tile t-dorado" onclick="irA('clientes')"><span class="v3-ico">${ICO_INI.personas}</span><p class="t-lbl">Clientes registrados</p><p class="t-val">${state.clientes.length}</p></div>
   </div>`;
   return html;
-}
-// Franja de un solo renglón, pegada al encabezado (ver .inicio-sync-bar), que resume el
-// estado de la copia en la nube sin ocupar una sección completa. Si no hay nube
-// configurada, no se muestra nada (nada que reportar, y así Inicio queda más compacto).
-function estadoSyncInicio(){
-  const configurado = !!((state.config.syncUrl||"").trim() && (state.config.syncKey||"").trim());
-  if(!configurado) return "";
-  let texto, color;
-  if(state.syncBusy==="push"){ texto = "☁️ Sincronizando..."; color = GOLD; }
-  else if(state.syncBusy==="pull"){ texto = "☁️ Descargando..."; color = GOLD; }
-  else if(state.config.syncError){ texto = "⚠️ Sin conexión con la nube"; color = "#AC3B2E"; }
-  else if(state.config.syncPendiente){ texto = "☁️ Cambios por subir..."; color = GOLD; }
-  else if(state.config.ultimaSubida){ texto = "☁️ Nube al día"; color = "#2F7250"; }
-  else { texto = "☁️ Nube conectada"; color = "#8a8680"; }
-  return `<div class="inicio-sync-bar" style="color:${color};" onclick="abrirAjustes('sec-sync')">${texto}<span class="sync-chev">›</span></div>`;
 }
 function abrirAjustes(seccion){
   state.tab = "inicio";
@@ -3633,69 +3677,75 @@ function viewColaRecordatorio(){
     </div>`;
 }
 function viewCartera(){
-  const prox = state.prestamos.map(p=>({p, r:resumen(p)}))
-    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && [0,1].includes(diasParaVencer(x.r.proximaFecha)))
-    .sort((a,b)=> new Date(a.r.proximaFecha) - new Date(b.r.proximaFecha));
   const vencidos = state.prestamos.map(p=>({p, r:resumen(p)}))
     .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasAtraso(x.r.proximaFecha)>0)
     .map(x=>({...x, atraso: diasAtraso(x.r.proximaFecha)}))
     .sort((a,b)=> b.atraso - a.atraso);
-
-  if(vencidos.length===0 && prox.length===0){
-    return `<div class="panel-prox panel-lista"><p class="section-title dorado">Cartera vencida</p><p class="empty">No tienes cuotas vencidas ni próximas a vencer. 🎉</p></div>`;
-  }
+  // Próximos a vencer (hoy o mañana): vivía antes en Inicio; se movió aquí para dejar la
+  // pantalla de Inicio más compacta, y porque de todos modos es información de cobranza,
+  // igual que la cartera vencida — tiene más sentido verlas juntas en un solo lugar.
+  const prox = state.prestamos.map(p=>({p, r:resumen(p)}))
+    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && [0,1].includes(diasParaVencer(x.r.proximaFecha)))
+    .sort((a,b)=> new Date(a.r.proximaFecha) - new Date(b.r.proximaFecha));
 
   let html = "";
 
-  if(vencidos.length>0){
-    const grupos = [
-      { label:"1 a 15 días", min:1, max:15 },
-      { label:"16 a 30 días", min:16, max:30 },
-      { label:"31 a 60 días", min:31, max:60 },
-      { label:"Más de 60 días", min:61, max:Infinity }
-    ];
+  if(vencidos.length===0){
+    html += `<div class="panel-prox panel-lista"><p class="section-title dorado">Cartera vencida</p><p class="empty">No tienes cuotas vencidas. 🎉</p></div>`;
+  } else {
 
-    html += `<p class="hint" style="margin:0 0 12px;">${vencidos.length} préstamo(s) con cuotas vencidas, agrupados por días de atraso. Toca uno para ver el préstamo y registrar el pago.</p>`;
-    html += `<button class="btn btn-gold" style="margin-bottom:16px;" onclick="iniciarColaRecordatorios('vencidos')">Enviar recordatorios a todos los vencidos</button>`;
+  const grupos = [
+    { label:"1 a 15 días", min:1, max:15 },
+    { label:"16 a 30 días", min:16, max:30 },
+    { label:"31 a 60 días", min:31, max:60 },
+    { label:"Más de 60 días", min:61, max:Infinity }
+  ];
 
-    grupos.forEach(g=>{
-      const enGrupo = vencidos.filter(x=> x.atraso>=g.min && x.atraso<=g.max);
-      if(enGrupo.length===0) return;
-      html += `<div class="panel-prox panel-lista"><p class="section-title dorado">${g.label} (${enGrupo.length})</p>`;
-      enGrupo.forEach(({p, r, atraso})=>{
-        const cli = state.clientes.find(c=>c.id===p.clienteId);
-        const nVencCard = cuotasVencidas(r);
-        // Antes se mostraba solo el monto de "la cuota actual" completa (r.cuotaActual.cuota),
-        // sin restar lo que el cliente ya había abonado de esa cuota ni sumar la(s) cuota(s)
-        // siguiente(s) que también ya vencieron — así que si había un abono parcial y ya tocaba
-        // otra cuota, el monto que se veía aquí no coincidía con lo realmente pendiente (el
-        // mismo cálculo que sí usa el mensaje de recordatorio al enviarlo). Ahora usa
-        // calcularPendiente, igual que el detalle del préstamo y el mensaje de recordatorio.
-        // Aquí se muestra SOLO lo realmente vencido (sin la próxima cuota, aunque ya esté a
-        // un día), porque esta pantalla es "Cartera vencida" — mezclar algo que todavía no
-        // vence daría a entender que ya está atrasado cuando no lo está. La combinación con
-        // la próxima cuota se usa solo en el mensaje que se le envía al cliente.
-        const pend = calcularPendiente(p, r);
-        const totalPend = round2((pend.monto||0) + (pend.mora||0));
-        html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
-          <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
-          <p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p>
-          <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(totalPend)}</p></div>
-          <span class="badge b-vencido">${atraso} día${atraso===1?"":"s"} · ${nVencCard} cuota${nVencCard===1?"":"s"}</span>
-        </div>`;
-      });
-      html += `</div>`;
+  html += `<p class="hint" style="margin:0 0 12px;">${vencidos.length} préstamo(s) con cuotas vencidas, agrupados por días de atraso. Toca uno para ver el préstamo y registrar el pago.</p>`;
+  html += `<button class="btn btn-gold" style="margin-bottom:16px;" onclick="iniciarColaRecordatorios('vencidos')">Enviar recordatorios a todos los vencidos</button>`;
+
+  grupos.forEach(g=>{
+    const enGrupo = vencidos.filter(x=> x.atraso>=g.min && x.atraso<=g.max);
+    if(enGrupo.length===0) return;
+    html += `<div class="panel-prox panel-lista"><p class="section-title dorado">${g.label} (${enGrupo.length})</p>`;
+    enGrupo.forEach(({p, r, atraso})=>{
+      const cli = state.clientes.find(c=>c.id===p.clienteId);
+      const nVencCard = cuotasVencidas(r);
+      // Antes se mostraba solo el monto de "la cuota actual" completa (r.cuotaActual.cuota),
+      // sin restar lo que el cliente ya había abonado de esa cuota ni sumar la(s) cuota(s)
+      // siguiente(s) que también ya vencieron — así que si había un abono parcial y ya tocaba
+      // otra cuota, el monto que se veía aquí no coincidía con lo realmente pendiente (el
+      // mismo cálculo que sí usa el mensaje de recordatorio al enviarlo). Ahora usa
+      // calcularPendiente, igual que el detalle del préstamo y el mensaje de recordatorio.
+      // Aquí se muestra SOLO lo realmente vencido (sin la próxima cuota, aunque ya esté a
+      // un día), porque esta pantalla es "Cartera vencida" — mezclar algo que todavía no
+      // vence daría a entender que ya está atrasado cuando no lo está. La combinación con
+      // la próxima cuota se usa solo en el mensaje que se le envía al cliente.
+      const pend = calcularPendiente(p, r);
+      const totalPend = round2((pend.monto||0) + (pend.mora||0));
+      html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
+        <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
+        <p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p>
+        <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(totalPend)}</p></div>
+        <span class="badge b-vencido">${atraso} día${atraso===1?"":"s"} · ${nVencCard} cuota${nVencCard===1?"":"s"}</span>
+      </div>`;
     });
+    html += `</div>`;
+  });
+
   }
 
-  if(prox.length>0){
-    html += `<div class="panel-prox panel-lista"><p class="section-title dorado">Próximos a vencer</p>`;
+  html += `<div class="panel-prox panel-lista" style="margin-top:14px;"><p class="section-title dorado" style="display:flex;align-items:center;gap:7px;">Próximos a vencer${prox.length>0?`<span style="background:rgba(201,151,62,.18);color:#8a6d1f;font-size:11px;font-weight:700;padding:1px 8px;border-radius:10px;">${prox.length}</span>`:""}</p>`;
+  if(prox.length===0){
+    html += `<p class="empty">${state.prestamos.length===0 ? "Todavía no tienes préstamos registrados." : "✓ No tienes cuotas por cobrar hoy ni mañana."}</p>`;
+  } else {
     prox.forEach(({p,r})=>{
       const cli = state.clientes.find(c=>c.id===p.clienteId);
       html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')"><div><p class="name">${cli?cli.nombre:"—"}</p><p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p></div>${badge("Por cobrar")}</div>`;
     });
-    html += `</div>`;
   }
+  html += `</div>`;
+
   return html;
 }
 
