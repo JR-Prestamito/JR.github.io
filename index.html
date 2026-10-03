@@ -382,6 +382,15 @@
   .t-dorado .t-val{margin-left:auto;}
   /* Modo oscuro: íconos y textos de la barra inferior siempre dorados */
   [data-theme="dark"] .tab-btn, [data-theme="dark"] .tab-btn.active{color:var(--gold);}
+
+  /* ===== Inicio fijo: sin scroll ni movimiento. El diseño conserva sus proporciones originales
+     y se escala completo (ajustarInicioFijo) para llenar el espacio disponible de cualquier celular. ===== */
+  html:has(.v3-hero),html:has(.v3-hero) body{height:100%;overflow:hidden;overscroll-behavior:none;}
+  #app:has(.v3-hero){height:100vh;height:100dvh;min-height:0;overflow:hidden;padding-bottom:0;display:flex;flex-direction:column;touch-action:none;}
+  #app:has(.v3-hero)>header{flex:none;}
+  #app:has(.v3-hero)>.content{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px));}
+  #app:has(.v3-hero) .sync-pill{flex:none;position:relative;top:auto;margin:-16px -12px 4px;}
+  #app:has(.v3-hero) .v3-hero{flex:none;margin:auto 0;}
 </style>
 </head>
 <body>
@@ -1667,6 +1676,7 @@ function render(){
   html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="prestamos"&&state.vista==="colaRecordatorio"?"Enviar recordatorios":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||tituloNuevoCliente||tituloCalculadora||tituloContrato||titles[state.tab]))))}</h1></div>
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
+    html += `<button class="backbtn" id="btn-recargar" style="margin-right:6px;" title="Recargar" onclick="recargarApp()">${ICONS.refresh}</button>`;
     html += menuOpcionesHtml("inicio", [
       { icono: ICONS.edit, texto:"Nombre del negocio", onclick: "abrirAjustes('sec-nombre-negocio')" },
       { icono: ICONS.settings, texto:"Apariencia", onclick: "abrirAjustes('sec-apariencia')" },
@@ -1725,6 +1735,7 @@ function render(){
   // Eso hacía que, en toda pantalla a la que se llega navegando (como los reportes), las notas
   // largas nunca se recortaran a 2 líneas: el recorte se calculaba sobre la pantalla anterior.
   function despuesDePintar(){
+    ajustarInicioFijo();
     // El panel de "Ajustes protegidos" debe verse centrado en el espacio que queda entre el
     // encabezado y la barra inferior. En vez de adivinar esas alturas (que cambian según el
     // celular, el notch, etc.), se miden de verdad ya insertado en la pantalla.
@@ -2965,6 +2976,28 @@ const ICO_INI = {
   personas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>',
   reloj:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>'
 };
+
+// Inicio fijo: mide el espacio libre entre el encabezado/franja de sincronización y la barra
+// inferior y escala la tarjeta completa para que quepa exacta, sin scroll. Si el celular tiene
+// letra grande o pantalla baja, se achica; si sobra espacio, crece un poco (máx. 1.12).
+function ajustarInicioFijo(){
+  const hero = document.querySelector("#app .v3-hero");
+  if(!hero) return;
+  const tabbar = document.querySelector("#app > .tabbar");
+  const pill = document.querySelector("#app .sync-pill");
+  const header = document.querySelector("#app > header");
+  hero.style.zoom = 1;
+  const inicio = pill ? pill.getBoundingClientRect().bottom : (header ? header.getBoundingClientRect().bottom : 0);
+  const fin = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
+  const disponible = fin - inicio - 16;
+  const natural = hero.offsetHeight;
+  if(!natural || disponible <= 0) return;
+  hero.style.zoom = Math.max(0.45, Math.min(1.12, disponible / natural));
+}
+window.addEventListener("resize", ajustarInicioFijo);
+window.addEventListener("orientationchange", function(){ setTimeout(ajustarInicioFijo, 200); });
+window.addEventListener("load", ajustarInicioFijo);
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(ajustarInicioFijo);
 function viewInicio(){
   if(state.vista==="reportePDF") return viewReportePDF();
   if(state.vista==="estadoResultados") return viewEstadoResultados();
@@ -2998,8 +3031,8 @@ function viewInicio(){
     <p class="v3-note">Saldo de capital que tus clientes todavía te deben (sin interés de cuotas futuras).</p>
     <div class="v3-mini">
       <div onclick="abrirReporteDesembolsos()"><span class="v3-ico">${ICO_INI.dinero}</span><div><p class="m-lbl">Capital prestado</p><p class="m-val">${money(prestado)}</p></div></div>
-      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(T.capital+T.intereses)}</p></div></div>
-      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Capital cobrado</p><p class="m-val">${money(T.capital)}</p></div></div>
+      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(T.capital+T.enganches+T.intereses)}</p></div></div>
+      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Capital cobrado</p><p class="m-val">${money(T.capital+T.enganches)}</p></div></div>
       <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.tendencia}</span><div><p class="m-lbl">Intereses cobrados</p><p class="m-val" style="color:var(--gold);">${money(T.intereses)}</p></div></div>
     </div>
     <div class="v3-tiles">
@@ -5534,44 +5567,10 @@ function recargarApp(){
   _recargaIntencional = true;
   setTimeout(function(){ location.reload(); }, 200);
 }
-// --- "Deslizar hacia abajo para actualizar" hecho a mano: dispara una recarga REAL del
-// navegador (para traer siempre la última versión del archivo) pero, gracias a guardarNav()
-// / navGuardada() de arriba, al volver a cargar la app te deja exactamente en la misma
-// pantalla en la que estabas — no te manda a Inicio como haría el gesto nativo del navegador
-// (que overscroll-behavior, arriba, ya bloquea para que no dispare solo por accidente).
-// Solo funciona en la pantalla de Inicio (el resumen/presentación) — en el resto de
-// pantallas, deslizar hacia abajo no hace nada; para recargar ahí se usa el ícono del
-// encabezado (recargarApp()).
-(function(){
-  const UMBRAL = 70;
-  let startY = null, disparado = false;
-  document.addEventListener("touchstart", function(e){
-    if(state.tab!=="inicio" || state.vista!=="lista"){ startY = null; return; }
-    if(window.scrollY > 0){ startY = null; return; }
-    if(e.touches.length !== 1) { startY = null; return; }
-    startY = e.touches[0].clientY;
-    disparado = false;
-  }, { passive: true });
-  document.addEventListener("touchmove", function(e){
-    if(startY===null || disparado) return;
-    if(state.tab!=="inicio" || state.vista!=="lista"){ startY = null; return; }
-    const delta = e.touches[0].clientY - startY;
-    if(delta <= 0){ return; }
-    if(window.scrollY > 0){ startY = null; return; }
-    if(delta > UMBRAL){
-      disparado = true;
-      const ind = getIndicadorRecarga();
-      ind.classList.add("mostrando");
-      ind.innerHTML = `<span class="spin"></span> Actualizando…`;
-      guardarNav();
-      _recargaIntencional = true;
-      setTimeout(function(){ location.reload(); }, 200);
-    }
-  }, { passive: true });
-  document.addEventListener("touchend", function(){
-    startY = null;
-  }, { passive: true });
-})();
+// --- La pantalla de Inicio ya NO se recarga al deslizar hacia abajo (gesto que a veces se
+// disparaba sin querer, dejando la pantalla "inestable"). Ahora es estática igual que el
+// resto de pantallas: para recargar se usa el ícono del encabezado (recargarApp()), que
+// Inicio ya muestra igual que las demás.
 
 // --- Deslizar hacia los lados para cambiar de pestaña (Inicio/Clientes/Préstamos/Pagos),
 // como en apps nativas. Solo funciona en la pantalla principal de cada pestaña (vista
