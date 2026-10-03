@@ -94,6 +94,10 @@
   .b-vencido{background:#FCEBEB;color:#A32D2D;}
   .b-refinanciado{background:#EAF0FB;color:#2255A0;}
   .b-porcobrar{background:#FBF3E4;color:#8A6416;}
+  .card-exito{background:#EAF3DE;color:#3B6D11;}
+  [data-theme="dark"] .card-exito{background:rgba(59,109,17,.28);color:#8FCB5C;}
+  .card-aviso{background:#FBF3E4;color:#8A6416;}
+  [data-theme="dark"] .card-aviso{background:rgba(138,100,22,.28);color:#E8C171;}
   /* --- Pantalla de Inicio: tarjeta hero + tarjetas de estadística --- */
   .home-hero{position:relative;overflow:hidden;border-radius:20px;padding:20px 20px 22px;margin-bottom:14px;background:linear-gradient(155deg, #1B2A4A 0%, #0F1A30 100%);box-shadow:0 8px 20px rgba(15,26,48,.18);}
   .home-hero .hero-glow{position:absolute;top:-50px;right:-40px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle, rgba(201,151,62,.32) 0%, rgba(201,151,62,0) 72%);pointer-events:none;}
@@ -147,6 +151,20 @@
   .toprow{display:flex;gap:8px;margin-bottom:16px;}
   /* Buscador fijo: se queda pegado debajo del encabezado al desplazarse por la lista */
   .toprow.buscador{position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:var(--cream);margin:-16px -12px 12px;padding:10px 12px;box-shadow:0 5px 8px -7px rgba(0,0,0,.28);}
+  .sync-pill{display:flex;align-items:center;gap:6px;position:sticky;top:calc(var(--header-h,78px) - 1px);z-index:390;background:transparent;margin:-16px -12px 10px;padding:7px 12px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .sync-dot{width:6px;height:6px;border-radius:50%;flex:none;}
+  .sync-dot-off{background:#c7c2b6;}
+  .sync-dot-warn{background:#C9973E;}
+  .sync-dot-ok{background:#3B6D11;}
+  .sync-dot-busy{background:#C9973E;animation:syncPulso 1.1s ease-in-out infinite;}
+  @keyframes syncPulso{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.45;transform:scale(.72);}}
+  .sync-pill .sync-txt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sync-pill .sync-txt p{margin:0;font-size:11px;color:#9b9689;letter-spacing:.1px;}
+  .sync-pill .sync-txt .sync-sub{color:#b5b0a2;}
+  .sync-pill .sync-chev{color:#c2bdb0;font-size:13px;flex:none;}
+  [data-theme="dark"] .sync-pill{background:transparent;}
+  [data-theme="dark"] .sync-pill .sync-txt p{color:rgba(255,255,255,.42);}
+  [data-theme="dark"] .sync-pill .sync-txt .sync-sub{color:rgba(255,255,255,.3);}
   [data-theme="dark"] .toprow.buscador{background:#12161f;}
   .iconbtn{background:var(--navy);color:#fff;border:none;border-radius:12px;width:48px;height:48px;font-size:24px;line-height:1;flex-shrink:0;}
   /* Botón flotante (+): anclado a la esquina inferior derecha del contenido de la app (no
@@ -329,7 +347,7 @@
   [data-theme="dark"] .fila-inicio{background:linear-gradient(90deg,#2A2416,#1B212C 60%);}
   [data-theme="dark"] .section-title.dorado{color:#E7E7EA;}
 
-  .v3-hero{margin:4px 0 16px;padding:18px;border-radius:22px;color:#fff;position:relative;overflow:hidden;background:radial-gradient(circle at 90% 6%,rgba(201,151,62,.28) 0,rgba(201,151,62,0) 45%),linear-gradient(155deg, var(--navy) 0%, #0F1A30 100%);box-shadow:0 8px 20px rgba(27,42,74,.24);}
+  .v3-hero{margin:4px 0 16px;padding:18px;border-radius:22px;color:#fff;position:relative;overflow:hidden;background:radial-gradient(circle at 90% 6%,rgba(201,151,62,.28) 0,rgba(201,151,62,0) 45%),linear-gradient(155deg, var(--navy) 0%, #0F1A30 100%);border:1px solid rgba(255,255,255,.07);box-shadow:0 10px 24px rgba(15,20,36,.3), inset 0 1px 0 rgba(255,255,255,.08);}
   .v3-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
   .v3-lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.68);margin:0 0 4px;font-weight:600;}
   .v3-val{font-size:28px;font-weight:700;margin:0;line-height:1.1;color:#fff;}
@@ -338,22 +356,27 @@
   .v3-ico{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.12);display:inline-flex;align-items:center;justify-content:center;flex:none;color:#fff;}
   .v3-ico svg{width:20px;height:20px;}
   .v3-mini{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .v3-mini>div{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:9px 10px;display:flex;gap:9px;align-items:center;}
+  .v3-mini>div{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.13);border-radius:14px;padding:9px 10px;display:flex;gap:9px;align-items:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.06);}
   .v3-mini .v3-ico{width:30px;height:30px;border-radius:10px;}
   .v3-mini .v3-ico svg{width:16px;height:16px;}
   .v3-mini p{margin:0;}
   .v3-mini .m-lbl{font-size:10.5px;color:rgba(255,255,255,.58);margin-bottom:1px;}
   .v3-mini .m-val{font-size:14px;font-weight:700;color:#fff;}
   .v3-tiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
-  .v3-tile{border-radius:18px;padding:13px;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.10);}
+  .v3-hero .v3-tiles{margin:14px 0 0;}
+  .v3-tile{border-radius:18px;padding:13px;color:#fff;box-shadow:0 4px 10px rgba(0,0,0,.10),inset 0 1px 0 rgba(255,255,255,.14);}
   .v3-tile .v3-ico{width:32px;height:32px;border-radius:10px;background:rgba(255,255,255,.2);margin-bottom:10px;}
   .v3-tile .v3-ico svg{width:17px;height:17px;}
   .v3-tile p{margin:0;}
   .v3-tile .t-lbl{font-size:11.5px;color:rgba(255,255,255,.9);font-weight:600;margin-bottom:3px;}
   .v3-tile .t-val{font-size:22px;font-weight:700;}
-  .t-verde{background:linear-gradient(135deg,#48936A,#2F7250);}
-  .t-rojo{background:linear-gradient(135deg,#D25B4A,#AC3B2E);cursor:pointer;}
-  .t-dorado{grid-column:1/-1;background:linear-gradient(135deg,#D2A44E,#AD7F28);display:flex;align-items:center;gap:12px;}
+  .t-verde{background:linear-gradient(135deg,#48936A,#2F7250);box-shadow:0 6px 16px -4px rgba(47,114,80,.45),inset 0 1px 0 rgba(255,255,255,.14);}
+  .t-rojo{background:linear-gradient(135deg,#D25B4A,#AC3B2E);cursor:pointer;box-shadow:0 6px 16px -4px rgba(172,59,46,.45),inset 0 1px 0 rgba(255,255,255,.14);}
+  .t-azul{grid-column:1/-1;background:linear-gradient(135deg,#3E7BB8,#2A5A8C);display:flex;align-items:center;gap:12px;box-shadow:0 6px 16px -4px rgba(42,90,140,.4),inset 0 1px 0 rgba(255,255,255,.14);cursor:pointer;}
+  .t-azul .v3-ico{margin:0;}
+  .t-azul .t-lbl{margin:0;font-size:12.5px;}
+  .t-azul .t-val{margin-left:auto;}
+  .t-dorado{grid-column:1/-1;background:linear-gradient(135deg,#D2A44E,#AD7F28);display:flex;align-items:center;gap:12px;box-shadow:0 6px 16px -4px rgba(173,127,40,.4),inset 0 1px 0 rgba(255,255,255,.14);}
   .t-dorado .v3-ico{margin:0;}
   .t-dorado .t-lbl{margin:0;font-size:12.5px;}
   .t-dorado .t-val{margin-left:auto;}
@@ -824,6 +847,23 @@ function nextCode(prefix, list){
   let n = 1;
   while(usados.has(n)) n++;
   return prefix + "-" + String(n).padStart(4,"0");
+}
+function tiempoRelativo(timestampIso){
+  if(!timestampIso) return "";
+  const ms = Date.now() - new Date(timestampIso).getTime();
+  if(ms < 0 || isNaN(ms)) return "";
+  const min = Math.floor(ms/60000);
+  if(min < 1) return "hace un momento";
+  if(min < 60) return `hace ${min} min`;
+  const horas = Math.floor(min/60);
+  if(horas < 24) return `hace ${horas} h`;
+  const dias = Math.floor(horas/24);
+  if(dias === 1) return "ayer";
+  if(dias < 7) return `hace ${dias} días`;
+  const semanas = Math.floor(dias/7);
+  if(semanas === 1) return "hace 1 semana";
+  if(dias < 30) return `hace ${semanas} semanas`;
+  return `hace más de un mes`;
 }
 function money(n){
   n = Number(n);
@@ -1714,14 +1754,16 @@ function render(){
     medirEncabezado();
     // El salto a la sección va DESPUÉS de restaurar el scroll (antes iba antes, y el
     // window.scrollTo(0,0) de arriba lo cancelaba: por eso el menú ⋮ no llevaba a la sección).
-    if(state.tab==="inicio" && state.vista==="ajustes" && state._irAjustesSeccion){
-      const destino = document.getElementById(state._irAjustesSeccion);
+    // state._irSeccion es genérico: lo usan tanto el menú ⋮ de Ajustes como la paleta
+    // "Próximos a vencer" del inicio, para saltar directo a su propio bloque marcado con id.
+    if(state._irSeccion){
+      const destino = document.getElementById(state._irSeccion);
       if(destino){
         destino.scrollIntoView({block:"start"});
         destino.classList.add("sec-destacada");
         setTimeout(function(){ destino.classList.remove("sec-destacada"); }, 1800);
       }
-      state._irAjustesSeccion = null;
+      state._irSeccion = null;
     }
     // Algunos navegadores "recuerdan" por su cuenta el último valor que el usuario eligió
     // en un <select>, e ignoran cuál <option> quedó marcada como "selected" en el HTML
@@ -2863,12 +2905,15 @@ async function subirNube(silencioso){
     if(data.ok){
       state.config.ultimaSubida = new Date().toISOString();
       state.config.syncPendiente = false;
+      state.config.syncError = false;
       save({ sinAutoSync:true });
       if(!silencioso) mostrarAlerta("Datos subidos correctamente a la nube.");
     } else {
+      state.config.syncError = true;
       if(!silencioso) mostrarAlerta("Error al subir: " + (data.error || "desconocido"));
     }
   } catch(err){
+    state.config.syncError = true;
     if(!silencioso) mostrarAlerta("No se pudo conectar con la nube. Revisa la URL, la clave y tu conexión a internet.");
   }
   state.syncBusy = null; render();
@@ -2897,6 +2942,7 @@ async function _descargarNubeInterna(url, key){
         state.config.tasaMoraDiaria = data.datos.config.tasaMoraDiaria;
       }
       state.config.ultimaDescarga = new Date().toISOString();
+      state.config.syncError = false;
       save({sinAutoSync:true});
       mostrarAlerta("Datos descargados correctamente.");
     } else if(data.ok && !data.datos){
@@ -2916,7 +2962,8 @@ const ICO_INI = {
   billetera:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18v3"/><path d="M3 7.5V18a2 2 0 0 0 2 2h14.5a1 1 0 0 0 1-1V9.5a1 1 0 0 0-1-1H5.5A2.5 2.5 0 0 1 3 6"/><circle cx="16.5" cy="14" r="1.2"/></svg>',
   tendencia:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
   alerta:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5M12 16.2v.01"/></svg>',
-  personas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>'
+  personas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>',
+  reloj:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>'
 };
 function viewInicio(){
   if(state.vista==="reportePDF") return viewReportePDF();
@@ -2926,21 +2973,23 @@ function viewInicio(){
   if(state.vista==="reporteHistorialPagos") return viewReporteHistorialPagos();
   if(state.vista==="ajustesClave") return viewAjustesClave();
   if(state.vista==="ajustes") return viewAjustes();
-  let prestado=0, cobrado=0, activos=0, vencidos=0, capitalActual=0;
+  let prestado=0, activos=0, vencidos=0, proximos=0, capitalActual=0;
   state.prestamos.forEach(p=>{
     const r = resumen(p);
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
-    cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + pagosPreviosDe(p);
     capitalActual += Number(r.capitalPendiente)||0;
-    if(r.estado==="Activo"){ activos++; if(r.proximaFecha && diasAtraso(r.proximaFecha)>0) vencidos++; }
+    if(r.estado==="Activo"){
+      activos++;
+      if(r.proximaFecha && diasAtraso(r.proximaFecha)>0) vencidos++;
+      else if(r.proximaFecha && [0,1].includes(diasParaVencer(r.proximaFecha))) proximos++;
+    }
   });
-  let prox = state.prestamos.map(p=>({p, r:resumen(p)}))
-    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && [0,1].includes(diasParaVencer(x.r.proximaFecha)))
-    .sort((a,b)=> new Date(a.r.proximaFecha) - new Date(b.r.proximaFecha));
+  const T = desgloseIngresosCobrados();
 
   const modoOscuro = !!state.config.temaOscuro;
-  let html = `<div class="v3-hero">
+  let html = estadoSyncInicio();
+  html += `<div class="v3-hero">
     <div class="v3-top" onclick="irA('prestamos')">
       <div><p class="v3-lbl">Capital actual prestado</p>
       <p class="v3-val"><em>L</em> ${money(capitalActual).replace(/^L\s*/,"")}</p></div>
@@ -2949,30 +2998,74 @@ function viewInicio(){
     <p class="v3-note">Saldo de capital que tus clientes todavía te deben (sin interés de cuotas futuras).</p>
     <div class="v3-mini">
       <div onclick="abrirReporteDesembolsos()"><span class="v3-ico">${ICO_INI.dinero}</span><div><p class="m-lbl">Capital prestado</p><p class="m-val">${money(prestado)}</p></div></div>
-      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(cobrado)}</p></div></div>
+      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(T.capital+T.intereses)}</p></div></div>
+      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Capital cobrado</p><p class="m-val">${money(T.capital)}</p></div></div>
+      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.tendencia}</span><div><p class="m-lbl">Intereses cobrados</p><p class="m-val" style="color:var(--gold);">${money(T.intereses)}</p></div></div>
     </div>
-  </div>
-  <div class="v3-tiles">
-    <div class="v3-tile t-verde" onclick="irA('prestamos')"><span class="v3-ico">${ICO_INI.tendencia}</span><p class="t-lbl">Préstamos activos</p><p class="t-val">${activos}</p></div>
-    <div class="v3-tile t-rojo" onclick="verCartera()"><span class="v3-ico">${ICO_INI.alerta}</span><p class="t-lbl">Cuotas vencidas</p><p class="t-val">${vencidos}</p></div>
-    <div class="v3-tile t-dorado" onclick="irA('clientes')"><span class="v3-ico">${ICO_INI.personas}</span><p class="t-lbl">Clientes registrados</p><p class="t-val">${state.clientes.length}</p></div>
-  </div>
-  <div class="panel-prox"><p class="section-title dorado">Próximos a vencer</p>`;
-
-  if(prox.length===0) html += `<p class="empty">${state.prestamos.length===0 ? "Todavía no tienes préstamos registrados." : "No tienes cuotas por cobrar hoy ni mañana."}</p>`;
-  prox.forEach(({p,r})=>{
-    const cli = state.clientes.find(c=>c.id===p.clienteId);
-    html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')"><div><p class="name">${cli?cli.nombre:"—"}</p><p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p></div>${badge("Por cobrar")}</div>`;
-  });
-  html += `</div>`;
+    <div class="v3-tiles">
+      <div class="v3-tile t-verde" onclick="irA('prestamos')"><span class="v3-ico">${ICO_INI.tendencia}</span><p class="t-lbl">Préstamos activos</p><p class="t-val">${activos}</p></div>
+      <div class="v3-tile t-rojo" onclick="verCartera()"><span class="v3-ico">${ICO_INI.alerta}</span><p class="t-lbl">Cuotas vencidas</p><p class="t-val">${vencidos}</p></div>
+      <div class="v3-tile t-azul" onclick="verProximosAVencer()"><span class="v3-ico">${ICO_INI.reloj}</span><p class="t-lbl">Próximos a vencer</p><p class="t-val">${proximos}</p></div>
+      <div class="v3-tile t-dorado" onclick="irA('clientes')"><span class="v3-ico">${ICO_INI.personas}</span><p class="t-lbl">Clientes registrados</p><p class="t-val">${state.clientes.length}</p></div>
+    </div>
+  </div>`;
   return html;
+}
+// Lleva a la Cartera vencida y salta directo al bloque "Próximos a vencer" (que ahora
+// queda al final de esa pantalla, debajo de lo ya vencido).
+function verProximosAVencer(){
+  state.tab = "prestamos"; state.vista = "cartera";
+  state._irSeccion = "sec-proximos-vencer";
+  render();
+}
+// Franja de un solo renglón, pegada al encabezado (ver .sync-pill), que resume el estado
+// de la copia en la nube sin ocupar una sección completa, y que lleva directo a esa
+// sección de Ajustes al tocarla. Si no hay nube configurada, igual se muestra (invita a
+// conectarla) en vez de ocultarse, porque es justo la situación que más conviene avisar.
+function estadoSyncInicio(){
+  const syncConfigurado = !!(state.config.syncUrl && state.config.syncKey);
+  const ultimaSubidaMs = state.config.ultimaSubida ? new Date(state.config.ultimaSubida).getTime() : 0;
+  const ultimaDescargaMs = state.config.ultimaDescarga ? new Date(state.config.ultimaDescarga).getTime() : 0;
+  const ultimoSyncMs = Math.max(ultimaSubidaMs, ultimaDescargaMs) || null;
+  const horasDesdeSync = ultimoSyncMs ? (Date.now()-ultimoSyncMs)/3600000 : null;
+  let syncDot, syncTit, syncSub;
+  if(state.syncBusy){
+    syncDot = "sync-dot-busy";
+    syncTit = state.syncBusy==="push" ? "Subiendo a la nube..." : "Descargando de la nube...";
+    syncSub = "Un momento";
+  } else if(!syncConfigurado){
+    syncDot = "sync-dot-off";
+    syncTit = "Sincronización no configurada";
+    syncSub = "Toca para conectar otro celular a tus datos";
+  } else if(state.config.syncError){
+    syncDot = "sync-dot-warn";
+    syncTit = "Sin conexión con la nube";
+    syncSub = ultimoSyncMs ? `Última vez ${tiempoRelativo(new Date(ultimoSyncMs).toISOString())}` : "Revisa tu internet";
+  } else if(!ultimoSyncMs){
+    syncDot = "sync-dot-warn";
+    syncTit = "Conectado, sin sincronizar todavía";
+    syncSub = "Toca para subir o descargar por primera vez";
+  } else if(horasDesdeSync > 48){
+    syncDot = "sync-dot-warn";
+    syncTit = "Hace tiempo que no sincroniza";
+    syncSub = `Última vez ${tiempoRelativo(new Date(ultimoSyncMs).toISOString())}`;
+  } else {
+    syncDot = "sync-dot-ok";
+    syncTit = "Sincronizado";
+    syncSub = `${ultimaSubidaMs>=ultimaDescargaMs?"Subido":"Descargado"} ${tiempoRelativo(new Date(ultimoSyncMs).toISOString())}`;
+  }
+  return `<div class="sync-pill" onclick="abrirAjustes('sec-sync')">
+    <span class="sync-dot ${syncDot}"></span>
+    <div class="sync-txt"><p>${syncTit} <span class="sync-sub">· ${syncSub}</span></p></div>
+    <span class="sync-chev">›</span>
+  </div>`;
 }
 function abrirAjustes(seccion){
   state.tab = "inicio";
   state.vista = (state.config.pin && state.config.pedirClaveEnAjustes!==false) ? "ajustesClave" : "ajustes";
   state._errorClaveAjustes = false;
   state._huellaAjustesYaIntentada = false;
-  state._irAjustesSeccion = seccion || null;
+  state._irSeccion = seccion || null;
   render();
 }
 async function usarHuellaAjustes(){
@@ -3598,7 +3691,7 @@ function viewColaRecordatorio(){
   const actual = cola.items[cola.idx];
 
   if(!actual){
-    return `<div class="card" style="background:#EAF3DE;margin-bottom:16px;">
+    return `<div class="card card-exito" style="margin-bottom:16px;">
         <p style="margin:0;font-weight:600;">Terminaste de repasar la lista.</p>
         <p class="hint" style="margin:6px 0 0;">${cola.enviados} enviado(s) de ${total}${cola.sinNumero?`, ${cola.sinNumero} sin celular registrado (no se incluyeron)`:""}.</p>
       </div>
@@ -3618,55 +3711,70 @@ function viewColaRecordatorio(){
     </div>`;
 }
 function viewCartera(){
+  const prox = state.prestamos.map(p=>({p, r:resumen(p)}))
+    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && [0,1].includes(diasParaVencer(x.r.proximaFecha)))
+    .sort((a,b)=> new Date(a.r.proximaFecha) - new Date(b.r.proximaFecha));
   const vencidos = state.prestamos.map(p=>({p, r:resumen(p)}))
     .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasAtraso(x.r.proximaFecha)>0)
     .map(x=>({...x, atraso: diasAtraso(x.r.proximaFecha)}))
     .sort((a,b)=> b.atraso - a.atraso);
 
-  if(vencidos.length===0){
-    return `<div class="panel-prox panel-lista"><p class="section-title dorado">Cartera vencida</p><p class="empty">No tienes cuotas vencidas. 🎉</p></div>`;
+  if(vencidos.length===0 && prox.length===0){
+    return `<div class="panel-prox panel-lista"><p class="section-title dorado">Cartera vencida</p><p class="empty">No tienes cuotas vencidas ni próximas a vencer. 🎉</p></div>`;
   }
 
   let html = "";
 
-  const grupos = [
-    { label:"1 a 15 días", min:1, max:15 },
-    { label:"16 a 30 días", min:16, max:30 },
-    { label:"31 a 60 días", min:31, max:60 },
-    { label:"Más de 60 días", min:61, max:Infinity }
-  ];
+  // Primero lo VENCIDO (es lo urgente, va arriba); "Próximos a vencer" queda al final.
+  if(vencidos.length>0){
+    const grupos = [
+      { label:"1 a 15 días", min:1, max:15 },
+      { label:"16 a 30 días", min:16, max:30 },
+      { label:"31 a 60 días", min:31, max:60 },
+      { label:"Más de 60 días", min:61, max:Infinity }
+    ];
 
-  html += `<p class="hint" style="margin:0 0 12px;">${vencidos.length} préstamo(s) con cuotas vencidas, agrupados por días de atraso. Toca uno para ver el préstamo y registrar el pago.</p>`;
-  html += `<button class="btn btn-gold" style="margin-bottom:16px;" onclick="iniciarColaRecordatorios('vencidos')">Enviar recordatorios a todos los vencidos</button>`;
+    html += `<p class="hint" style="margin:0 0 12px;">${vencidos.length} préstamo(s) con cuotas vencidas, agrupados por días de atraso. Toca uno para ver el préstamo y registrar el pago.</p>`;
+    html += `<button class="btn btn-gold" style="margin-bottom:16px;" onclick="iniciarColaRecordatorios('vencidos')">Enviar recordatorios a todos los vencidos</button>`;
 
-  grupos.forEach(g=>{
-    const enGrupo = vencidos.filter(x=> x.atraso>=g.min && x.atraso<=g.max);
-    if(enGrupo.length===0) return;
-    html += `<div class="panel-prox panel-lista"><p class="section-title dorado">${g.label} (${enGrupo.length})</p>`;
-    enGrupo.forEach(({p, r, atraso})=>{
+    grupos.forEach(g=>{
+      const enGrupo = vencidos.filter(x=> x.atraso>=g.min && x.atraso<=g.max);
+      if(enGrupo.length===0) return;
+      html += `<div class="panel-prox panel-lista"><p class="section-title dorado">${g.label} (${enGrupo.length})</p>`;
+      enGrupo.forEach(({p, r, atraso})=>{
+        const cli = state.clientes.find(c=>c.id===p.clienteId);
+        const nVencCard = cuotasVencidas(r);
+        // Antes se mostraba solo el monto de "la cuota actual" completa (r.cuotaActual.cuota),
+        // sin restar lo que el cliente ya había abonado de esa cuota ni sumar la(s) cuota(s)
+        // siguiente(s) que también ya vencieron — así que si había un abono parcial y ya tocaba
+        // otra cuota, el monto que se veía aquí no coincidía con lo realmente pendiente (el
+        // mismo cálculo que sí usa el mensaje de recordatorio al enviarlo). Ahora usa
+        // calcularPendiente, igual que el detalle del préstamo y el mensaje de recordatorio.
+        // Aquí se muestra SOLO lo realmente vencido (sin la próxima cuota, aunque ya esté a
+        // un día), porque esta pantalla es "Cartera vencida" — mezclar algo que todavía no
+        // vence daría a entender que ya está atrasado cuando no lo está. La combinación con
+        // la próxima cuota se usa solo en el mensaje que se le envía al cliente.
+        const pend = calcularPendiente(p, r);
+        const totalPend = round2((pend.monto||0) + (pend.mora||0));
+        html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
+          <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
+          <p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p>
+          <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(totalPend)}</p></div>
+          <span class="badge b-vencido">${atraso} día${atraso===1?"":"s"} · ${nVencCard} cuota${nVencCard===1?"":"s"}</span>
+        </div>`;
+      });
+      html += `</div>`;
+    });
+  }
+
+  if(prox.length>0){
+    html += `<div class="panel-prox panel-lista" id="sec-proximos-vencer"><p class="section-title dorado">Próximos a vencer</p>`;
+    prox.forEach(({p,r})=>{
       const cli = state.clientes.find(c=>c.id===p.clienteId);
-      const nVencCard = cuotasVencidas(r);
-      // Antes se mostraba solo el monto de "la cuota actual" completa (r.cuotaActual.cuota),
-      // sin restar lo que el cliente ya había abonado de esa cuota ni sumar la(s) cuota(s)
-      // siguiente(s) que también ya vencieron — así que si había un abono parcial y ya tocaba
-      // otra cuota, el monto que se veía aquí no coincidía con lo realmente pendiente (el
-      // mismo cálculo que sí usa el mensaje de recordatorio al enviarlo). Ahora usa
-      // calcularPendiente, igual que el detalle del préstamo y el mensaje de recordatorio.
-      // Aquí se muestra SOLO lo realmente vencido (sin la próxima cuota, aunque ya esté a
-      // un día), porque esta pantalla es "Cartera vencida" — mezclar algo que todavía no
-      // vence daría a entender que ya está atrasado cuando no lo está. La combinación con
-      // la próxima cuota se usa solo en el mensaje que se le envía al cliente.
-      const pend = calcularPendiente(p, r);
-      const totalPend = round2((pend.monto||0) + (pend.mora||0));
-      html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')">
-        <div><p class="name">${cli?cli.nombre:"Cliente eliminado"}</p>
-        <p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p>
-        <p class="monto-navy" style="font-size:13px;margin:4px 0 0;">${money(totalPend)}</p></div>
-        <span class="badge b-vencido">${atraso} día${atraso===1?"":"s"} · ${nVencCard} cuota${nVencCard===1?"":"s"}</span>
-      </div>`;
+      html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="verDetalle('${p.id}')"><div><p class="name">${cli?cli.nombre:"—"}</p><p class="sub">${p.codigo} · vence ${fmtDate(r.proximaFecha)}</p></div>${badge("Por cobrar")}</div>`;
     });
     html += `</div>`;
-  });
+  }
   return html;
 }
 
@@ -3923,7 +4031,7 @@ function viewRefinanciar(){
           : `<p style="font-size:13px;margin:0 0 4px;">Cuota ${esIndef?"por período":"(1ª)"}: <b>${money(tabla[0].cuota)}</b></p>
              ${esIndef?"":`<p style="font-size:13px;margin:0;">Total a pagar: <b>${money(tabla.reduce((s,x)=>s+x.cuota,0))}</b></p>`}`}
       </div>`;
-      clasificacionHtml = `<div class="card" style="background:${evalNIF.esSustancial?'#FBF3E4':'#EAF3DE'};margin-bottom:16px;color:#333;">
+      clasificacionHtml = `<div class="card ${evalNIF.esSustancial?'card-aviso':'card-exito'}" style="margin-bottom:16px;">
         <p style="font-size:12px;font-weight:700;margin:0 0 4px;color:${evalNIF.esSustancial?'#8A6416':'#3B6D11'};">Clasificación NIIF PYMES: ${evalNIF.esSustancial?"Modificación sustancial":"Modificación NO sustancial"}</p>
         <p style="font-size:12px;margin:0 0 4px;color:#333;">${evalNIF.diffPct===null ? "No hay un capital neto válido contra el cual comparar; se trata como préstamo nuevo por prudencia." : `El valor presente de los pagos nuevos (descontado a la tasa original) difiere ${(evalNIF.diffPct*100).toFixed(1)}% del capital que queda como base después del enganche/monto adicional (umbral ${umbralActualVista}%). ${evalNIF.esSustancial ? "Como la diferencia llega o supera el umbral, se da de baja el préstamo anterior y este se registra como préstamo nuevo." : "Como está por debajo del umbral, se reconoce como ajuste del mismo préstamo (no se crea un préstamo nuevo)."}`}</p>
         ${(!evalNIF.esSustancial && evalNIF.diffPct!==null) ? `<p style="font-size:13px;margin:0;color:#333;">${evalNIF.gananciaPerdida>=0?"Ganancia":"Pérdida"} por modificación a reconocer: <b style="color:${evalNIF.gananciaPerdida>=0?'#3B6D11':'#A32D2D'}">${money(Math.abs(evalNIF.gananciaPerdida))}</b></p>` : ""}
