@@ -393,17 +393,30 @@
   .v3-home{flex:none;display:flex;flex-direction:column;gap:10px;}
   .v3-home .v3-hero{margin:0;}
   .v3-sec{margin:0;padding-left:4px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:#8a8680;font-weight:700;}
-  .v3-home .v3-tiles{display:flex;flex-direction:column;gap:8px;margin:6px 0 0;}
-  .v3-home .v3-tile{display:flex;align-items:center;gap:12px;height:54px;padding:0 14px;box-sizing:border-box;}
-  .v3-home .v3-tile .v3-ico{margin:0;}
-  .v3-home .v3-tile .t-lbl{margin:0;font-size:12.5px;}
-  .v3-home .v3-tile .t-val{margin-left:auto;font-size:21px;}
-  .v3-reps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px;}
-  .v3-rep{background:linear-gradient(155deg,var(--navy) 0%,#0F1A30 100%);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:10px 3px 9px;color:#fff;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s ease;box-shadow:0 6px 14px -6px rgba(15,20,36,.45),inset 0 1px 0 rgba(255,255,255,.08);}
+  .v3-rep{background:linear-gradient(155deg,var(--navy) 0%,#0F1A30 100%);border:1px solid rgba(255,255,255,.07);color:#fff;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s ease;box-shadow:0 6px 14px -6px rgba(15,20,36,.45),inset 0 1px 0 rgba(255,255,255,.08);}
   .v3-rep:active{transform:scale(.96);}
-  .v3-rep .v3-ico{width:30px;height:30px;border-radius:10px;margin:0 auto 6px;color:var(--gold);background:rgba(201,151,62,.16);}
-  .v3-rep .v3-ico svg{width:17px;height:17px;}
-  .v3-rep p{margin:0;font-size:10.5px;font-weight:600;line-height:1.15;color:rgba(255,255,255,.88);}
+  .v3-rep .v3-ico{color:var(--gold);background:rgba(201,151,62,.16);}
+  .v3-rep p{color:rgba(255,255,255,.88);}
+  .v3-home .v3-note{margin-bottom:0;}
+  .v3-home .v3-mini{gap:8px;margin:6px 0 0;}
+  .v3-home .v3-mini>div{height:54px;box-sizing:border-box;border-radius:16px;padding:0 10px;background:linear-gradient(155deg,var(--navy) 0%,#0F1A30 100%);border:1px solid rgba(255,255,255,.07);box-shadow:0 6px 14px -6px rgba(15,20,36,.45),inset 0 1px 0 rgba(255,255,255,.08);}
+  .v3-home .v3-mini .v3-ico{color:var(--gold);background:rgba(201,151,62,.16);}
+  .v3-home .v3-tiles,.v3-reps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 0;}
+  .v3-home .v3-tile,.v3-rep{grid-column:auto !important;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:0;height:92px;padding:8px 3px;box-sizing:border-box;border-radius:16px;}
+  .v3-home .v3-tile .v3-ico,.v3-rep .v3-ico{width:28px;height:28px;border-radius:9px;margin:0 0 4px;flex:none;}
+  .v3-home .v3-tile .v3-ico svg,.v3-rep .v3-ico svg{width:16px;height:16px;}
+  .v3-home .v3-tile .t-val{order:2;margin:0;font-size:20px;line-height:1.1;}
+  .v3-home .v3-tile .t-lbl,.v3-rep p{order:3;margin:2px 0 0;min-height:2.3em;font-size:10.5px;font-weight:600;line-height:1.15;display:flex;align-items:flex-start;justify-content:center;}
+  .v3-rep{background:linear-gradient(155deg,var(--navy) 0%,#0F1A30 100%);border:1px solid rgba(255,255,255,.07);color:#fff;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s ease;box-shadow:0 6px 14px -6px rgba(15,20,36,.45),inset 0 1px 0 rgba(255,255,255,.08);}
+  .v3-rep:active{transform:scale(.96);}
+  .v3-rep .v3-ico{color:var(--gold);background:rgba(201,151,62,.16);}
+  .v3-rep p{color:rgba(255,255,255,.88);}
+  .v3-home .v3-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 0;}
+  .v3-home .v3-tile{grid-column:auto !important;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;gap:0;height:auto;min-height:96px;padding:10px 3px 9px;border-radius:16px;box-sizing:border-box;}
+  .v3-home .v3-tile .v3-ico{width:28px;height:28px;border-radius:9px;margin:0 0 4px;}
+  .v3-home .v3-tile .v3-ico svg{width:16px;height:16px;}
+  .v3-home .v3-tile .t-val{order:2;margin:0;font-size:20px;line-height:1.1;}
+  .v3-home .v3-tile .t-lbl{order:3;margin:2px 0 0;min-height:2.3em;font-size:10.5px;font-weight:600;line-height:1.15;}
 </style>
 </head>
 <body>
@@ -1655,19 +1668,19 @@ function render(){
     html += `<button class="backbtn" onclick="state.vista='lista'; render();">‹</button>`;
   }
   if(state.tab==="inicio" && state.vista==="reportePDF"){
-    html += `<button class="backbtn" onclick="state.vista='ajustes'; render();">‹</button>`;
+    html += `<button class="backbtn" onclick="volverDeReporte()">‹</button>`;
   }
   if(state.tab==="inicio" && state.vista==="estadoResultados"){
-    html += `<button class="backbtn" onclick="state.vista='ajustes'; render();">‹</button>`;
+    html += `<button class="backbtn" onclick="volverDeReporte()">‹</button>`;
   }
   if(state.tab==="inicio" && state.vista==="reporteModificaciones"){
-    html += `<button class="backbtn" onclick="state.vista='ajustes'; render();">‹</button>`;
+    html += `<button class="backbtn" onclick="volverDeReporte()">‹</button>`;
   }
   if(state.tab==="inicio" && state.vista==="reporteDesembolsos"){
-    html += `<button class="backbtn" onclick="state.vista='ajustes'; render();">‹</button>`;
+    html += `<button class="backbtn" onclick="volverDeReporte()">‹</button>`;
   }
   if(state.tab==="inicio" && state.vista==="reporteHistorialPagos"){
-    html += `<button class="backbtn" onclick="state.vista='ajustes'; render();">‹</button>`;
+    html += `<button class="backbtn" onclick="volverDeReporte()">‹</button>`;
   }
   if(state.tab==="inicio" && state.vista==="ajustesClave"){
     html += `<button class="backbtn" onclick="state.vista='lista'; render();">‹</button>`;
@@ -2183,7 +2196,7 @@ function viewReportePDF(){
       </div>
       </div>
     </div>
-    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
+    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="volverDeReporte()">Volver</button>`;
 }
 function capitalOriginalDesembolsado(p){
   // p.capital se sobreescribe con el capital MAS RECIENTE cada vez que el prestamo tiene una
@@ -2469,7 +2482,7 @@ function viewEstadoResultados(){
       <p class="hint nota-ayuda" style="margin-top:14px;">Nota: es un estado en base efectivo (dinero que entra vs. dinero que sale), no un estado contable formal. Cuando un préstamo viene de un refinanciamiento, aquí solo se cuenta como "desembolso" el monto adicional que realmente entregaste en efectivo en ese momento (si lo hubo) — el resto del capital nuevo es el saldo pendiente del préstamo anterior reacomodado, no dinero que volvió a salir de la caja. Cuando un refinanciamiento se clasifica como "modificación no sustancial" según NIIF para las PYMES, Sección 11 (prueba del 10% de valor presente), la diferencia se reconoce aquí como ganancia o pérdida; cuando es "sustancial", se trata como préstamo nuevo sin efecto adicional en este renglón.</p>
       ${T.hayEstimado ? `<p class="hint nota-ayuda" style="margin-top:8px;">Los cobros hechos antes de modificar un préstamo, cuando se registraron antes de que la app guardara el reparto, se dividen entre interés y capital por estimación. Los abonos a capital, la mora y el total son exactos.</p>` : ""}
     </div>
-    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
+    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="volverDeReporte()">Volver</button>`;
 }
 function abrirReporteModificaciones(){
   state.tab = "inicio";
@@ -2632,7 +2645,7 @@ function viewReporteModificaciones(){
       </div>`}
       <p class="hint nota-ayuda" style="margin-top:14px;">Reúne todos los refinanciamientos y modificaciones de condiciones registrados, con su clasificación según NIIF para las PYMES, Sección 11 (sustancial o no sustancial) y la ganancia o pérdida reconocida en cada uno. Es el detalle/respaldo de la línea "Ganancia/(pérdida) por modificación de préstamos" del Estado de resultados.</p>
     </div>
-    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
+    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="volverDeReporte()">Volver</button>`;
 }
 // Junta en una sola lista, ordenada por fecha, TODO el dinero que ha salido de caja como
 // capital prestado: el desembolso inicial de cada préstamo (o el "monto adicional" si nació
@@ -2747,7 +2760,7 @@ function viewReporteDesembolsos(){
       </div>`}
       <p class="hint nota-ayuda" style="margin-top:14px;">Incluye el capital de cada préstamo nuevo y, cuando un préstamo nace de un refinanciamiento, solo el monto adicional que realmente se entregó en efectivo (el resto es el saldo del préstamo anterior reacomodado). También incluye los montos adicionales entregados en modificaciones no sustanciales (NIIF PYMES).</p>
     </div>
-    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
+    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="volverDeReporte()">Volver</button>`;
 }
 
 // Separa el historial de pagos en dos partes:
@@ -2909,7 +2922,7 @@ function viewReporteHistorialPagos(){
       </div>`}
       <p class="hint nota-ayuda" style="margin-top:14px;">Incluye todos los pagos registrados en todos los préstamos: cuotas, abonos a capital, enganches y liquidaciones anticipadas, con su mora cobrada cuando aplica — incluyendo los pagos hechos antes de una modificación de préstamo.</p>
     </div>
-    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="state.vista='ajustes'; render();">Volver</button>`;
+    <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="volverDeReporte()">Volver</button>`;
 }
 
 async function subirNube(silencioso){
@@ -3027,6 +3040,11 @@ window.addEventListener("resize", ajustarInicioFijo);
 window.addEventListener("orientationchange", function(){ setTimeout(ajustarInicioFijo, 200); });
 window.addEventListener("load", ajustarInicioFijo);
 if(document.fonts && document.fonts.ready) document.fonts.ready.then(ajustarInicioFijo);
+function volverDeReporte(){
+  state.vista = state._reporteDesdeInicio ? "lista" : "ajustes";
+  state._reporteDesdeInicio = false;
+  render();
+}
 function viewInicio(){
   if(state.vista==="reportePDF") return viewReportePDF();
   if(state.vista==="estadoResultados") return viewEstadoResultados();
@@ -3058,11 +3076,13 @@ function viewInicio(){
       <span class="v3-ico">${ICO_INI.banco}</span>
     </div>
     <p class="v3-note">Saldo de capital que tus clientes todavía te deben (sin interés de cuotas futuras).</p>
+  </div>
+  <div><p class="v3-sec">Detalles de capital</p>
     <div class="v3-mini">
-      <div onclick="abrirReporteDesembolsos()"><span class="v3-ico">${ICO_INI.dinero}</span><div><p class="m-lbl">Capital prestado</p><p class="m-val">${money(prestado)}</p></div></div>
-      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(T.capital+T.enganches+T.intereses)}</p></div></div>
-      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Capital cobrado</p><p class="m-val">${money(T.capital+T.enganches)}</p></div></div>
-      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.tendencia}</span><div><p class="m-lbl">Intereses cobrados</p><p class="m-val" style="color:var(--gold);">${money(T.intereses)}</p></div></div>
+      <div onclick="state._reporteDesdeInicio=true;abrirReporteDesembolsos()"><span class="v3-ico">${ICO_INI.dinero}</span><div><p class="m-lbl">Capital prestado</p><p class="m-val">${money(prestado)}</p></div></div>
+      <div onclick="state._reporteDesdeInicio=true;abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(T.capital+T.enganches+T.intereses)}</p></div></div>
+      <div onclick="state._reporteDesdeInicio=true;abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Capital cobrado</p><p class="m-val">${money(T.capital+T.enganches)}</p></div></div>
+      <div onclick="state._reporteDesdeInicio=true;abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.tendencia}</span><div><p class="m-lbl">Intereses cobrados</p><p class="m-val" style="color:var(--gold);">${money(T.intereses)}</p></div></div>
     </div>
   </div>
   <div><p class="v3-sec">Estado de cartera</p>
@@ -3074,10 +3094,10 @@ function viewInicio(){
     </div></div>
   <div class="v3-reps-wrap"><p class="v3-sec">Reportes</p>
     <div class="v3-reps">
-      <div class="v3-rep" onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><p>Historial de pagos</p></div>
-      <div class="v3-rep" onclick="abrirReporteDesembolsos()"><span class="v3-ico">${ICO_INI.dinero}</span><p>Desembolsos</p></div>
-      <div class="v3-rep" onclick="abrirEstadoResultados()"><span class="v3-ico">${ICO_INI.tendencia}</span><p>Estado de resultados</p></div>
-      <div class="v3-rep" onclick="abrirReportePDF()"><span class="v3-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><p>Reporte PDF</p></div>
+      <div class="v3-rep" onclick="state._reporteDesdeInicio=true;abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><p>Historial de pagos</p></div>
+      <div class="v3-rep" onclick="state._reporteDesdeInicio=true;abrirReporteDesembolsos()"><span class="v3-ico">${ICO_INI.dinero}</span><p>Desembolsos</p></div>
+      <div class="v3-rep" onclick="state._reporteDesdeInicio=true;abrirEstadoResultados()"><span class="v3-ico">${ICO_INI.tendencia}</span><p>Estado de resultados</p></div>
+      <div class="v3-rep" onclick="state._reporteDesdeInicio=true;abrirReportePDF()"><span class="v3-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><p>Reporte PDF</p></div>
     </div></div>
   </div>`;
   return html;
@@ -3134,6 +3154,7 @@ function estadoSyncInicio(){
 function abrirAjustes(seccion){
   state.tab = "inicio";
   state.vista = (state.config.pin && state.config.pedirClaveEnAjustes!==false) ? "ajustesClave" : "ajustes";
+  state._reporteDesdeInicio = false;
   state._errorClaveAjustes = false;
   state._huellaAjustesYaIntentada = false;
   state._irSeccion = seccion || null;
