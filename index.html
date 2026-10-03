@@ -2979,7 +2979,7 @@ const ICO_INI = {
 
 // Inicio fijo: mide el espacio libre entre el encabezado/franja de sincronización y la barra
 // inferior y escala la tarjeta completa para que quepa exacta, sin scroll. Si el celular tiene
-// letra grande o pantalla baja, se achica; si sobra espacio, crece un poco (máx. 1.25).
+// letra grande o pantalla baja, se achica; si sobra espacio queda en su tamaño natural.
 function ajustarInicioFijo(){
   const hero = document.querySelector("#app .v3-hero");
   if(!hero) return;
@@ -2988,20 +2988,25 @@ function ajustarInicioFijo(){
   const header = document.querySelector("#app > header");
   hero.style.zoom = 1;
   if(pill) pill.style.marginBottom = "";
-  const txt = pill ? (pill.querySelector(".sync-txt") || pill) : header;
-  const base = txt.getBoundingClientRect().bottom;
   const fin = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
-  const GAP_MIN = 16; // espacio mínimo (arriba y abajo) para que se vea con aire
+  const GAP_ABAJO = 18; // espacio mínimo entre la tarjeta y la barra inferior
   const natural = hero.offsetHeight;
   if(!natural) return;
-  const disponible = fin - base - 2*GAP_MIN;
+  const disponible = fin - hero.getBoundingClientRect().top - GAP_ABAJO;
   if(disponible <= 0) return;
-  const z = Math.max(0.45, Math.min(1.25, disponible / natural));
-  hero.style.zoom = z;
-  // Reparte lo que sobre en partes iguales: el espacio bajo la franja de sincronización
-  // queda igual al espacio entre la tarjeta y la barra inferior.
-  const gap = (fin - base - hero.getBoundingClientRect().height) / 2;
-  if(pill) pill.style.marginBottom = Math.max(0, gap - 9) + "px";
+  // Nunca se agranda (agrandar re-acomoda el texto y rompe la uniformidad): solo se achica
+  // cuando el celular es bajo o la letra del sistema es grande.
+  hero.style.zoom = Math.max(0.45, Math.min(1, disponible / natural));
+  // Si sobra espacio, se reparte entre arriba y abajo para que ambos se vean parejos (el
+  // espacio de arriba crece como máximo 30 px; el resto queda abajo, sin estirar las tarjetas).
+  if(pill){
+    const txt = pill.querySelector(".sync-txt") || pill;
+    const hr = hero.getBoundingClientRect();
+    const arriba = hr.top - txt.getBoundingClientRect().bottom;
+    const abajo = fin - hr.bottom;
+    const extra = Math.max(0, Math.min((abajo - arriba) / 2, 30));
+    pill.style.marginBottom = (11 + extra) + "px";
+  }
 }
 window.addEventListener("resize", ajustarInicioFijo);
 window.addEventListener("orientationchange", function(){ setTimeout(ajustarInicioFijo, 200); });
