@@ -2948,8 +2948,8 @@ function viewInicio(){
     </div>
     <p class="v3-note">Saldo de capital que tus clientes todavía te deben (sin interés de cuotas futuras).</p>
     <div class="v3-mini">
-      <div onclick="irA('prestamos')"><span class="v3-ico">${ICO_INI.dinero}</span><div><p class="m-lbl">Capital prestado</p><p class="m-val">${money(prestado)}</p></div></div>
-      <div onclick="irA('pagos')"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(cobrado)}</p></div></div>
+      <div onclick="abrirReporteDesembolsos()"><span class="v3-ico">${ICO_INI.dinero}</span><div><p class="m-lbl">Capital prestado</p><p class="m-val">${money(prestado)}</p></div></div>
+      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(cobrado)}</p></div></div>
     </div>
   </div>
   <div class="v3-tiles">
