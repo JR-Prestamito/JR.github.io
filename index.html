@@ -383,14 +383,27 @@
   /* Modo oscuro: íconos y textos de la barra inferior siempre dorados */
   [data-theme="dark"] .tab-btn, [data-theme="dark"] .tab-btn.active{color:var(--gold);}
 
-  /* ===== Inicio fijo: sin scroll ni movimiento. El diseño conserva sus proporciones originales
-     y se escala completo (ajustarInicioFijo) para llenar el espacio disponible de cualquier celular. ===== */
-  html:has(.v3-hero),html:has(.v3-hero) body{height:100%;overflow:hidden;overscroll-behavior:none;}
-  #app:has(.v3-hero){height:100vh;height:100dvh;min-height:0;overflow:hidden;padding-bottom:0;display:flex;flex-direction:column;touch-action:none;}
-  #app:has(.v3-hero)>header{flex:none;}
-  #app:has(.v3-hero)>.content{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px));}
-  #app:has(.v3-hero) .sync-pill{flex:none;position:relative;top:auto;margin:-16px -12px 11px;}
-  #app:has(.v3-hero) .v3-hero{flex:none;margin:0;}
+  /* ===== Inicio fijo, por secciones: sin scroll ni movimiento. Tarjetas uniformes que nunca se
+     estiran; todo el bloque solo se achica (ajustarInicioFijo) si el celular es bajo. ===== */
+  html:has(.v3-home),html:has(.v3-home) body{height:100%;overflow:hidden;overscroll-behavior:none;}
+  #app:has(.v3-home){height:100vh;height:100dvh;min-height:0;overflow:hidden;padding-bottom:0;display:flex;flex-direction:column;touch-action:none;}
+  #app:has(.v3-home)>header{flex:none;}
+  #app:has(.v3-home)>.content{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px));}
+  #app:has(.v3-home) .sync-pill{flex:none;position:relative;top:auto;margin:-16px -12px 11px;}
+  .v3-home{flex:none;display:flex;flex-direction:column;gap:10px;}
+  .v3-home .v3-hero{margin:0;}
+  .v3-sec{margin:0;padding-left:4px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:#8a8680;font-weight:700;}
+  .v3-home .v3-tiles{display:flex;flex-direction:column;gap:8px;margin:6px 0 0;}
+  .v3-home .v3-tile{display:flex;align-items:center;gap:12px;height:54px;padding:0 14px;box-sizing:border-box;}
+  .v3-home .v3-tile .v3-ico{margin:0;}
+  .v3-home .v3-tile .t-lbl{margin:0;font-size:12.5px;}
+  .v3-home .v3-tile .t-val{margin-left:auto;font-size:21px;}
+  .v3-reps{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px;}
+  .v3-rep{background:linear-gradient(155deg,var(--navy) 0%,#0F1A30 100%);border:1px solid rgba(255,255,255,.07);border-radius:16px;padding:10px 3px 9px;color:#fff;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s ease;box-shadow:0 6px 14px -6px rgba(15,20,36,.45),inset 0 1px 0 rgba(255,255,255,.08);}
+  .v3-rep:active{transform:scale(.96);}
+  .v3-rep .v3-ico{width:30px;height:30px;border-radius:10px;margin:0 auto 6px;color:var(--gold);background:rgba(201,151,62,.16);}
+  .v3-rep .v3-ico svg{width:17px;height:17px;}
+  .v3-rep p{margin:0;font-size:10.5px;font-weight:600;line-height:1.15;color:rgba(255,255,255,.88);}
 </style>
 </head>
 <body>
@@ -2977,35 +2990,37 @@ const ICO_INI = {
   reloj:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>'
 };
 
-// Inicio fijo: mide el espacio libre entre el encabezado/franja de sincronización y la barra
-// inferior y escala la tarjeta completa para que quepa exacta, sin scroll. Si el celular tiene
-// letra grande o pantalla baja, se achica; si sobra espacio queda en su tamaño natural.
+// Inicio fijo: mide el espacio libre entre la franja de sincronización y la barra inferior.
+// Nunca agranda (eso re-acomodaba el texto): si no cabe, primero oculta los accesos a reportes
+// y, si aun así no cabe, achica todo el bloque. Sin scroll en ningún caso.
 function ajustarInicioFijo(){
-  const hero = document.querySelector("#app .v3-hero");
-  if(!hero) return;
+  const home = document.querySelector("#app .v3-home");
+  if(!home) return;
   const tabbar = document.querySelector("#app > .tabbar");
   const pill = document.querySelector("#app .sync-pill");
-  const header = document.querySelector("#app > header");
-  hero.style.zoom = 1;
+  const reps = home.querySelector(".v3-reps-wrap");
+  const GAP_ABAJO = 18;
+  function medir(){
+    home.style.zoom = 1;
+    const fin = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
+    const disp = fin - home.getBoundingClientRect().top - GAP_ABAJO;
+    const nat = home.offsetHeight;
+    return (nat && disp > 0) ? disp / nat : null;
+  }
   if(pill) pill.style.marginBottom = "";
-  const fin = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
-  const GAP_ABAJO = 18; // espacio mínimo entre la tarjeta y la barra inferior
-  const natural = hero.offsetHeight;
-  if(!natural) return;
-  const disponible = fin - hero.getBoundingClientRect().top - GAP_ABAJO;
-  if(disponible <= 0) return;
-  // Nunca se agranda (agrandar re-acomoda el texto y rompe la uniformidad): solo se achica
-  // cuando el celular es bajo o la letra del sistema es grande.
-  hero.style.zoom = Math.max(0.45, Math.min(1, disponible / natural));
-  // Si sobra espacio, se reparte entre arriba y abajo para que ambos se vean parejos (el
-  // espacio de arriba crece como máximo 30 px; el resto queda abajo, sin estirar las tarjetas).
+  if(reps) reps.style.display = "";
+  let z = medir();
+  if(z === null) return;
+  if(z < 0.88 && reps){ reps.style.display = "none"; z = medir(); if(z === null) return; }
+  home.style.zoom = Math.max(0.45, Math.min(1, z));
+  // Si sobra espacio, se reparte entre arriba y abajo (arriba crece máx. 30 px).
   if(pill){
     const txt = pill.querySelector(".sync-txt") || pill;
-    const hr = hero.getBoundingClientRect();
+    const hr = home.getBoundingClientRect();
+    const fin = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
     const arriba = hr.top - txt.getBoundingClientRect().bottom;
     const abajo = fin - hr.bottom;
-    const extra = Math.max(0, Math.min((abajo - arriba) / 2, 30));
-    pill.style.marginBottom = (11 + extra) + "px";
+    pill.style.marginBottom = (11 + Math.max(0, Math.min((abajo - arriba) / 2, 30))) + "px";
   }
 }
 window.addEventListener("resize", ajustarInicioFijo);
@@ -3036,7 +3051,7 @@ function viewInicio(){
 
   const modoOscuro = !!state.config.temaOscuro;
   let html = estadoSyncInicio();
-  html += `<div class="v3-hero">
+  html += `<div class="v3-home"><div class="v3-hero">
     <div class="v3-top" onclick="irA('prestamos')">
       <div><p class="v3-lbl">Capital actual prestado</p>
       <p class="v3-val"><em>L</em> ${money(capitalActual).replace(/^L\s*/,"")}</p></div>
@@ -3049,12 +3064,21 @@ function viewInicio(){
       <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Capital cobrado</p><p class="m-val">${money(T.capital+T.enganches)}</p></div></div>
       <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.tendencia}</span><div><p class="m-lbl">Intereses cobrados</p><p class="m-val" style="color:var(--gold);">${money(T.intereses)}</p></div></div>
     </div>
+  </div>
+  <div><p class="v3-sec">Estado de cartera</p>
     <div class="v3-tiles">
       <div class="v3-tile t-verde" onclick="irA('prestamos')"><span class="v3-ico">${ICO_INI.tendencia}</span><p class="t-lbl">Préstamos activos</p><p class="t-val">${activos}</p></div>
       <div class="v3-tile t-rojo" onclick="verCartera()"><span class="v3-ico">${ICO_INI.alerta}</span><p class="t-lbl">Cuotas vencidas</p><p class="t-val">${vencidos}</p></div>
       <div class="v3-tile t-azul" onclick="verProximosAVencer()"><span class="v3-ico">${ICO_INI.reloj}</span><p class="t-lbl">Próximos a vencer</p><p class="t-val">${proximos}</p></div>
       <div class="v3-tile t-dorado" onclick="irA('clientes')"><span class="v3-ico">${ICO_INI.personas}</span><p class="t-lbl">Clientes registrados</p><p class="t-val">${state.clientes.length}</p></div>
-    </div>
+    </div></div>
+  <div class="v3-reps-wrap"><p class="v3-sec">Reportes</p>
+    <div class="v3-reps">
+      <div class="v3-rep" onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><p>Historial de pagos</p></div>
+      <div class="v3-rep" onclick="abrirReporteDesembolsos()"><span class="v3-ico">${ICO_INI.dinero}</span><p>Desembolsos</p></div>
+      <div class="v3-rep" onclick="abrirEstadoResultados()"><span class="v3-ico">${ICO_INI.tendencia}</span><p>Estado de resultados</p></div>
+      <div class="v3-rep" onclick="abrirReportePDF()"><span class="v3-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg></span><p>Reporte PDF</p></div>
+    </div></div>
   </div>`;
   return html;
 }
