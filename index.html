@@ -382,6 +382,15 @@
   .t-dorado .t-val{margin-left:auto;}
   /* Modo oscuro: íconos y textos de la barra inferior siempre dorados */
   [data-theme="dark"] .tab-btn, [data-theme="dark"] .tab-btn.active{color:var(--gold);}
+
+  /* ===== Inicio fijo: sin scroll ni movimiento. El diseño conserva sus proporciones originales
+     y se escala completo (ajustarInicioFijo) para llenar el espacio disponible de cualquier celular. ===== */
+  html:has(.v3-hero),html:has(.v3-hero) body{height:100%;overflow:hidden;overscroll-behavior:none;}
+  #app:has(.v3-hero){height:100vh;height:100dvh;min-height:0;overflow:hidden;padding-bottom:0;display:flex;flex-direction:column;touch-action:none;}
+  #app:has(.v3-hero)>header{flex:none;}
+  #app:has(.v3-hero)>.content{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px));}
+  #app:has(.v3-hero) .sync-pill{flex:none;position:relative;top:auto;margin:-16px -12px 11px;}
+  #app:has(.v3-hero) .v3-hero{flex:none;margin:0;}
 </style>
 </head>
 <body>
@@ -1667,6 +1676,7 @@ function render(){
   html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="prestamos"&&state.vista==="colaRecordatorio"?"Enviar recordatorios":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||tituloNuevoCliente||tituloCalculadora||tituloContrato||titles[state.tab]))))}</h1></div>
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
+    html += `<button class="backbtn" id="btn-recargar" style="margin-right:6px;" title="Recargar" onclick="recargarApp()">${ICONS.refresh}</button>`;
     html += menuOpcionesHtml("inicio", [
       { icono: ICONS.edit, texto:"Nombre del negocio", onclick: "abrirAjustes('sec-nombre-negocio')" },
       { icono: ICONS.settings, texto:"Apariencia", onclick: "abrirAjustes('sec-apariencia')" },
@@ -1725,6 +1735,7 @@ function render(){
   // Eso hacía que, en toda pantalla a la que se llega navegando (como los reportes), las notas
   // largas nunca se recortaran a 2 líneas: el recorte se calculaba sobre la pantalla anterior.
   function despuesDePintar(){
+    ajustarInicioFijo();
     // El panel de "Ajustes protegidos" debe verse centrado en el espacio que queda entre el
     // encabezado y la barra inferior. En vez de adivinar esas alturas (que cambian según el
     // celular, el notch, etc.), se miden de verdad ya insertado en la pantalla.
@@ -2965,6 +2976,42 @@ const ICO_INI = {
   personas:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>',
   reloj:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>'
 };
+
+// Inicio fijo: mide el espacio libre entre el encabezado/franja de sincronización y la barra
+// inferior y escala la tarjeta completa para que quepa exacta, sin scroll. Si el celular tiene
+// letra grande o pantalla baja, se achica; si sobra espacio queda en su tamaño natural.
+function ajustarInicioFijo(){
+  const hero = document.querySelector("#app .v3-hero");
+  if(!hero) return;
+  const tabbar = document.querySelector("#app > .tabbar");
+  const pill = document.querySelector("#app .sync-pill");
+  const header = document.querySelector("#app > header");
+  hero.style.zoom = 1;
+  if(pill) pill.style.marginBottom = "";
+  const fin = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
+  const GAP_ABAJO = 18; // espacio mínimo entre la tarjeta y la barra inferior
+  const natural = hero.offsetHeight;
+  if(!natural) return;
+  const disponible = fin - hero.getBoundingClientRect().top - GAP_ABAJO;
+  if(disponible <= 0) return;
+  // Nunca se agranda (agrandar re-acomoda el texto y rompe la uniformidad): solo se achica
+  // cuando el celular es bajo o la letra del sistema es grande.
+  hero.style.zoom = Math.max(0.45, Math.min(1, disponible / natural));
+  // Si sobra espacio, se reparte entre arriba y abajo para que ambos se vean parejos (el
+  // espacio de arriba crece como máximo 30 px; el resto queda abajo, sin estirar las tarjetas).
+  if(pill){
+    const txt = pill.querySelector(".sync-txt") || pill;
+    const hr = hero.getBoundingClientRect();
+    const arriba = hr.top - txt.getBoundingClientRect().bottom;
+    const abajo = fin - hr.bottom;
+    const extra = Math.max(0, Math.min((abajo - arriba) / 2, 30));
+    pill.style.marginBottom = (11 + extra) + "px";
+  }
+}
+window.addEventListener("resize", ajustarInicioFijo);
+window.addEventListener("orientationchange", function(){ setTimeout(ajustarInicioFijo, 200); });
+window.addEventListener("load", ajustarInicioFijo);
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(ajustarInicioFijo);
 function viewInicio(){
   if(state.vista==="reportePDF") return viewReportePDF();
   if(state.vista==="estadoResultados") return viewEstadoResultados();
@@ -2998,8 +3045,8 @@ function viewInicio(){
     <p class="v3-note">Saldo de capital que tus clientes todavía te deben (sin interés de cuotas futuras).</p>
     <div class="v3-mini">
       <div onclick="abrirReporteDesembolsos()"><span class="v3-ico">${ICO_INI.dinero}</span><div><p class="m-lbl">Capital prestado</p><p class="m-val">${money(prestado)}</p></div></div>
-      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(T.capital+T.intereses)}</p></div></div>
-      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Capital cobrado</p><p class="m-val">${money(T.capital)}</p></div></div>
+      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Total cobrado</p><p class="m-val" style="color:var(--gold);">${money(T.capital+T.enganches+T.intereses)}</p></div></div>
+      <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.billetera}</span><div><p class="m-lbl">Capital cobrado</p><p class="m-val">${money(T.capital+T.enganches)}</p></div></div>
       <div onclick="abrirReporteHistorialPagos()"><span class="v3-ico">${ICO_INI.tendencia}</span><div><p class="m-lbl">Intereses cobrados</p><p class="m-val" style="color:var(--gold);">${money(T.intereses)}</p></div></div>
     </div>
     <div class="v3-tiles">
@@ -5534,44 +5581,10 @@ function recargarApp(){
   _recargaIntencional = true;
   setTimeout(function(){ location.reload(); }, 200);
 }
-// --- "Deslizar hacia abajo para actualizar" hecho a mano: dispara una recarga REAL del
-// navegador (para traer siempre la última versión del archivo) pero, gracias a guardarNav()
-// / navGuardada() de arriba, al volver a cargar la app te deja exactamente en la misma
-// pantalla en la que estabas — no te manda a Inicio como haría el gesto nativo del navegador
-// (que overscroll-behavior, arriba, ya bloquea para que no dispare solo por accidente).
-// Solo funciona en la pantalla de Inicio (el resumen/presentación) — en el resto de
-// pantallas, deslizar hacia abajo no hace nada; para recargar ahí se usa el ícono del
-// encabezado (recargarApp()).
-(function(){
-  const UMBRAL = 70;
-  let startY = null, disparado = false;
-  document.addEventListener("touchstart", function(e){
-    if(state.tab!=="inicio" || state.vista!=="lista"){ startY = null; return; }
-    if(window.scrollY > 0){ startY = null; return; }
-    if(e.touches.length !== 1) { startY = null; return; }
-    startY = e.touches[0].clientY;
-    disparado = false;
-  }, { passive: true });
-  document.addEventListener("touchmove", function(e){
-    if(startY===null || disparado) return;
-    if(state.tab!=="inicio" || state.vista!=="lista"){ startY = null; return; }
-    const delta = e.touches[0].clientY - startY;
-    if(delta <= 0){ return; }
-    if(window.scrollY > 0){ startY = null; return; }
-    if(delta > UMBRAL){
-      disparado = true;
-      const ind = getIndicadorRecarga();
-      ind.classList.add("mostrando");
-      ind.innerHTML = `<span class="spin"></span> Actualizando…`;
-      guardarNav();
-      _recargaIntencional = true;
-      setTimeout(function(){ location.reload(); }, 200);
-    }
-  }, { passive: true });
-  document.addEventListener("touchend", function(){
-    startY = null;
-  }, { passive: true });
-})();
+// --- La pantalla de Inicio ya NO se recarga al deslizar hacia abajo (gesto que a veces se
+// disparaba sin querer, dejando la pantalla "inestable"). Ahora es estática igual que el
+// resto de pantallas: para recargar se usa el ícono del encabezado (recargarApp()), que
+// Inicio ya muestra igual que las demás.
 
 // --- Deslizar hacia los lados para cambiar de pestaña (Inicio/Clientes/Préstamos/Pagos),
 // como en apps nativas. Solo funciona en la pantalla principal de cada pestaña (vista
@@ -5612,9 +5625,126 @@ function recargarApp(){
   }, { passive: true });
 })();
 
-// Licencia quitada en esta copia: la app arranca directo, sin pedir clave.
-render();
-if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
+const LIC_SUPABASE_URL = "https://kbskmdtgwnagdigtdlze.supabase.co";
+const LIC_SUPABASE_KEY = "sb_publishable_AnwNz39_voG8r7XnjCG6Vg_75jK9Aa7";
+const LIC_PLAN = "pro"; // esta copia del archivo solo acepta licencias del plan "pro"
+const LIC_DIAS_GRACIA = 5; // días que puede seguir usándose sin internet antes de exigir reconexión
+
+function licDeviceId(){
+  let id = localStorage.getItem("jrp_device_id");
+  if(!id){
+    id = (crypto.randomUUID ? crypto.randomUUID() : ("dev-" + Date.now() + "-" + Math.random().toString(16).slice(2)));
+    localStorage.setItem("jrp_device_id", id);
+  }
+  return id;
+}
+
+async function licVerificar(clave){
+  const deviceId = licDeviceId();
+  let data;
+  try{
+    const resp = await fetch(`${LIC_SUPABASE_URL}/rest/v1/rpc/verificar_licencia`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: LIC_SUPABASE_KEY,
+        Authorization: `Bearer ${LIC_SUPABASE_KEY}`
+      },
+      body: JSON.stringify({ p_clave: clave, p_dispositivo: deviceId, p_plan: LIC_PLAN })
+    });
+    if(!resp.ok) throw new Error("http " + resp.status);
+    data = await resp.json();
+  } catch(e){
+    return { ok:false, red:true, motivo:"No se pudo conectar para verificar la licencia. Revisa tu conexión a internet e intenta de nuevo." };
+  }
+  if(data === "ok") return { ok:true };
+  if(data === "invalida") return { ok:false, motivo:"Esa clave de licencia no existe." };
+  if(data === "inactiva") return { ok:false, motivo:"Esta licencia está desactivada." };
+  if(data === "vencida") return { ok:false, motivo:"Esta licencia venció. Contacta al proveedor de la app para renovarla." };
+  if(data === "otro_dispositivo") return { ok:false, motivo:"Esta licencia ya está en uso en otro dispositivo." };
+  if(data === "producto_incorrecto") return { ok:false, motivo:"Esa clave no es para esta versión de la app." };
+  return { ok:false, red:true, motivo:"No se pudo verificar la licencia. Intenta de nuevo." };
+}
+
+// La pantalla de licencia va en un recuadro APARTE, encima de la app (nunca reemplaza
+// document.body): así, cuando la licencia resulta válida, el <div id="app"> de abajo
+// sigue intacto y la app se puede dibujar. Antes se hacía document.body.innerHTML,
+// que borraba el #app y dejaba la app congelada en "Verificando licencia…".
+function licPantalla(html){
+  let ov = document.getElementById("lic-overlay");
+  if(!ov){ ov = document.createElement("div"); ov.id = "lic-overlay"; document.body.appendChild(ov); }
+  ov.style.cssText = "position:fixed;inset:0;z-index:99999;background:#1B2A4A;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;text-align:center;";
+  ov.innerHTML = html;
+}
+function licQuitarPantalla(){
+  const ov = document.getElementById("lic-overlay");
+  if(ov) ov.remove();
+}
+
+function licPedirClave(mensajeError){
+  licPantalla(`
+<div style="font-size:40px;margin-bottom:6px;">🔒</div>
+<h2 style="color:#fff;margin:0 0 6px;font-size:18px;">Licencia requerida</h2>
+<p style="color:#B9C2D6;font-size:13px;margin:0 0 16px;max-width:280px;">Ingresa la clave de licencia para usar esta app en este dispositivo.</p>
+${mensajeError ? `<p style="color:#F3A0A0;font-size:13px;margin:0 0 10px;max-width:280px;">${mensajeError}</p>` : ""}
+<input id="licClaveInput" type="text" placeholder="Clave de licencia" autocapitalize="off" autocorrect="off" style="width:240px;text-align:center;font-size:16px;padding:12px;border-radius:12px;border:none;margin-bottom:10px;">
+<button id="licEntrarBtn" style="width:240px;padding:12px;border-radius:12px;border:none;background:#C9973E;color:#1B2A4A;font-weight:700;font-size:15px;">Entrar</button>
+`);
+  const input = document.getElementById("licClaveInput");
+  const btn = document.getElementById("licEntrarBtn");
+  input.focus();
+  async function intentar(){
+    const clave = (input.value || "").trim();
+    if(!clave) return;
+    btn.disabled = true; btn.textContent = "Verificando…";
+    const r = await licVerificar(clave);
+    if(r.ok){
+      localStorage.setItem("jrp_licencia", clave);
+      localStorage.setItem("jrp_licencia_ok_ts", String(Date.now()));
+      licQuitarPantalla();
+      render();
+      if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
+    } else {
+      btn.disabled = false; btn.textContent = "Entrar";
+      licPedirClave(r.motivo);
+    }
+  }
+  btn.addEventListener("click", intentar);
+  input.addEventListener("keydown", function(e){ if(e.key === "Enter") intentar(); });
+}
+
+async function licArrancar(){
+  const claveGuardada = localStorage.getItem("jrp_licencia");
+  if(!claveGuardada){ licPedirClave(); return; }
+  licPantalla(`<div style="font-size:40px;margin-bottom:6px;">🔒</div><p style="color:#B9C2D6;font-size:13px;">Verificando licencia…</p>`);
+  const r = await licVerificar(claveGuardada);
+  if(r.ok){
+    localStorage.setItem("jrp_licencia_ok_ts", String(Date.now()));
+    licQuitarPantalla();
+    render();
+    if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
+    return;
+  }
+  if(r.red){
+    // No se pudo conectar: si se validó bien hace poco, se deja seguir trabajando sin
+    // internet dentro de un margen de días; pasado ese margen, hace falta conexión.
+    const ultimaOk = Number(localStorage.getItem("jrp_licencia_ok_ts") || 0);
+    const diasSinValidar = (Date.now() - ultimaOk) / (1000*60*60*24);
+    if(ultimaOk && diasSinValidar < LIC_DIAS_GRACIA){
+      licQuitarPantalla();
+      render();
+      return;
+    }
+    licPedirClave(r.motivo);
+    return;
+  }
+  // Respuesta definitiva del servidor (no es un problema de conexión): se borra la
+  // clave guardada y se vuelve a pedir, mostrando el motivo real.
+  localStorage.removeItem("jrp_licencia");
+  licPedirClave(r.motivo);
+}
+
+licArrancar();
 </script>
 <script type="text/plain" id="lib-jspdf">/** @license
  *
