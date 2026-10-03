@@ -389,8 +389,8 @@
   #app:has(.v3-hero){height:100vh;height:100dvh;min-height:0;overflow:hidden;padding-bottom:0;display:flex;flex-direction:column;touch-action:none;}
   #app:has(.v3-hero)>header{flex:none;}
   #app:has(.v3-hero)>.content{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px));}
-  #app:has(.v3-hero) .sync-pill{flex:none;position:relative;top:auto;margin:-16px -12px 4px;}
-  #app:has(.v3-hero) .v3-hero{flex:none;margin:auto 0;}
+  #app:has(.v3-hero) .sync-pill{flex:none;position:relative;top:auto;margin:-16px -12px 11px;}
+  #app:has(.v3-hero) .v3-hero{flex:none;margin:0;}
 </style>
 </head>
 <body>
@@ -2979,7 +2979,7 @@ const ICO_INI = {
 
 // Inicio fijo: mide el espacio libre entre el encabezado/franja de sincronización y la barra
 // inferior y escala la tarjeta completa para que quepa exacta, sin scroll. Si el celular tiene
-// letra grande o pantalla baja, se achica; si sobra espacio, crece un poco (máx. 1.12).
+// letra grande o pantalla baja, se achica; si sobra espacio, crece un poco (máx. 1.25).
 function ajustarInicioFijo(){
   const hero = document.querySelector("#app .v3-hero");
   if(!hero) return;
@@ -2987,12 +2987,21 @@ function ajustarInicioFijo(){
   const pill = document.querySelector("#app .sync-pill");
   const header = document.querySelector("#app > header");
   hero.style.zoom = 1;
-  const inicio = pill ? pill.getBoundingClientRect().bottom : (header ? header.getBoundingClientRect().bottom : 0);
+  if(pill) pill.style.marginBottom = "";
+  const txt = pill ? (pill.querySelector(".sync-txt") || pill) : header;
+  const base = txt.getBoundingClientRect().bottom;
   const fin = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
-  const disponible = fin - inicio - 16;
+  const GAP_MIN = 16; // espacio mínimo (arriba y abajo) para que se vea con aire
   const natural = hero.offsetHeight;
-  if(!natural || disponible <= 0) return;
-  hero.style.zoom = Math.max(0.45, Math.min(1.12, disponible / natural));
+  if(!natural) return;
+  const disponible = fin - base - 2*GAP_MIN;
+  if(disponible <= 0) return;
+  const z = Math.max(0.45, Math.min(1.25, disponible / natural));
+  hero.style.zoom = z;
+  // Reparte lo que sobre en partes iguales: el espacio bajo la franja de sincronización
+  // queda igual al espacio entre la tarjeta y la barra inferior.
+  const gap = (fin - base - hero.getBoundingClientRect().height) / 2;
+  if(pill) pill.style.marginBottom = Math.max(0, gap - 9) + "px";
 }
 window.addEventListener("resize", ajustarInicioFijo);
 window.addEventListener("orientationchange", function(){ setTimeout(ajustarInicioFijo, 200); });
