@@ -442,6 +442,11 @@
     html:not([data-theme="dark"]) header h1,html:not([data-theme="dark"]) header .backbtn,html:not([data-theme="dark"]) .menu-opciones-btn,html:not([data-theme="dark"]) .v3-val,html:not([data-theme="dark"]) .v3-mini .m-val,html:not([data-theme="dark"]) .v3-tile,html:not([data-theme="dark"]) .v3-rep,html:not([data-theme="dark"]) .v3-rep p,html:not([data-theme="dark"]) .btn-navy,html:not([data-theme="dark"]) .btn-gold,html:not([data-theme="dark"]) .iconbtn,html:not([data-theme="dark"]) .fab,html:not([data-theme="dark"]) .home-hero .hero-val{color:#F3F0E8;}
     html:not([data-theme="dark"]) .v3-home .v3-tile .t-lbl{color:rgba(243,240,232,.92);}
   }
+
+  .chips-var{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px;}
+  .chip-var{border:1px solid rgba(201,151,62,.55);background:rgba(201,151,62,.12);color:#8A6416;border-radius:999px;padding:5px 11px;font-size:12.5px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .chip-var:active{transform:scale(.95);}
+  [data-theme="dark"] .chip-var{color:#E8C171;background:rgba(201,151,62,.16);border-color:rgba(201,151,62,.45);}
 </style>
 </head>
 <body>
@@ -3276,6 +3281,17 @@ function viewAjustesClave(){
     </div>
   </div>`;
 }
+function insertarVariable(idCampo, texto){
+  const ta = document.getElementById(idCampo);
+  if(!ta) return;
+  const ini = (typeof ta.selectionStart === "number") ? ta.selectionStart : ta.value.length;
+  const fin = (typeof ta.selectionEnd === "number") ? ta.selectionEnd : ini;
+  ta.value = ta.value.slice(0, ini) + texto + ta.value.slice(fin);
+  const pos = ini + texto.length;
+  ta.focus();
+  try{ ta.setSelectionRange(pos, pos); }catch(e){}
+  ta.dispatchEvent(new Event("input", { bubbles:true }));   // guarda y actualiza la vista previa
+}
 function actualizarPreviewMensajes(){
   // Solo refresca las vistas previas; NO reconstruye la pantalla, así el cursor y el teclado
   // no se pierden mientras se escribe o se mueve el cursor dentro del mensaje.
@@ -3425,16 +3441,16 @@ function viewAjustes(){
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;" id="sec-msg-recordatorio">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de recordatorio (WhatsApp / SMS)</p>
-    <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{monto}</b> (total vencido, sumando todas las cuotas atrasadas y la mora si aplica), <b>{cuotas}</b> (cantidad de cuotas vencidas, ej. "2 cuotas"), <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p>
-    <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="8" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajeRecordatorio=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajeRecordatorio||PLANTILLA_RECORDATORIO_DEFECTO)}</textarea></label>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b> (nombre y un apellido del cliente), <b>{nombre_completo}</b>, <b>{primer_nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{monto}</b> (total vencido, sumando todas las cuotas atrasadas y la mora si aplica), <b>{cuotas}</b> (cantidad de cuotas vencidas, ej. "2 cuotas"), <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b> o <b>{nombre del negocio}</b> (tu nombre del negocio de Ajustes).</p>
+    <p class="hint" style="margin:0 0 6px;">Toca una palabra para insertarla donde tengas el cursor:</p><div class="chips-var"><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{nombre}\')">Nombre</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{nombre del negocio}\')">Negocio</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{codigo}\')">Código</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuota}\')">Cuota</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{monto}\')">Monto</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuotas}\')">Cuotas</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{fecha}\')">Fecha</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{dias}\')">Días</button></div><label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="8" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajeRecordatorio=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajeRecordatorio||PLANTILLA_RECORDATORIO_DEFECTO)}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> <span id="prev_recordatorio">${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3, {monto:3000, mora:90, nVenc:2})}</span></p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajeRecordatorio=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;" id="sec-msg-pendiente">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de pendiente de cobro (1 día antes)</p>
-    <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b>.</p>
-    <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="7" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajePendiente=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajePendiente||PLANTILLA_PENDIENTE_DEFECTO)}</textarea></label>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b> (nombre y un apellido del cliente), <b>{nombre_completo}</b>, <b>{primer_nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b> o <b>{nombre del negocio}</b> (tu nombre del negocio de Ajustes).</p>
+    <p class="hint" style="margin:0 0 6px;">Toca una palabra para insertarla donde tengas el cursor:</p><div class="chips-var"><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{nombre}\')">Nombre</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{nombre del negocio}\')">Negocio</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{codigo}\')">Código</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{cuota}\')">Cuota</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{fecha}\')">Fecha</button></div><label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="7" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajePendiente=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajePendiente||PLANTILLA_PENDIENTE_DEFECTO)}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> <span id="prev_pendiente">${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()})}</span></p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajePendiente=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
@@ -3698,20 +3714,44 @@ function calcularPendiente(p, r, incluirProxima){
   }
   return { monto: round2(monto), mora: round2(mora), nVenc, diasAtr, detalleMora, proxima };
 }
+// "María Luisa López Pérez" -> "María López"; "Juan Pérez" -> "Juan Pérez".
+// Junta partículas de apellidos compuestos ("de la Cruz", "del Cid") como una sola palabra.
+function nombreYApellido(completo){
+  const partes = String(completo||"").trim().split(/\s+/).filter(Boolean);
+  if(partes.length <= 2) return partes.join(" ");
+  const particulas = ["de","del","la","las","los","y","san","santa"];
+  const pal = [];
+  for(let i=0;i<partes.length;i++){
+    let w = partes[i];
+    while(particulas.indexOf(partes[i].toLowerCase())!==-1 && i < partes.length-1){ i++; w += " " + partes[i]; }
+    pal.push(w);
+  }
+  if(pal.length <= 2) return pal.join(" ");
+  if(pal.length === 3) return pal[0] + " " + pal[1];      // nombre + apellido (+ otro apellido)
+  return pal[0] + " " + pal[2];                           // 2 nombres + 2 apellidos: 1er nombre + 1er apellido
+}
+function primerNombreDe(completo){ return String(completo||"").trim().split(/\s+/)[0] || ""; }
 function mensajePendiente(p, cli, r){
   const cuota = money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota);
-  const nombre = cli ? cli.nombre.split(" ")[0] : "";
+  const nombre = cli ? nombreYApellido(cli.nombre) : "";
+  const nombreCompleto = cli ? String(cli.nombre||"").trim() : "";
+  const primerNombre = cli ? primerNombreDe(cli.nombre) : "";
   const plantilla = (state.config.mensajePendiente || "").trim() || PLANTILLA_PENDIENTE_DEFECTO;
   return plantilla
     .replace(/\{nombre\}/g, nombre)
+    .replace(/\{nombre_completo\}/g, nombreCompleto)
+    .replace(/\{primer_nombre\}/g, primerNombre)
     .replace(/\{codigo\}/g, p.codigo)
     .replace(/\{cuota\}/g, cuota)
     .replace(/\{fecha\}/g, fmtDate(r.proximaFecha))
+    .replace(/\{nombre del negocio\}/g, nombreApp())
     .replace(/\{negocio\}/g, nombreApp());
 }
 function mensajeRecordatorio(p, cli, r, atraso, pendiente){
   const cuota = money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota);
-  const nombre = cli ? cli.nombre.split(" ")[0] : "";
+  const nombre = cli ? nombreYApellido(cli.nombre) : "";
+  const nombreCompleto = cli ? String(cli.nombre||"").trim() : "";
+  const primerNombre = cli ? primerNombreDe(cli.nombre) : "";
   pendiente = pendiente || { monto: r.cuotaActual ? r.cuotaActual.cuota : r.cuota, mora: 0, nVenc: 1 };
   const montoTotal = money(round2((pendiente.monto||0) + (pendiente.mora||0)));
   const nVenc = pendiente.nVenc||1;
@@ -3727,6 +3767,8 @@ function mensajeRecordatorio(p, cli, r, atraso, pendiente){
   const plantilla = (state.config.mensajeRecordatorio || "").trim() || PLANTILLA_RECORDATORIO_DEFECTO;
   return plantilla
     .replace(/\{nombre\}/g, nombre)
+    .replace(/\{nombre_completo\}/g, nombreCompleto)
+    .replace(/\{primer_nombre\}/g, primerNombre)
     .replace(/\{codigo\}/g, p.codigo)
     .replace(/\{cuota\}/g, cuota)
     .replace(/\{monto\}/g, montoTotal)
@@ -3734,6 +3776,7 @@ function mensajeRecordatorio(p, cli, r, atraso, pendiente){
     .replace(/\{cuotas\}/g, cuotasTexto)
     .replace(/\{fecha\}/g, fmtDate(r.proximaFecha))
     .replace(/\{dias\}/g, `${atraso} día${atraso===1?"":"s"}`)
+    .replace(/\{nombre del negocio\}/g, nombreApp())
     .replace(/\{negocio\}/g, nombreApp());
 }
 function linkWhatsapp(cli, mensaje){
