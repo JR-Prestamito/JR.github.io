@@ -411,6 +411,37 @@
   .v3-home .v3-tile .v3-ico svg,.v3-rep .v3-ico svg{width:16px;height:16px;}
   .v3-home .v3-tile .t-val{order:2;margin:0;font-size:20px;line-height:1.1;}
   .v3-home .v3-tile .t-lbl,.v3-rep p{order:3;margin:2px 0 0;min-height:2.3em;font-size:10.5px;font-weight:600;line-height:1.15;display:flex;align-items:flex-start;justify-content:center;}
+
+  /* ===== Ronda 2: eliminar cliente, íconos de pagos y modo oscuro dorado ===== */
+  .btn-eliminar-cli{width:36px;height:36px;flex:none;display:inline-flex;align-items:center;justify-content:center;padding:0;border-radius:12px;background:rgba(192,80,77,.08);border:1px solid rgba(192,80,77,.22);color:#b9504d;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s ease,background .12s ease;}
+  .btn-eliminar-cli svg{width:18px;height:18px;}
+  .btn-eliminar-cli:active{transform:scale(.9);background:rgba(192,80,77,.18);}
+  [data-theme="dark"] .btn-eliminar-cli{background:rgba(224,122,122,.12);border-color:rgba(224,122,122,.3);color:#e88f8f;}
+  .row-card .printbtn svg{width:20px;height:20px;display:block;}
+  .printbtn.pbtn-del{color:#b9736f;}
+  [data-theme="dark"] .printbtn{color:var(--gold);}
+  [data-theme="dark"] .printbtn.pbtn-del{color:#e88f8f;}
+  [data-theme="dark"] input[type="date"],[data-theme="dark"] input[type="month"],[data-theme="dark"] input[type="time"]{color-scheme:dark;}
+  [data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator,[data-theme="dark"] input[type="month"]::-webkit-calendar-picker-indicator,[data-theme="dark"] input[type="time"]::-webkit-calendar-picker-indicator{filter:invert(63%) sepia(70%) saturate(420%) hue-rotate(3deg) brightness(95%);opacity:1;cursor:pointer;}
+
+  /* ===== Ronda 3: colores legibles y blancos suaves (solo en pantalla, nunca al imprimir) ===== */
+  @media screen{
+    /* Verde / rojo / ámbar escritos en línea: más claros sobre fondo oscuro */
+    [data-theme="dark"] [style*="3b6d11" i]{color:#74D39A !important;}
+    [data-theme="dark"] [style*="c0433b" i]{color:#F0908A !important;}
+    [data-theme="dark"] [style*="8a6416" i]{color:#E8C171 !important;}
+    [data-theme="dark"] .b-activo,[data-theme="dark"] .card-exito{color:#74D39A;}
+    /* Modo oscuro: texto blanco menos intenso */
+    [data-theme="dark"] body,[data-theme="dark"] table,[data-theme="dark"] .menu-opciones-btn,[data-theme="dark"] .menu-opciones-item,[data-theme="dark"] textarea,[data-theme="dark"] .btn-outline,[data-theme="dark"] .preview-cuota,[data-theme="dark"] .jr-modal-msg{color:#CFD3DA;}
+    [data-theme="dark"] input,[data-theme="dark"] select{color:#CFD3DA;}
+    [data-theme="dark"] .stat-card .val,[data-theme="dark"] .clientes-card .icon-chip svg,[data-theme="dark"] .clientes-card span,[data-theme="dark"] .avatar,[data-theme="dark"] .tab-btn.active,[data-theme="dark"] .name{color:#D5D8DE;}
+    [data-theme="dark"] header h1,[data-theme="dark"] header .backbtn,[data-theme="dark"] .v3-val,[data-theme="dark"] .v3-mini .m-val,[data-theme="dark"] .v3-tile,[data-theme="dark"] .v3-rep,[data-theme="dark"] .v3-rep p,[data-theme="dark"] .btn-navy,[data-theme="dark"] .iconbtn,[data-theme="dark"] .fab,[data-theme="dark"] .home-hero .hero-val{color:#D9DCE2;}
+    [data-theme="dark"] .v3-home .v3-tile .t-lbl{color:rgba(255,255,255,.82);}
+    /* Modo claro: fondos blancos puros -> blanco cálido; textos blancos -> blanco suave */
+    html:not([data-theme="dark"]) .row-card,html:not([data-theme="dark"]) .menu-opciones-panel,html:not([data-theme="dark"]) .stat-card,html:not([data-theme="dark"]) .clientes-card,html:not([data-theme="dark"]) input,html:not([data-theme="dark"]) select,html:not([data-theme="dark"]) textarea,html:not([data-theme="dark"]) .btn-outline,html:not([data-theme="dark"]) .btn-danger,html:not([data-theme="dark"]) .searchbar,html:not([data-theme="dark"]) .jr-modal-card{background:#FBF9F4;}
+    html:not([data-theme="dark"]) header h1,html:not([data-theme="dark"]) header .backbtn,html:not([data-theme="dark"]) .menu-opciones-btn,html:not([data-theme="dark"]) .v3-val,html:not([data-theme="dark"]) .v3-mini .m-val,html:not([data-theme="dark"]) .v3-tile,html:not([data-theme="dark"]) .v3-rep,html:not([data-theme="dark"]) .v3-rep p,html:not([data-theme="dark"]) .btn-navy,html:not([data-theme="dark"]) .btn-gold,html:not([data-theme="dark"]) .iconbtn,html:not([data-theme="dark"]) .fab,html:not([data-theme="dark"]) .home-hero .hero-val{color:#F3F0E8;}
+    html:not([data-theme="dark"]) .v3-home .v3-tile .t-lbl{color:rgba(243,240,232,.92);}
+  }
 </style>
 </head>
 <body>
@@ -1700,18 +1731,18 @@ function render(){
     html += menuOpcionesHtml("inicio", [
       { icono: ICONS.edit, texto:"Nombre del negocio", onclick: "abrirAjustes('sec-nombre-negocio')" },
       { icono: ICONS.settings, texto:"Apariencia", onclick: "abrirAjustes('sec-apariencia')" },
+      { icono: ICONS.filetext, texto:"Reportes", onclick: "abrirAjustes('sec-reportes')" },
       { icono: ICONS.refresh, texto:"Sincronizar entre celulares", onclick: "abrirAjustes('sec-sync')" },
       { icono: ICONS.filetext, texto:"Respaldo de datos", onclick: "abrirAjustes('sec-respaldo')" },
       { icono: ICONS.calculator, texto:"Cómo contar los días del plazo", onclick: "abrirAjustes('sec-plazo')" },
       { icono: ICONS.refresh, texto:"WhatsApp de recordatorios", onclick: "abrirAjustes('sec-whatsapp')" },
       { icono: ICONS.alertcirc, texto:"Clave de acceso", onclick: "abrirAjustes('sec-clave')" },
-      { sep:true },
-      { icono: ICONS.filetext, texto:"Reporte general (PDF)", onclick: "abrirReportePDF()" },
-      { icono: ICONS.filetext, texto:"Reporte general (Excel)", onclick: "exportarExcel()" },
-      { icono: ICONS.trending, texto:"Estado de resultados", onclick: "abrirEstadoResultados()" },
-      { icono: ICONS.refinance, texto:"Modificaciones (NIIF PYMES)", onclick: "abrirReporteModificaciones()" },
-      { icono: ICONS.filetext, texto:"Desembolsos", onclick: "abrirReporteDesembolsos()" },
-      { icono: ICONS.filetext, texto:"Historial de pagos", onclick: "abrirReporteHistorialPagos()" }
+      { icono: ICONS.filetext, texto:"Recibo", onclick: "abrirAjustes('sec-recibo')" },
+      { icono: ICONS.edit, texto:"Mensaje de recordatorio", onclick: "abrirAjustes('sec-msg-recordatorio')" },
+      { icono: ICONS.edit, texto:"Mensaje de pendiente de cobro", onclick: "abrirAjustes('sec-msg-pendiente')" },
+      { icono: ICONS.alertcirc, texto:"Mora por atraso", onclick: "abrirAjustes('sec-mora')" },
+      { icono: ICONS.refinance, texto:"Umbral de modificación (NIF)", onclick: "abrirAjustes('sec-umbral')" },
+      { icono: ICONS.share, texto:"Compartir copia protegida", onclick: "abrirAjustes('sec-copia')" },
     ]);
   } else if(state.tab==="prestamos" && state.vista==="detalle" && state.prestamos.find(x=>x.id===state.seleccionId)){
     html += `<button class="backbtn" id="btn-recargar" style="margin-right:6px;" title="Recargar" onclick="recargarApp()">${ICONS.refresh}</button>`;
@@ -2919,6 +2950,23 @@ function viewReporteHistorialPagos(){
     <button class="btn btn-outline" style="margin-top:16px;width:100%;" onclick="volverDeReporte()">Volver</button>`;
 }
 
+// Redibujo "suave": si hay un campo de texto con el cursor, NO se reconstruye la pantalla
+// (eso cerraba el teclado y cancelaba los gestos para mover el cursor). Se espera a que el
+// usuario salga del campo y entonces se refresca.
+function renderSuave(){
+  const a = document.activeElement;
+  if(a && (a.tagName==="TEXTAREA" || a.tagName==="INPUT" || a.tagName==="SELECT")){
+    if(!window._renderSuaveEsperando){
+      window._renderSuaveEsperando = true;
+      a.addEventListener("blur", function(){
+        window._renderSuaveEsperando = false;
+        setTimeout(render, 250);
+      }, { once:true });
+    }
+    return;
+  }
+  render();
+}
 async function subirNube(silencioso){
   const url = (state.config.syncUrl||"").trim();
   const key = (state.config.syncKey||"").trim();
@@ -2947,7 +2995,7 @@ async function subirNube(silencioso){
     state.config.syncError = true;
     if(!silencioso) mostrarAlerta("No se pudo conectar con la nube. Revisa la URL, la clave y tu conexión a internet.");
   }
-  state.syncBusy = null; render();
+  state.syncBusy = null; if(silencioso) renderSuave(); else render();
 }
 
 function descargarNube(){
@@ -3228,6 +3276,14 @@ function viewAjustesClave(){
     </div>
   </div>`;
 }
+function actualizarPreviewMensajes(){
+  // Solo refresca las vistas previas; NO reconstruye la pantalla, así el cursor y el teclado
+  // no se pierden mientras se escribe o se mueve el cursor dentro del mensaje.
+  const a = document.getElementById("prev_recordatorio");
+  if(a) a.textContent = mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3, {monto:3000, mora:90, nVenc:2});
+  const b = document.getElementById("prev_pendiente");
+  if(b) b.textContent = mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()});
+}
 function viewAjustes(){
   return `
   ${window.__esCopiaCompartida ? "" : `
@@ -3249,7 +3305,7 @@ function viewAjustes(){
     </label>
     <p class="hint" style="margin:6px 0 0;">Explicaciones y consejos de cómo funciona cada pantalla. Están ocultas por defecto para no saturar la vista — actívalas cuando las necesites.</p>
   </div>
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-reportes">
     <p style="font-weight:600;margin:0 0 4px;">Reportes</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Para leer, imprimir o llevar a tu contador. Estos NO sirven para restaurar datos en el celular — para eso usa el respaldo de arriba.</p>
     <div class="flexrow">
@@ -3342,7 +3398,7 @@ function viewAjustes(){
     </div>`}
   </div>
   ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-recibo">
     <p style="font-weight:600;margin:0 0 4px;">Recibo</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">El recibo lleva una marca de agua de fondo con las iniciales de tu negocio (${siglasApp()}) para que no se pueda falsificar fácilmente. Por defecto, el recibo sale <b>sin firma</b> cuando lo envías por WhatsApp/PDF y <b>con línea de firma</b> cuando lo imprimes en papel — puedes forzar una sola opción para ambos casos aquí:</p>
     <label style="margin-bottom:0;"><span>Al final del recibo</span>
@@ -3367,27 +3423,27 @@ function viewAjustes(){
     </label>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-msg-recordatorio">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de recordatorio (WhatsApp / SMS)</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{monto}</b> (total vencido, sumando todas las cuotas atrasadas y la mora si aplica), <b>{cuotas}</b> (cantidad de cuotas vencidas, ej. "2 cuotas"), <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b>.</p>
-    <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="5" placeholder="${PLANTILLA_RECORDATORIO_DEFECTO}" oninput="state.config.mensajeRecordatorio=this.value; save(); render();">${state.config.mensajeRecordatorio||""}</textarea></label>
-    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3, {monto:3000, mora:90, nVenc:2})}</p>
+    <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="8" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajeRecordatorio=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajeRecordatorio||PLANTILLA_RECORDATORIO_DEFECTO)}</textarea></label>
+    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> <span id="prev_recordatorio">${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3, {monto:3000, mora:90, nVenc:2})}</span></p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajeRecordatorio=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-msg-pendiente">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de pendiente de cobro (1 día antes)</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b>.</p>
-    <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="5" placeholder="${PLANTILLA_PENDIENTE_DEFECTO}" oninput="state.config.mensajePendiente=this.value; save(); render();">${state.config.mensajePendiente||""}</textarea></label>
-    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> ${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()})}</p>
+    <label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="7" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajePendiente=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajePendiente||PLANTILLA_PENDIENTE_DEFECTO)}</textarea></label>
+    <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> <span id="prev_pendiente">${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()})}</span></p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajePendiente=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-mora">
     <p style="font-weight:600;margin:0 0 4px;">Mora por atraso</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Porcentaje que se cobra por cada día de atraso sobre el monto de la cuota. Déjalo en 0 si no quieres cobrar mora.</p>
     <label style="margin-bottom:0;"><span>Tasa de mora diaria (%)</span><input type="text" inputmode="decimal" step="0.01" min="0" value="${state.config.tasaMoraDiaria}" oninput="state.config.tasaMoraDiaria=filtrarDecimal(this.value); save();"></label>
   </div>
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-umbral">
     <p style="font-weight:600;margin:0 0 4px;">Umbral de modificación sustancial (NIF)</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Al refinanciar, se compara el valor presente del préstamo nuevo contra el del préstamo original. Si la diferencia es igual o mayor a este porcentaje, se clasifica como modificación sustancial (préstamo nuevo); si es menor, se registra como no sustancial (con su ganancia o pérdida por modificación). 10% es el criterio más usado.</p>
     <label style="margin-bottom:10px;"><span>Umbral (%)</span><input type="text" inputmode="decimal" step="0.1" min="0" value="${state.config.umbralModificacionSustancial!==undefined?state.config.umbralModificacionSustancial:10}" oninput="state.config.umbralModificacionSustancial=filtrarDecimal(this.value); save();"></label>
@@ -3398,7 +3454,7 @@ function viewAjustes(){
     <p class="hint nota-ayuda" style="margin:6px 0 0;">Viene desactivado por defecto. Si está desmarcado, esa línea no aparece en el Estado de resultados (ni en su PDF) y no se suma a la utilidad. El reporte de modificaciones sigue disponible.</p>
   </div>
   ${window.__esCopiaCompartida ? "" : `
-  <div class="row-card" style="display:block;">
+  <div class="row-card" style="display:block;" id="sec-copia">
     <p style="font-weight:600;margin:0 0 4px;">Compartir copia protegida</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Genera una copia de este archivo con su propia clave (segura, generada al azar). Nadie puede abrir ni ver nada de esa copia sin escribir esa clave primero — ideal para mandarle el archivo a un cobrador u otra persona. Esa copia sale vacía (sin tus clientes ni préstamos) y NO trae la opción de volver a generar otra copia protegida desde ella; si quien la recibe necesita compartirla de nuevo, tiene que pedírtela a ti.</p>
     <button class="btn btn-outline" onclick="generarCopiaProtegida()">Generar archivo protegido para compartir</button>
@@ -3421,7 +3477,7 @@ function viewClientes(){
     html += `<div class="row-card fila-inicio" style="cursor:pointer;" onclick="abrirFormCliente('${c.id}')">
       <div class="flex-gap"><div class="avatar">${c.nombre.slice(0,2).toUpperCase()}</div>
       <div><p class="name">${c.nombre}</p><p class="sub">${c.codigo} · ${c.celular||"sin celular"}</p></div></div>
-      <button onclick="event.stopPropagation(); eliminarCliente('${c.id}')" style="background:none;border:none;color:#bbb;font-size:16px;padding:8px 6px;">✕</button>
+      <button class="btn-eliminar-cli" title="Eliminar cliente" aria-label="Eliminar cliente" onclick="event.stopPropagation(); eliminarCliente('${c.id}')">${ICONS.trash}</button>
     </div>`;
   });
   if(filtrados.length>0) html += `</div>`;
@@ -5356,8 +5412,8 @@ function viewPagos(){
         <p class="sub">${fmtDate(pg.fecha)}${nota?" · "+nota:""}</p>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;">
-        <button class="printbtn" title="Ver recibo" onclick="verRecibo('${p.id}','${pg.id||""}')">🧾</button>
-        ${conBorrar?`<button class="printbtn" title="Eliminar pago" onclick="eliminarPago('${p.id}','${pg.id||""}')">🗑</button>`:""}
+        <button class="printbtn" title="Ver recibo" onclick="verRecibo('${p.id}','${pg.id||""}')">${ICONS.filetext}</button>
+        ${conBorrar?`<button class="printbtn pbtn-del" title="Eliminar pago" onclick="eliminarPago('${p.id}','${pg.id||""}')">${ICONS.trash}</button>`:""}
       </div>
     </div>`;
   };
