@@ -1905,6 +1905,8 @@ function render(){
   // largas nunca se recortaran a 2 líneas: el recorte se calculaba sobre la pantalla anterior.
   function despuesDePintar(){
     ajustarInicioFijo();
+    autoTextareasMensajes();
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(autoTextareasMensajes);
     // El panel de "Ajustes protegidos" debe verse centrado en el espacio que queda entre el
     // encabezado y la barra inferior. En vez de adivinar esas alturas (que cambian según el
     // celular, el notch, etc.), se miden de verdad ya insertado en la pantalla.
@@ -3403,6 +3405,20 @@ function insertarVariable(idCampo, texto){
   try{ ta.setSelectionRange(pos, pos); }catch(e){}
   ta.dispatchEvent(new Event("input", { bubbles:true }));   // guarda y actualiza la vista previa
 }
+
+function autoTextarea(el){
+  if(!el) return;
+  el.style.height = "auto";
+  el.style.height = (el.scrollHeight + 2) + "px";
+}
+function autoTextareasMensajes(){
+  ["f_mensajeRecordatorio","f_mensajePendiente"].forEach(function(id){ autoTextarea(document.getElementById(id)); });
+}
+document.addEventListener("input", function(e){
+  const t = e.target;
+  if(t && (t.id==="f_mensajeRecordatorio" || t.id==="f_mensajePendiente")) autoTextarea(t);
+});
+window.addEventListener("resize", autoTextareasMensajes);
 function actualizarPreviewMensajes(){
   // Solo refresca las vistas previas; NO reconstruye la pantalla, así el cursor y el teclado
   // no se pierden mientras se escribe o se mueve el cursor dentro del mensaje.
@@ -3558,7 +3574,7 @@ function viewAjustes(){
   <div class="row-card" style="display:block;" id="sec-msg-recordatorio">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de recordatorio (WhatsApp / SMS)</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b> (nombre y un apellido del cliente), <b>{nombre_completo}</b>, <b>{primer_nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{monto}</b> (total vencido, sumando todas las cuotas atrasadas y la mora si aplica), <b>{cuotas}</b> (cantidad de cuotas vencidas, ej. "2 cuotas"), <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b> o <b>{nombre del negocio}</b> (tu nombre del negocio de Ajustes).</p>
-    <p class="hint" style="margin:0 0 6px;">Toca una palabra para insertarla donde tengas el cursor:</p><div class="chips-var"><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{nombre}\')">Nombre</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{nombre del negocio}\')">Negocio</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{codigo}\')">Código</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuota}\')">Cuota</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{monto}\')">Monto</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuotas}\')">Cuotas</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{fecha}\')">Fecha</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{dias}\')">Días</button></div><label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="8" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajeRecordatorio=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajeRecordatorio||PLANTILLA_RECORDATORIO_DEFECTO)}</textarea></label>
+    <details class="chips-det" ${(state._chipsOpen||{}).f_mensajeRecordatorio?"open":""} ontoggle="(state._chipsOpen=state._chipsOpen||{}).f_mensajeRecordatorio=this.open"><summary>Palabras para insertar</summary><div class="chips-var"><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{nombre}\')">Nombre</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{nombre del negocio}\')">Negocio</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{codigo}\')">Código</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuota}\')">Cuota</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{monto}\')">Monto</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuotas}\')">Cuotas</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{fecha}\')">Fecha</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{dias}\')">Días</button></div></details><label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="2" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajeRecordatorio=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajeRecordatorio||PLANTILLA_RECORDATORIO_DEFECTO)}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> <span id="prev_recordatorio">${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3, {monto:3000, mora:90, nVenc:2})}</span></p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajeRecordatorio=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
@@ -3566,7 +3582,7 @@ function viewAjustes(){
   <div class="row-card" style="display:block;" id="sec-msg-pendiente">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de pendiente de cobro (1 día antes)</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b> (nombre y un apellido del cliente), <b>{nombre_completo}</b>, <b>{primer_nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b> o <b>{nombre del negocio}</b> (tu nombre del negocio de Ajustes).</p>
-    <p class="hint" style="margin:0 0 6px;">Toca una palabra para insertarla donde tengas el cursor:</p><div class="chips-var"><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{nombre}\')">Nombre</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{nombre del negocio}\')">Negocio</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{codigo}\')">Código</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{cuota}\')">Cuota</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{fecha}\')">Fecha</button></div><label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="7" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajePendiente=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajePendiente||PLANTILLA_PENDIENTE_DEFECTO)}</textarea></label>
+    <details class="chips-det" ${(state._chipsOpen||{}).f_mensajePendiente?"open":""} ontoggle="(state._chipsOpen=state._chipsOpen||{}).f_mensajePendiente=this.open"><summary>Palabras para insertar</summary><div class="chips-var"><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{nombre}\')">Nombre</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{nombre del negocio}\')">Negocio</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{codigo}\')">Código</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{cuota}\')">Cuota</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{fecha}\')">Fecha</button></div></details><label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="2" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajePendiente=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajePendiente||PLANTILLA_PENDIENTE_DEFECTO)}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> <span id="prev_pendiente">${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()})}</span></p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajePendiente=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
@@ -5261,7 +5277,7 @@ function dibujarReciboCanvas(d){
     let hp = 26; while(hp > 19 && medirLinea(p1, hp) > maxW) hp--;
     if(medirLinea(p1, hp) <= maxW){ campoLinea(p1, y, hp); y += 56; }
     else{ hp = 26; campoLinea([p1[0]], y, hp); y += 56; campoLinea([p1[1]], y, hp); y += 56; }
-    campoLinea([["Préstamo No.:", d.prestamo]], y, hp); y += 74;
+    campoLinea([["Préstamo No.:", d.prestamo]], y, hp); y += 68;
     // principales (con raya)
     d.principales.forEach(it=>{
       fuente(28,true); const wl = ctx.measureText(it.l).width;
@@ -5271,9 +5287,9 @@ function dibujarReciboCanvas(d){
         fuente(v.px,false); ctx.fillText(v.txt, padX+wl+14, y);
         ctx.fillStyle = RAYA; ctx.fillRect(padX+wl+8, y+12, W-padX-(padX+wl+8), 2);
       }
-      y += 66;
+      y += 56;
     });
-    y += 14;
+    y += 8;
     // detalle
     d.detalle.forEach(it=>{
       fuente(26,false); const lab = it.l + ":";
@@ -5284,9 +5300,9 @@ function dibujarReciboCanvas(d){
         fuente(26,false); ctx.fillText(lab, padX, y);
         fuente(v.px,false); ctx.fillText(v.txt, padX+wl+20, y);
       }
-      y += 54;
+      y += 44;
     });
-    y += 16;
+    y += 12;
     // pie
     if(d.firma==="firma"){
       y += 24;
@@ -6798,6 +6814,19 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .rc-big{font-size:15px !important;margin-top:17px !important;}
   .rc-det{font-size:14px !important;padding:6px 0 !important;}
   .rc-sep{height:12px !important;}
+
+  /* Recibo: interlineado más compacto desde "RECIBIDO DE" */
+  .rc-big{margin-top:12px !important;}
+  .rc-det{padding:4px 0 !important;}
+  .rc-sep{height:8px !important;}
+  /* Recordatorios: textarea que se ajusta al texto + palabras plegables */
+  #f_mensajeRecordatorio,#f_mensajePendiente{resize:none;overflow:hidden;min-height:64px;}
+  .chips-det{margin:0 0 8px;}
+  .chips-det > summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:12.5px;font-weight:600;color:#8A6416;padding:4px 0;}
+  .chips-det > summary::-webkit-details-marker{display:none;}
+  .chips-det > summary::after{content:"▾";font-size:14px;transition:transform .15s;}
+  .chips-det[open] > summary::after{transform:rotate(180deg);}
+  [data-theme="dark"] .chips-det > summary{color:#E8C171;}
 </style>
 <div id="aviso-conexion"></div>
 <script>
