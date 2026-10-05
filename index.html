@@ -3536,6 +3536,11 @@ function viewAjustes(){
         <option value="ninguno" ${state.config.reciboFirma==="ninguno"?"selected":""}>Ninguno, en ambos casos</option>
       </select>
     </label>
+    <details class="rc-det-aj" ${state._reciboDetOpen?"open":""} ontoggle="state._reciboDetOpen=this.open">
+      <summary>Datos a mostrar en el recibo</summary>
+      <p class="hint nota-ayuda" style="margin:0 0 4px;">Aplican a todos los recibos (pantalla, imagen y papel).</p>
+      ${htmlControlesRecibo()}
+    </details>
   </div>`}
   ${window.__esCopiaCompartida ? "" : `
   <div class="row-card" style="display:block;" id="sec-whatsapp">
@@ -4678,6 +4683,11 @@ function viewDetallePrestamo(){
         <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarPago('${p.id}')">Pagar</button>
       </div>
       <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#666;">Fecha del pago</span><input type="date" id="fechaPago" value="${hoyISO()}" max="${hoyISO()}"></label>
+      <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#666;">Forma de pago</span>
+        <select id="formaPago" onchange="state.config.reciboFormaPago=this.value; save();">
+          ${["Efectivo","Transferencia","Depósito","Cheque","Otro"].map(o=>`<option ${((state.config.reciboFormaPago||"Efectivo")===o)?"selected":""}>${o}</option>`).join("")}
+        </select>
+      </label>
       <p class="hint nota-ayuda">${nVenc>1 ? `El monto sugerido ya incluye las ${nVenc} cuotas vencidas${moraCalc>0?" y la mora":""}.` : (moraCalc>0 ? "El monto ya incluye la mora; desmarca la casilla para dejar solo la cuota." : "Déjalo vacío para pagar lo sugerido.")} Un monto menor queda como abono parcial a la cuota. Si pagas de más (después de completarla), el excedente se registra como <b>abono a capital</b> — se puede hacer cualquier día.</p>
     </div>
     ${puedeLiquidarAnticipado ? `
@@ -5049,7 +5059,7 @@ function dibujarMarcaAgua(doc, texto, w, h, tamano){
 
 // ===================== RECIBO NUEVO (estructura tipo "RECIBO DE PAGO") =====================
 const RECIBO_CAMPOS = [
-  ["formaPago","Forma de pago",true],["cobrador","Cobrador",true],["capital","Capital",true],["interes","Interés",true],
+  ["formaPago","Forma de pago",true],["cobrador","Cobrador",true],["capital","Capital de la cuota",true],["abonoCapital","Abono a capital",true],["interes","Interés",true],
   ["descuento","Descuento",true],["mora","Mora",true],["capitalPend","Capital pendiente",true],
   ["balance","Balance pendiente (capital + interés)",true],["excluirMora","Excluir mora del balance pendiente",true],
   ["proximoPago","Fecha próximo pago",true],["fechaTermino","Fecha término",false],["hora","Hora junto a la fecha",true]
@@ -5087,6 +5097,14 @@ function resumenAlPago(p, pg, abonoLigado){
     return resumen(Object.assign({}, p, {pagos: arr.slice(0, i+1)}));
   }catch(e){ return resumen(p); }
 }
+function resumenAntesDelPago(p, pg, abonoLigado){
+  if((p.ajustesCapital||[]).length || (p.modificaciones||[]).length) return null;
+  const arr = p.pagos || [];
+  let i = arr.findIndex(x=>x.id===pg.id);
+  if(i<0) return null;
+  if(abonoLigado){ const j = arr.findIndex(x=>x.id===abonoLigado.id); if(j>=0 && j<i) i = j; }
+  return resumen(Object.assign({}, p, {pagos: arr.slice(0, i)}));
+}
 function contextoRecibo(){
   const sel = state.reciboSel || {};
   const p = state.prestamos.find(x=>x.id===sel.prestamoId);
@@ -5122,11 +5140,21 @@ function datosRecibo(c){
   if(pg.liquidacion) partes.push("LIQUIDACIÓN ANTICIPADA");
   else if(pg.tipo==="abono_capital") partes.push("ABONO A CAPITAL");
   else if(pg.tipo==="enganche") partes.push("ENGANCHE");
-  else if(esIndef || !nCuotas) partes.push("PAGO CUOTA");
-  else if(!pagado && r.faltaEnCuotaActual>0.01 && r.abonadoEnCuotaActual>0.01) partes.push(`ABONO CUOTA ${Math.min(nCuotas, r.pagosHechos+1)}/${nCuotas}`);
-  else partes.push(`PAGO CUOTA ${Math.min(nCuotas, r.pagosHechos)}/${nCuotas}`);
+  else{
+    const conTotal = !esIndef && nCuotas > 0;
+    const sufN = conTotal ? `/${nCuotas}` : "";
+    const tope = (n)=> conTotal ? Math.min(nCuotas, n) : n;
+    const c = r.pagosHechos || 0;
+    let q = null;
+    try{ const rp = resumenAntesDelPago(p, pg, abonoLigado); if(rp) q = rp.pagosHechos || 0; }catch(e){}
+    if(q===null) q = (!pagado && r.faltaEnCuotaActual>0.01 && r.abonadoEnCuotaActual>0.01) ? c : Math.max(0, c-1);
+    if(c>q) partes.push(c-q>1 ? `PAGO CUOTAS ${tope(q+1)}-${tope(c)}${sufN}` : `PAGO CUOTA ${tope(c)}${sufN}`);
+    else partes.push(`ABONO CUOTA ${tope(c+1)}${sufN}`);
+  }
   if(abonoLigado) partes.push("ABONO A CAPITAL");
-  const capital = (pg.capital!=null) ? (Number(pg.capital)||0) + abono : (abonoLigado ? abono : null);
+  let capital = (pg.capital!=null && pg.tipo!=="abono_capital") ? (Number(pg.capital)||0) : null;
+  if(esIndef && capital!==null && capital<0.005) capital = null;
+  const abonoCap = pg.tipo==="abono_capital" ? (Number(pg.monto)||0) : abono;
   const interes = (pg.interes!=null) ? (Number(pg.interes)||0) : null;
   let moraPend = 0;
   if(!reciboOpt("excluirMora")){
@@ -5137,6 +5165,7 @@ function datosRecibo(c){
   add("formaPago","FORMA DE PAGO", pg.formaPago || state.config.reciboFormaPago || "Efectivo");
   add("cobrador","COBRADOR", (state.config.reciboCobrador||"").trim());
   add("capital","CAPITAL", capital!==null ? money(capital) : null);
+  add("abonoCapital","ABONO A CAPITAL", abonoCap>0.005 ? money(abonoCap) : null);
   add("interes","INTERÉS", interes!==null && pg.tipo!=="abono_capital" ? money(interes) : null);
   add("descuento","DESCUENTO", money(Number(pg.descuento)||0));
   add("mora","MORA", mora>0 ? money(mora) : null, true);
@@ -5165,8 +5194,8 @@ function htmlReciboPago(d){
     : (d.firma==="ninguno" ? "" : `<p class="rc-pie">Recibo válido sin firma.</p>`);
   return `<div id="recibo-pago" class="rc">
     <span class="rc-wm">PAGADO</span>
-    <h2 class="rc-tit">RECIBO DE PAGO</h2>
     <p class="rc-neg">${e(d.negocio)}</p>
+    <h2 class="rc-tit">RECIBO DE PAGO</h2>
     <div class="rc-head"><span><b>Recibo No.</b> <u>${e(d.numero)}</u></span><span><b>Fecha:</b> <u>${e(d.fecha)}${d.hora?` <small>${e(d.hora)}</small>`:""}</u></span></div>
     <div class="rc-head"><span><b>Préstamo No.:</b> <u>${e(d.prestamo)}</u></span></div>
     ${d.principales.map(x=>`<div class="rc-big"><b>${e(x.l)}</b><span>${e(x.v)}</span></div>`).join("")}
@@ -5196,11 +5225,11 @@ function dibujarReciboCanvas(d){
       return { txt, px:t };
     };
     ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
-    y = 70;
+    y = 58;
+    if(dibujar){ const n = ajustar(String(d.negocio).toUpperCase(), W-2*padX, 26, 15, true); fuente(n.px,true); ctx.fillStyle = "#4a4a4a"; ctx.textAlign = "center"; ctx.fillText(n.txt, W/2, y); ctx.textAlign = "left"; }
+    y += 54;
     if(dibujar){ fuente(38,true); ctx.fillStyle = GOLD; ctx.textAlign = "center"; ctx.fillText("RECIBO DE PAGO", W/2, y); ctx.textAlign = "left"; }
-    y += 30;
-    if(dibujar){ const n = ajustar(d.negocio, W-2*padX, 21, 14, false); fuente(n.px,false); ctx.fillStyle = GRIS; ctx.textAlign = "center"; ctx.fillText(n.txt, W/2, y); ctx.textAlign = "left"; }
-    y += 52;
+    y += 66;
     // encabezado: Recibo No. / Fecha / Préstamo No.
     const campoLinea = (partes, yy)=>{
       let x = padX;
@@ -5303,16 +5332,20 @@ function setReciboCampo(k, v){
   state.config.reciboCampos = Object.assign({}, state.config.reciboCampos||{}, {[k]: !!v});
   save(); refrescarReciboVista();
 }
-function htmlAjustesRecibo(){
-  return `<div class="rc-over"><div class="rc-over-in">
-    <h3>Datos a mostrar al generar recibos.</h3>
-    ${RECIBO_CAMPOS.map(([k,l])=>`<label class="rc-sw"><span>${l}</span><input type="checkbox" ${reciboOpt(k)?"checked":""} onchange="setReciboCampo('${k}', this.checked)"><i></i></label>`).join("")}
+function htmlControlesRecibo(){
+  return `${RECIBO_CAMPOS.map(([k,l])=>`<label class="rc-sw"><span>${l}</span><input type="checkbox" ${reciboOpt(k)?"checked":""} onchange="setReciboCampo('${k}', this.checked)"><i></i></label>`).join("")}
     <label style="margin-top:8px;"><span>Cobrador (nombre que sale en el recibo)</span><input type="text" value="${jrEscapeHtml(state.config.reciboCobrador||"")}" placeholder="Opcional" oninput="state.config.reciboCobrador=this.value; save(); refrescarReciboVista();"></label>
-    <label><span>Forma de pago</span>
+    <label><span>Forma de pago por defecto</span>
       <select onchange="state.config.reciboFormaPago=this.value; save(); refrescarReciboVista();">
         ${["Efectivo","Transferencia","Depósito","Cheque","Otro"].map(o=>`<option ${((state.config.reciboFormaPago||"Efectivo")===o)?"selected":""}>${o}</option>`).join("")}
       </select>
-    </label>
+    </label>`;
+}
+function htmlAjustesRecibo(){
+  return `<div class="rc-over"><div class="rc-over-in">
+    <h3>Datos a mostrar al generar recibos.</h3>
+    <p class="hint nota-ayuda" style="text-align:center;margin:0 0 6px;">Estos ajustes aplican a todos los recibos.</p>
+    ${htmlControlesRecibo()}
     <button class="btn btn-gold" style="width:100%;margin-top:14px;" onclick="cerrarAjustesRecibo()">Listo</button>
   </div></div>`;
 }
@@ -5324,6 +5357,16 @@ function conceptoPago(pg){
 }
 function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
   const { jsPDF } = window.jspdf;
+  {
+    // Mismo formato que el recibo en pantalla y que la imagen compartida.
+    const dImp = datosRecibo({ p, cli, pg, abonoLigado, numRecibo });
+    if(contexto==="imprimir" && dImp.firma==="automatico") dImp.firma = "firma";
+    const cv = dibujarReciboCanvas(dImp);
+    const Wm = 80, Hm = Wm * cv.height / cv.width;
+    const docImg = new jsPDF({unit:"mm", format:[Wm, Hm]});
+    docImg.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, Wm, Hm);
+    return docImg;
+  }
   // Recibo angosto tipo ticket (80mm). El ALTO no es fijo: se mide lo que lleva el recibo y la
   // hoja se corta a esa medida (más un margen), para que no sobre papel.
   // El recibo para ENVIAR y el de IMPRIMIR tienen exactamente el mismo tamaño y diseño.
@@ -5682,7 +5725,7 @@ function registrarPago(id){
     const fechaPago = (fEl && fEl.value) ? fEl.value : hoyISO();
     // Se guarda cuánto de este cobro fue interés y cuánto capital (según la tabla de este
     // momento): la diferencia del reparto total antes y después de agregar el pago.
-    const pagoCuota = { id:uid(), ts:new Date().toISOString(), fecha:fechaPago, monto:montoCuota, mora, tipo:"cuota" };
+    const pagoCuota = { id:uid(), ts:new Date().toISOString(), fecha:fechaPago, monto:montoCuota, mora, tipo:"cuota", formaPago: ((document.getElementById("formaPago")||{}).value || state.config.reciboFormaPago || "Efectivo") };
     const repartoAntes = desglosePagado(p);
     p.pagos.push(pagoCuota);
     const repartoDespues = desglosePagado(p);
@@ -6268,8 +6311,7 @@ async function licArrancar(){
   licPedirClave(r.motivo);
 }
 
-render();
-if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
+licArrancar();
 </script>
 <script type="text/plain" id="lib-jspdf">/** @license
  *
@@ -6718,6 +6760,26 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   [id^="sec-"]{scroll-margin-top:calc(var(--header-h,78px) + 10px);}
   .sec-destacada{animation:secDestello 1.8s ease;}
   @keyframes secDestello{0%,60%{box-shadow:0 0 0 3px var(--gold);}100%{box-shadow:0 0 0 0 rgba(201,151,62,0);}}
+
+  /* ===== Paletas de listas: fondo plano, borde izquierdo dorado delgado (todas, ambos modos) ===== */
+  .fila-inicio, .tabla-card.fila-pago{border-left:2px solid #C9A864 !important;background:#fff !important;box-shadow:none !important;}
+  html:not([data-theme="dark"]) .fila-inicio, html:not([data-theme="dark"]) .tabla-card.fila-pago{background:#FBF9F4 !important;}
+  [data-theme="dark"] .fila-inicio, [data-theme="dark"] .tabla-card.fila-pago{background:#1B212C !important;border-left:2px solid #C9973E !important;}
+
+  /* Recibo: nombre del negocio arriba del título */
+  .rc-neg{margin:0 0 2px !important;font-size:13px !important;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#4a4a4a !important;}
+  .rc-tit{margin:0 0 14px !important;}
+
+  /* Interruptores del recibo más pequeños */
+  .rc-sw{padding:7px 0 !important;font-size:14px !important;}
+  .rc-sw i{width:34px !important;height:16px !important;border-radius:9px !important;}
+  .rc-sw i::after{top:-2px !important;left:-1px !important;width:20px !important;height:20px !important;}
+  .rc-sw input:checked + i::after{transform:translateX(16px) !important;}
+  .rc-det-aj{margin-top:14px;border-top:1px solid rgba(154,116,69,.25);padding-top:6px;}
+  .rc-det-aj > summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-weight:600;padding:8px 0;}
+  .rc-det-aj > summary::-webkit-details-marker{display:none;}
+  .rc-det-aj > summary::after{content:"▾";font-size:15px;color:#9A7440;transition:transform .15s;}
+  .rc-det-aj[open] > summary::after{transform:rotate(180deg);}
 </style>
 <div id="aviso-conexion"></div>
 <script>
