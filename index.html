@@ -1906,6 +1906,8 @@ function render(){
   function despuesDePintar(){
     ajustarInicioFijo();
     autoTextareasMensajes();
+    ajustarReciboPantalla();
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(ajustarReciboPantalla);
     if(document.fonts && document.fonts.ready) document.fonts.ready.then(autoTextareasMensajes);
     // El panel de "Ajustes protegidos" debe verse centrado en el espacio que queda entre el
     // encabezado y la barra inferior. En vez de adivinar esas alturas (que cambian según el
@@ -5220,10 +5222,19 @@ function htmlReciboPago(d){
     <p class="rc-pie" style="margin-top:6px;">Gracias por su pago.</p>
   </div>`;
 }
+
+function ajustarReciboPantalla(){
+  document.querySelectorAll("#recibo-pago .rc-big span").forEach(function(el){
+    el.style.fontSize = "";
+    let fs = parseFloat(getComputedStyle(el).fontSize) || 15;
+    while(el.scrollWidth > el.clientWidth + 1 && fs > 9){ fs -= 0.5; el.style.fontSize = fs + "px"; }
+  });
+}
 function refrescarReciboVista(){
   const c = contextoRecibo(); const el = document.getElementById("recibo-pago");
   if(!c || !el) return;
   el.outerHTML = htmlReciboPago(datosRecibo(c));
+  ajustarReciboPantalla();
 }
 // Dibuja el recibo en un canvas (imagen PNG) con el mismo diseño de la pantalla.
 function dibujarReciboCanvas(d){
@@ -5244,7 +5255,7 @@ function dibujarReciboCanvas(d){
     if(dibujar){ const n = ajustar(String(d.negocio).toUpperCase(), W-2*padX, 26, 15, true); fuente(n.px,true); ctx.fillStyle = "#4a4a4a"; ctx.textAlign = "center"; ctx.fillText(n.txt, W/2, y); ctx.textAlign = "left"; }
     y += 54;
     if(dibujar){ fuente(38,true); ctx.fillStyle = GOLD; ctx.textAlign = "center"; ctx.fillText("RECIBO DE PAGO", W/2, y); ctx.textAlign = "left"; }
-    y += 66;
+    y += 70;
     // encabezado: Recibo No. / Fecha / Préstamo No. (en una sola línea si cabe)
     const medirLinea = (partes, hp)=>{
       let t = 0;
@@ -5275,9 +5286,9 @@ function dibujarReciboCanvas(d){
     const p1 = [["Recibo No.", d.numero], ["Fecha:", d.fecha, d.hora]];
     const maxW = W - 2*padX - 8;
     let hp = 26; while(hp > 19 && medirLinea(p1, hp) > maxW) hp--;
-    if(medirLinea(p1, hp) <= maxW){ campoLinea(p1, y, hp); y += 56; }
-    else{ hp = 26; campoLinea([p1[0]], y, hp); y += 56; campoLinea([p1[1]], y, hp); y += 56; }
-    campoLinea([["Préstamo No.:", d.prestamo]], y, hp); y += 68;
+    if(medirLinea(p1, hp) <= maxW){ campoLinea(p1, y, hp); y += 44; }
+    else{ hp = 26; campoLinea([p1[0]], y, hp); y += 44; campoLinea([p1[1]], y, hp); y += 44; }
+    campoLinea([["Préstamo No.:", d.prestamo]], y, hp); y += 80;
     // principales (con raya)
     d.principales.forEach(it=>{
       fuente(28,true); const wl = ctx.measureText(it.l).width;
@@ -5289,7 +5300,7 @@ function dibujarReciboCanvas(d){
       }
       y += 56;
     });
-    y += 8;
+    y += 14;
     // detalle
     d.detalle.forEach(it=>{
       fuente(26,false); const lab = it.l + ":";
@@ -5300,7 +5311,7 @@ function dibujarReciboCanvas(d){
         fuente(26,false); ctx.fillText(lab, padX, y);
         fuente(v.px,false); ctx.fillText(v.txt, padX+wl+20, y);
       }
-      y += 44;
+      y += 46;
     });
     y += 12;
     // pie
@@ -6827,6 +6838,23 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .chips-det > summary::after{content:"▾";font-size:14px;transition:transform .15s;}
   .chips-det[open] > summary::after{transform:rotate(180deg);}
   [data-theme="dark"] .chips-det > summary{color:#E8C171;}
+
+  /* Recibo en pantalla: filas más compactas desde "RECIBIDO DE" (línea más baja + menos relleno) */
+  .rc-big{line-height:1.2 !important;margin-top:9px !important;}
+  .rc-big span{padding-bottom:2px !important;}
+  .rc-det{line-height:1.25 !important;padding:3px 0 !important;}
+  .rc-sep{height:6px !important;}
+
+  /* Recibo en pantalla: ritmo de la referencia (filas parejas + pausa entre secciones) */
+  .rc-head{line-height:1.2 !important;margin-bottom:6px !important;}
+  .rc-big{line-height:1.2 !important;margin-top:10.5px !important;}
+  .rc-head + .rc-big{margin-top:26px !important;}
+  .rc-big span{padding-bottom:2px !important;}
+  .rc-sep{height:15px !important;}
+  .rc-det{line-height:1.25 !important;padding:4px 0 !important;}
+
+  /* Recibo en pantalla: Recibido de / Monto / Concepto siempre en una sola línea (la letra se ajusta) */
+  .rc-big span{white-space:nowrap !important;overflow:hidden;word-break:normal !important;}
 </style>
 <div id="aviso-conexion"></div>
 <script>
