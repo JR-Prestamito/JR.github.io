@@ -1373,7 +1373,7 @@ function generarTablaDinamica(p){
   }
   return filas;
 }
-function resumen(p){
+function resumen(p, fechaRef){
   const tabla = generarTablaDinamica(p);
   const esIndef = p.metodo === METODOS[5];
   const capital = Number(p.capital)||0, tasa=(Number(p.tasa)||0)/100;
@@ -1448,7 +1448,9 @@ function resumen(p){
     // funciona en los demás métodos: ahí saldoPendiente es "todo lo que falta cobrar en el
     // cronograma" y capitalPendiente es aparte, "solo el capital". La mora NO se incluye
     // aquí, igual que tampoco se incluye para los demás métodos (se maneja aparte).
-    const hoy = hoyISO();
+    // fechaRef: para un recibo viejo, el interés vencido se cuenta a la fecha de ESE pago
+    // (no a la de hoy), así el saldo del recibo es el que de verdad había en ese momento.
+    const hoy = fechaRef || hoyISO();
     let interesVencidoIndef = 0;
     if(cuotaActualRow && cuotaActualRow.fecha < hoy){
       interesVencidoIndef += Math.max(0, cuotaActualRow.cuota - abonadoEnCuotaActual);
@@ -5077,9 +5079,9 @@ function dibujarMarcaAgua(doc, texto, w, h, tamano){
 
 // ===================== RECIBO NUEVO (estructura tipo "RECIBO DE PAGO") =====================
 const RECIBO_CAMPOS = [
-  ["formaPago","Forma de pago",true],["cobrador","Cobrador",true],["capital","Capital de la cuota",true],["abonoCapital","Abono a capital",true],["interes","Interés",true],
+  ["formaPago","Forma de pago",true],["cobrador","Cobrador",true],["capital","Capital de la cuota",true],["interes","Interés",true],["abonoCapital","Abono a capital",true],
   ["descuento","Descuento",true],["mora","Mora",true],["capitalPend","Capital pendiente",true],
-  ["balance","Balance pendiente (capital + interés)",true],["excluirMora","Excluir mora del balance pendiente",true],
+  ["balance","Saldo pendiente (capital + interés)",true],["excluirMora","Excluir mora del saldo pendiente",true],
   ["proximoPago","Fecha próximo pago",true],["fechaTermino","Fecha término",false],["hora","Hora junto a la fecha",true]
 ];
 function reciboOpt(k){
@@ -5104,24 +5106,66 @@ function horaRecibo(ts){
       .replace(/\./g,"").replace(/\s?([ap])\s?m/i, (m,a)=>" "+a.toLowerCase()+"m").trim();
   }catch(e){ return ""; }
 }
+// Reconstruye el préstamo tal como estaba EN EL MOMENTO de un pago, para que el recibo
+// muestre el número de cuota y el saldo de ese día (no los de hoy).
+// - Solo cuenta los pagos hasta ese cobro (incluyendo su abono a capital ligado, si lo hay).
+// - Solo cuenta los ajustes de capital (abonos) que pertenecen a esos pagos; antes, si el
+//   préstamo tenía cualquier abono a capital, TODOS los recibos usaban el estado de hoy y por
+//   eso se repetía el mismo número de cuota.
+// - Si el pago quedó archivado por un refinanciamiento/modificación, se usa el préstamo tal
+//   como era antes de modificarse.
+// - Las banderas de liquidado/refinanciado solo aplican al último cobro; en los anteriores
+//   se apagan, porque en esa fecha el préstamo todavía estaba activo.
+function prestamoAlMomentoDelPago(p, pg, abonoLigado, incluirEste){
+  let base = p, pagos = p.pagos || [], ajustes = p.ajustesCapital || [];
+  let idx = pagos.findIndex(x=>x.id===pg.id);
+  let archivado = false;
+  if(idx<0){
+    for(const m of (p.modificaciones||[])){
+      const pp = m.pagosPrevios || [];
+      const k = pp.findIndex(x=>x.id===pg.id);
+      if(k>=0){
+        base = Object.assign({}, p, {
+          capital:m.capitalAnterior, tasa:m.tasaAnterior, periodo:m.periodoAnterior,
+          metodo:m.metodoAnterior, cuotas:m.cuotasAnterior, fechaInicio:m.fechaInicioAnterior||p.fechaInicio,
+          modificaciones:[]
+        });
+        pagos = pp; ajustes = m.ajustesPrevios || []; idx = k; archivado = true;
+        break;
+      }
+    }
+  }
+  if(idx<0) return null;
+  let fin = idx + (incluirEste ? 1 : 0);
+  if(abonoLigado){
+    const j = pagos.findIndex(x=>x.id===abonoLigado.id);
+    if(incluirEste){ if(j+1 > fin) fin = j+1; }
+    else if(j>=0 && j<idx){ fin = j; }
+  }
+  const incl = pagos.slice(0, fin);
+  const ids = new Set(incl.map(x=>x.id));
+  const ajIncl = ajustes.filter(a => a.pagoId ? ids.has(a.pagoId) : (!a.fecha || !pg.fecha || a.fecha <= pg.fecha));
+  const esUltimo = !archivado && fin >= pagos.length;
+  return Object.assign({}, base, {
+    pagos: incl, ajustesCapital: ajIncl,
+    refinanciado: false,
+    liquidadoAnticipado: esUltimo ? !!p.liquidadoAnticipado : false
+  });
+}
 // Resumen del préstamo "hasta ese pago" (para que un recibo viejo no muestre el saldo de hoy).
 function resumenAlPago(p, pg, abonoLigado){
   try{
-    const arr = p.pagos || [];
-    if((p.ajustesCapital||[]).length || (p.modificaciones||[]).length) return resumen(p);
-    let i = arr.findIndex(x=>x.id===pg.id);
-    if(abonoLigado){ const j = arr.findIndex(x=>x.id===abonoLigado.id); if(j>i) i = j; }
-    if(i<0 || i===arr.length-1) return resumen(p);
-    return resumen(Object.assign({}, p, {pagos: arr.slice(0, i+1)}));
+    const pa = prestamoAlMomentoDelPago(p, pg, abonoLigado, true);
+    if(!pa) return resumen(p);
+    return resumen(pa, pg.fecha || hoyISO());
   }catch(e){ return resumen(p); }
 }
 function resumenAntesDelPago(p, pg, abonoLigado){
-  if((p.ajustesCapital||[]).length || (p.modificaciones||[]).length) return null;
-  const arr = p.pagos || [];
-  let i = arr.findIndex(x=>x.id===pg.id);
-  if(i<0) return null;
-  if(abonoLigado){ const j = arr.findIndex(x=>x.id===abonoLigado.id); if(j>=0 && j<i) i = j; }
-  return resumen(Object.assign({}, p, {pagos: arr.slice(0, i)}));
+  try{
+    const pa = prestamoAlMomentoDelPago(p, pg, abonoLigado, false);
+    if(!pa) return null;
+    return resumen(pa, pg.fecha || hoyISO());
+  }catch(e){ return null; }
 }
 function contextoRecibo(){
   const sel = state.reciboSel || {};
@@ -5174,7 +5218,10 @@ function datosRecibo(c){
   const abonoCap = pg.tipo==="abono_capital" ? (Number(pg.monto)||0) : abono;
   const interes = (pg.interes!=null) ? (Number(pg.interes)||0) : null;
   let moraPend = 0;
-  if(!reciboOpt("excluirMora")){
+  // La mora de hoy solo tiene sentido en el recibo del último pago; en recibos viejos no se
+  // suma, porque no corresponde a lo que había en esa fecha.
+  const esUltimoPago = (p.pagos||[]).length>0 && ((p.pagos[p.pagos.length-1].id===pg.id) || (abonoLigado && p.pagos[p.pagos.length-1].id===abonoLigado.id));
+  if(!reciboOpt("excluirMora") && esUltimoPago){
     try{ moraPend = calcularPendiente(p, resumen(p), false).mora || 0; }catch(e){}
   }
   const det = [];
@@ -5182,12 +5229,12 @@ function datosRecibo(c){
   add("formaPago","FORMA DE PAGO", pg.formaPago || state.config.reciboFormaPago || "Efectivo");
   add("cobrador","COBRADOR", (state.config.reciboCobrador||"").trim());
   add("capital","CAPITAL", capital!==null ? money(capital) : null);
-  add("abonoCapital","ABONO A CAPITAL", abonoCap>0.005 ? money(abonoCap) : null);
   add("interes","INTERÉS", interes!==null && pg.tipo!=="abono_capital" ? money(interes) : null);
+  add("abonoCapital","ABONO A CAPITAL", abonoCap>0.005 ? money(abonoCap) : null);
   add("descuento","DESCUENTO", money(Number(pg.descuento)||0));
   add("mora","MORA", mora>0 ? money(mora) : null, true);
   add("capitalPend","CAPITAL PENDIENTE", money(r.capitalPendiente||0));
-  add("balance","BALANCE PENDIENTE", money((r.saldoPendiente||0) + moraPend));
+  add("balance","SALDO PENDIENTE", money((r.saldoPendiente||0) + moraPend));
   add("proximoPago","PRÓXIMO PAGO", (!pagado && r.proximaFecha) ? fmtFechaCorta(r.proximaFecha) : null);
   add("fechaTermino","FECHA TÉRMINO", (!esIndef && nCuotas) ? fmtFechaCorta(r.tabla[nCuotas-1].fecha) : null);
   return {
