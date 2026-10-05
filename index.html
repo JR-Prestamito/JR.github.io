@@ -5153,7 +5153,6 @@ function datosRecibo(c){
   }
   if(abonoLigado) partes.push("ABONO A CAPITAL");
   let capital = (pg.capital!=null && pg.tipo!=="abono_capital") ? (Number(pg.capital)||0) : null;
-  if(esIndef && capital!==null && capital<0.005) capital = null;
   const abonoCap = pg.tipo==="abono_capital" ? (Number(pg.monto)||0) : abono;
   const interes = (pg.interes!=null) ? (Number(pg.interes)||0) : null;
   let moraPend = 0;
@@ -5230,28 +5229,39 @@ function dibujarReciboCanvas(d){
     y += 54;
     if(dibujar){ fuente(38,true); ctx.fillStyle = GOLD; ctx.textAlign = "center"; ctx.fillText("RECIBO DE PAGO", W/2, y); ctx.textAlign = "left"; }
     y += 66;
-    // encabezado: Recibo No. / Fecha / Préstamo No.
-    const campoLinea = (partes, yy)=>{
+    // encabezado: Recibo No. / Fecha / Préstamo No. (en una sola línea si cabe)
+    const medirLinea = (partes, hp)=>{
+      let t = 0;
+      partes.forEach(([lab, val, extra])=>{
+        fuente(hp,true); t += ctx.measureText(lab).width + 10;
+        fuente(hp,false); t += ctx.measureText(val).width;
+        if(extra){ fuente(Math.round(hp*0.74),false); t += ctx.measureText(" "+extra).width; }
+        t += 36;
+      });
+      return t - 36;
+    };
+    const campoLinea = (partes, yy, hp)=>{
       let x = padX;
       partes.forEach(([lab, val, extra])=>{
-        fuente(26,true); const wl = ctx.measureText(lab).width;
-        fuente(26,false); const wv = ctx.measureText(val).width;
-        let we = 0; if(extra){ fuente(19,false); we = ctx.measureText(" "+extra).width; }
+        fuente(hp,true); const wl = ctx.measureText(lab).width;
+        fuente(hp,false); const wv = ctx.measureText(val).width;
+        const he = Math.round(hp*0.74);
+        let we = 0; if(extra){ fuente(he,false); we = ctx.measureText(" "+extra).width; }
         if(dibujar){
-          fuente(26,true); ctx.fillStyle = INK; ctx.fillText(lab, x, yy);
-          fuente(26,false); ctx.fillText(val, x+wl+10, yy);
-          if(extra){ fuente(19,false); ctx.fillText(" "+extra, x+wl+10+wv, yy); }
+          fuente(hp,true); ctx.fillStyle = INK; ctx.fillText(lab, x, yy);
+          fuente(hp,false); ctx.fillText(val, x+wl+10, yy);
+          if(extra){ fuente(he,false); ctx.fillText(" "+extra, x+wl+10+wv, yy); }
           ctx.fillStyle = INK; ctx.fillRect(x+wl+6, yy+8, wv+we+8, 2);
         }
-        x += wl + wv + we + 40;
+        x += wl + 10 + wv + we + 36;
       });
-      return x - 40 - padX;
     };
     const p1 = [["Recibo No.", d.numero], ["Fecha:", d.fecha, d.hora]];
-    const ancho1 = (()=>{ let t = 0; p1.forEach(([l,v,e])=>{ fuente(26,true); t += ctx.measureText(l).width; fuente(26,false); t += ctx.measureText(v).width + 10; if(e){ fuente(19,false); t += ctx.measureText(" "+e).width; } t += 40; }); return t-40; })();
-    if(ancho1 <= W - 2*padX){ campoLinea(p1, y); y += 56; }
-    else{ campoLinea([p1[0]], y); y += 56; campoLinea([p1[1]], y); y += 56; }
-    campoLinea([["Préstamo No.:", d.prestamo]], y); y += 74;
+    const maxW = W - 2*padX - 8;
+    let hp = 26; while(hp > 19 && medirLinea(p1, hp) > maxW) hp--;
+    if(medirLinea(p1, hp) <= maxW){ campoLinea(p1, y, hp); y += 56; }
+    else{ hp = 26; campoLinea([p1[0]], y, hp); y += 56; campoLinea([p1[1]], y, hp); y += 56; }
+    campoLinea([["Préstamo No.:", d.prestamo]], y, hp); y += 74;
     // principales (con raya)
     d.principales.forEach(it=>{
       fuente(28,true); const wl = ctx.measureText(it.l).width;
@@ -6780,6 +6790,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .rc-det-aj > summary::-webkit-details-marker{display:none;}
   .rc-det-aj > summary::after{content:"▾";font-size:15px;color:#9A7440;transition:transform .15s;}
   .rc-det-aj[open] > summary::after{transform:rotate(180deg);}
+
+  /* Recibo en pantalla: encabezado en una sola línea y filas con más aire (como la imagen de referencia) */
+  .rc-head{font-size:12.5px !important;gap:4px 12px !important;margin-bottom:9px !important;flex-wrap:wrap;}
+  .rc-head > span{white-space:nowrap;}
+  .rc-head small{font-size:9.5px !important;}
+  .rc-big{font-size:15px !important;margin-top:17px !important;}
+  .rc-det{font-size:14px !important;padding:6px 0 !important;}
+  .rc-sep{height:12px !important;}
 </style>
 <div id="aviso-conexion"></div>
 <script>
