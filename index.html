@@ -454,7 +454,7 @@
   html:not([data-theme="dark"]) .fila-inicio{background:#FBF9F4;}
 
   /* ===== Recibo nuevo (siempre sobre papel claro, igual que la imagen que se comparte) ===== */
-  .rc{position:relative;overflow:hidden;background:#fff;color:#1d1d1d;border:1px solid #9A7440;border-radius:6px;padding:18px 14px 16px;font-family:Roboto,"Segoe UI",Arial,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.12);}
+  .rc{position:relative;overflow:hidden;background:#FBF9F4;color:#1d1d1d;border:1px solid #9A7440;border-radius:6px;padding:18px 14px 16px;font-family:Roboto,"Segoe UI",Arial,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.12);}
   .rc *{color:inherit;}
   .rc-wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:54px;font-weight:800;letter-spacing:3px;color:#1B2A4A;opacity:.05;pointer-events:none;white-space:nowrap;}
   .rc-tit{margin:0;text-align:center;font-size:21px;font-weight:700;letter-spacing:.3px;color:#9A7440 !important;}
@@ -5313,7 +5313,7 @@ function refrescarReciboVista(){
   ajustarReciboPantalla();
 }
 // Dibuja el recibo en un canvas (imagen PNG) con el mismo diseño de la pantalla.
-function dibujarReciboCanvas(d){
+function dibujarReciboCanvas(d, sinBorde){
   const W = 720, S = 2, padX = 46, FONT = 'Roboto, "Segoe UI", Arial, sans-serif';
   const GOLD = "#9A7440", INK = "#1d1d1d", GRIS = "#8a8a8a", RAYA = "#d9d9d9", ROJO = "#D9605F";
   const cv = document.createElement("canvas");
@@ -5416,7 +5416,7 @@ function dibujarReciboCanvas(d){
   ctx.font = `800 110px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("PAGADO", 0, 0); ctx.restore();
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   pintar(ctx, true);
-  ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.strokeRect(10, 10, W-20, H-20);
+  if(!sinBorde){ ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.strokeRect(1, 1, W-2, H-2); }
   return cv;
 }
 async function compartirReciboImagen(){
@@ -5474,13 +5474,13 @@ function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
     // Mismo formato que el recibo en pantalla y que la imagen compartida.
     const dImp = datosRecibo({ p, cli, pg, abonoLigado, numRecibo });
     if(contexto==="imprimir" && dImp.firma==="automatico") dImp.firma = "firma";
-    const cv = dibujarReciboCanvas(dImp);
-    // Margen blanco de 4 mm alrededor: las impresoras/visores recortan el borde extremo de la
-    // hoja, y por eso el marco se perdía arriba y abajo. Así el marco completo cae dentro de
-    // la zona imprimible.
-    const Wm = 80, M = 4, Wi = Wm - 2*M, Hi = Wi * cv.height / cv.width;
-    const docImg = new jsPDF({unit:"mm", format:[Wm, Hi + 2*M]});
-    docImg.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", M, M, Wi, Hi);
+    const cv = dibujarReciboCanvas(dImp, true);   // el borde se dibuja aparte, al ras de la hoja
+    const Wm = 80, Hm = Wm * cv.height / cv.width;
+    const docImg = new jsPDF({unit:"mm", format:[Wm, Hm]});
+    docImg.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, Wm, Hm);
+    docImg.setDrawColor(154,116,69); docImg.setLineCap("square");
+    docImg.setLineWidth(0.32); docImg.line(0, 0.16, Wm, 0.16); docImg.line(0.16, 0, 0.16, Hm);          // arriba e izquierda, un poco más finos
+    docImg.setLineWidth(0.5); docImg.line(0, Hm-0.25, Wm, Hm-0.25); docImg.line(Wm-0.25, 0, Wm-0.25, Hm);   // abajo y derecha   // borde a los cuatro lados, lo más afuera posible
     return docImg;
   }
   // Recibo angosto tipo ticket (80mm). El ALTO no es fijo: se mide lo que lleva el recibo y la
