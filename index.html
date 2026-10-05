@@ -454,7 +454,7 @@
   html:not([data-theme="dark"]) .fila-inicio{background:#FBF9F4;}
 
   /* ===== Recibo nuevo (siempre sobre papel claro, igual que la imagen que se comparte) ===== */
-  .rc{position:relative;overflow:hidden;background:#fff;color:#1d1d1d;border-left:6px solid #9A7440;border-right:6px solid #9A7440;border-radius:6px;padding:18px 14px 16px;font-family:Roboto,"Segoe UI",Arial,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.12);}
+  .rc{position:relative;overflow:hidden;background:#fff;color:#1d1d1d;border:1px solid #9A7440;border-radius:6px;padding:18px 14px 16px;font-family:Roboto,"Segoe UI",Arial,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.12);}
   .rc *{color:inherit;}
   .rc-wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:54px;font-weight:800;letter-spacing:3px;color:#1B2A4A;opacity:.05;pointer-events:none;white-space:nowrap;}
   .rc-tit{margin:0;text-align:center;font-size:21px;font-weight:700;letter-spacing:.3px;color:#9A7440 !important;}
@@ -487,6 +487,35 @@
   [data-theme="dark"] .rc-sw input:checked + i{background:#6b5630;}
   [data-theme="dark"] .rc-sw input:checked + i::after{background:#E8C171;}
   [data-theme="dark"] .rc-sw input:not(:checked) + i::after{background:#8a90a0;border-color:#8a90a0;}
+
+  /* ===== Recibo en pantalla sigue el modo oscuro (la imagen/PDF que se comparte sigue en papel claro) ===== */
+  [data-theme="dark"] .rc{background:#1B212C;color:#E3E5EA;border-color:#C9973E;box-shadow:0 2px 10px rgba(0,0,0,.45);}
+  [data-theme="dark"] .rc-wm{color:#fff;opacity:.05;}
+  [data-theme="dark"] .rc-tit{color:#E8C171 !important;}
+  [data-theme="dark"] .rc-neg,[data-theme="dark"] .rc-pie{color:#9AA1AE !important;}
+  [data-theme="dark"] .rc-head u{border-bottom-color:rgba(255,255,255,.35);}
+  [data-theme="dark"] .rc-big span{border-bottom-color:rgba(255,255,255,.18);}
+  [data-theme="dark"] .rc-firma{border-top-color:rgba(255,255,255,.4);}
+  [data-theme="dark"] .rc-det.rojo, [data-theme="dark"] .rc-det.rojo *{color:#F0908A !important;}
+
+  /* ===== Listas desplegables con los colores de la app ===== */
+  html{color-scheme:light;}
+  html[data-theme="dark"]{color-scheme:dark;}
+  .jr-sel-bg{position:fixed;inset:0;z-index:20000;background:rgba(10,14,22,.5);display:flex;align-items:center;justify-content:center;padding:18px;}
+  .jr-sel-box{width:100%;max-width:420px;max-height:76vh;overflow-y:auto;border-radius:18px;background:#FBF9F4;border:1px solid #e5e1d8;box-shadow:0 20px 50px rgba(27,42,74,.28);padding:6px 0;}
+  .jr-sel-opt{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;font-size:16px;line-height:1.35;color:#1B2A4A;cursor:pointer;border-top:1px solid #ece7dc;-webkit-tap-highlight-color:transparent;}
+  .jr-sel-opt:first-child{border-top:none;}
+  .jr-sel-opt:active{background:rgba(201,151,62,.14);}
+  .jr-sel-opt i{flex:none;width:20px;height:20px;border-radius:50%;border:2px solid #b9b2a3;box-sizing:border-box;}
+  .jr-sel-opt.on i{border-color:#C9973E;background:radial-gradient(circle,#C9973E 0 4px,transparent 5px);}
+  .jr-sel-opt.on{font-weight:600;}
+  [data-theme="dark"] .jr-sel-bg{background:rgba(0,0,0,.6);}
+  [data-theme="dark"] .jr-sel-box{background:#1B212C;border-color:rgba(255,255,255,.1);box-shadow:0 20px 50px rgba(0,0,0,.6);}
+  [data-theme="dark"] .jr-sel-opt{color:#D5D8DE;border-top-color:rgba(255,255,255,.08);}
+  [data-theme="dark"] .jr-sel-opt:active{background:rgba(255,255,255,.07);}
+  [data-theme="dark"] .jr-sel-opt i{border-color:#6c7486;}
+  [data-theme="dark"] .jr-sel-opt.on i{border-color:#C9973E;}
+  [data-theme="dark"] .jr-sel-opt.on{color:#E8C171;}
 </style>
 </head>
 <body>
@@ -5387,7 +5416,7 @@ function dibujarReciboCanvas(d){
   ctx.font = `800 110px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("PAGADO", 0, 0); ctx.restore();
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   pintar(ctx, true);
-  ctx.fillStyle = GOLD; ctx.fillRect(0,0,8,H); ctx.fillRect(W-8,0,8,H);
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.strokeRect(10, 10, W-20, H-20);
   return cv;
 }
 async function compartirReciboImagen(){
@@ -5446,9 +5475,12 @@ function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
     const dImp = datosRecibo({ p, cli, pg, abonoLigado, numRecibo });
     if(contexto==="imprimir" && dImp.firma==="automatico") dImp.firma = "firma";
     const cv = dibujarReciboCanvas(dImp);
-    const Wm = 80, Hm = Wm * cv.height / cv.width;
-    const docImg = new jsPDF({unit:"mm", format:[Wm, Hm]});
-    docImg.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, Wm, Hm);
+    // Margen blanco de 4 mm alrededor: las impresoras/visores recortan el borde extremo de la
+    // hoja, y por eso el marco se perdía arriba y abajo. Así el marco completo cae dentro de
+    // la zona imprimible.
+    const Wm = 80, M = 4, Wi = Wm - 2*M, Hi = Wi * cv.height / cv.width;
+    const docImg = new jsPDF({unit:"mm", format:[Wm, Hi + 2*M]});
+    docImg.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", M, M, Wi, Hi);
     return docImg;
   }
   // Recibo angosto tipo ticket (80mm). El ALTO no es fijo: se mide lo que lleva el recibo y la
@@ -5538,6 +5570,7 @@ function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
   const doc = new jsPDF({unit:"mm", format:[W, H]});
   dibujarMarcaAgua(doc, "PAGADO", W, H, 26);
   dibujar(doc);
+  doc.setDrawColor(154,116,64); doc.setLineWidth(0.25); doc.rect(0.8, 0.8, W-1.6, H-1.6);
   return doc;
 }
 // --- Contrato de préstamo (pagaré) ---
@@ -6923,6 +6956,46 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   if("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){
     window.addEventListener("load", function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
   }
+})();
+</script>
+<script>
+/* Selector propio para los <select>: se ve con los colores de la app (claro y oscuro)
+   y dispara el mismo evento "change", así que todo lo demás funciona igual. */
+(function(){
+  function cerrar(){ var b=document.getElementById("jr-sel-bg"); if(b) b.remove(); }
+  function abrir(sel){
+    cerrar();
+    var bg=document.createElement("div"); bg.id="jr-sel-bg"; bg.className="jr-sel-bg";
+    var box=document.createElement("div"); box.className="jr-sel-box"; bg.appendChild(box);
+    Array.prototype.forEach.call(sel.options,function(o,i){
+      if(o.disabled||o.hidden) return;
+      var d=document.createElement("div");
+      d.className="jr-sel-opt"+(i===sel.selectedIndex?" on":"");
+      var t=document.createElement("span"); t.textContent=o.text; d.appendChild(t);
+      d.appendChild(document.createElement("i"));
+      d.addEventListener("click",function(ev){
+        ev.stopPropagation(); cerrar();
+        if(sel.selectedIndex!==i){
+          sel.selectedIndex=i;
+          sel.dispatchEvent(new Event("input",{bubbles:true}));
+          sel.dispatchEvent(new Event("change",{bubbles:true}));
+        }
+      });
+      box.appendChild(d);
+    });
+    bg.addEventListener("click",function(ev){ if(ev.target===bg) cerrar(); });
+    document.body.appendChild(bg);
+    var on=box.querySelector(".on"); if(on&&on.scrollIntoView) on.scrollIntoView({block:"center"});
+  }
+  function esSel(el){ return el && el.tagName==="SELECT" && !el.multiple && !el.disabled && !el.hasAttribute("data-nativo"); }
+  document.addEventListener("mousedown",function(e){ if(esSel(e.target)){ e.preventDefault(); } },true);
+  document.addEventListener("click",function(e){
+    if(esSel(e.target)){ e.preventDefault(); e.stopPropagation(); e.target.blur(); abrir(e.target); }
+  },true);
+  document.addEventListener("keydown",function(e){
+    if(e.key==="Escape") cerrar();
+    else if(esSel(e.target) && (e.key==="Enter"||e.key===" ")){ e.preventDefault(); abrir(e.target); }
+  },true);
 })();
 </script>
 </body>
