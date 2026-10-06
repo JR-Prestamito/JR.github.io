@@ -680,6 +680,7 @@ const _navPrevia = navGuardada();
 window._nf = (_navPrevia && _navPrevia._nf) || null;
 window._rf = (_navPrevia && _navPrevia._rf) || null;
 window._calc = (_navPrevia && _navPrevia._calc) || null;
+window._abiertos = (_navPrevia && _navPrevia.abiertos) || {};
 
 // La app "beta" (una rama separada de esta) guarda el historial de refinanciamientos y
 // modificaciones bajo el nombre p.historialModificaciones, en vez de p.modificaciones como
@@ -734,6 +735,7 @@ let state = {
   vista: (_navPrevia && _navPrevia.vista) || "lista",
   seleccionId: (_navPrevia && _navPrevia.seleccionId) || null,
   clienteEditId: (_navPrevia && _navPrevia.clienteEditId) || null,
+  reciboSel: (_navPrevia && _navPrevia.reciboSel) || null,
   q: "",
   qPrestamos: ""
 };
@@ -741,11 +743,32 @@ let state = {
 // al abrir la app si el modo oscuro está activado.
 document.documentElement.setAttribute("data-theme", state.config.temaOscuro ? "dark" : "light");
   document.documentElement.setAttribute("data-ayudas", state.config.mostrarAyudas ? "on" : "off");
+// Recuerda qué listas (tarjetas desplegables) están abiertas en cada pantalla, para dejarlas
+// abiertas al volver de un recibo y al refrescar.
+document.addEventListener("toggle", function(ev){
+  const d = ev.target;
+  if(!d || d.tagName !== "DETAILS" || !d.closest || !d.closest("#app")) return;
+  const clave = `${state.tab}|${state.vista}|${state.seleccionId||""}`;
+  const todas = document.querySelectorAll("#app details");
+  const abiertas = [];
+  todas.forEach(function(x, i){ if(x.open) abiertas.push(x.getAttribute("data-k") || ("i"+i)); });
+  window._abiertos = window._abiertos || {};
+  window._abiertos[clave] = abiertas;
+  if(typeof guardarNav === "function") guardarNav();
+}, true);
+(function(){
+  let _t = null;
+  window.addEventListener("scroll", function(){
+    clearTimeout(_t);
+    _t = setTimeout(function(){ if(typeof guardarNav === "function") guardarNav(); }, 200);
+  }, {passive:true});
+})();
 function guardarNav(){
   try{
     sessionStorage.setItem(jrKey("jr_nav"), JSON.stringify({
       tab: state.tab, vista: state.vista, seleccionId: state.seleccionId,
-      clienteEditId: state.clienteEditId,
+      clienteEditId: state.clienteEditId, reciboSel: state.reciboSel || null,
+      scroll: window.scrollY || 0, claveScroll: window._claveVistaAnterior || null, abiertos: window._abiertos || {},
       _nf: window._nf || null, _rf: window._rf || null, _calc: window._calc || null
     }));
   }catch(e){}
@@ -1825,7 +1848,23 @@ function render(){
   // todo, no quedar con el scroll que traía la pantalla anterior.
   const claveVista = `${state.tab}|${state.vista}|${state.seleccionId||""}`;
   const mismaVista = window._claveVistaAnterior === claveVista;
+  // Memoria de posición: al salir de una pantalla se guarda dónde ibas, para devolverte ahí
+  // cuando regreses a la lista de esa misma sección (ej. Pagos → un recibo → Volver).
+  window._scrollMem = window._scrollMem || {};
+  const _primerRender = window._claveVistaAnterior === undefined;
+  const _vistaPrev = window._vistaPrev, _tabPrev = window._tabPrev;
+  if(!_primerRender && !mismaVista) window._scrollMem[window._claveVistaAnterior] = scrollY;
+  let _scrollDestino = mismaVista ? scrollY : 0;
+  if(!mismaVista && !_primerRender && _tabPrev === state.tab && state.vista === "lista"
+     && _vistaPrev && _vistaPrev !== "lista" && window._scrollMem[claveVista] != null){
+    _scrollDestino = window._scrollMem[claveVista];
+  }
+  // Refrescar la página: vuelve a la misma pantalla y a la misma posición.
+  if(_primerRender && _navPrevia && _navPrevia.claveScroll === claveVista && _navPrevia.scroll){
+    _scrollDestino = _navPrevia.scroll;
+  }
   window._claveVistaAnterior = claveVista;
+  window._tabPrev = state.tab; window._vistaPrev = state.vista;
 
   const titles = {inicio:"Resumen", clientes:"Clientes", prestamos:"Préstamos", pagos:"Historial de pagos"};
   let html = `<header><div style="display:flex;align-items:center;justify-content:space-between;">
@@ -1935,6 +1974,14 @@ function render(){
   // Eso hacía que, en toda pantalla a la que se llega navegando (como los reportes), las notas
   // largas nunca se recortaran a 2 líneas: el recorte se calculaba sobre la pantalla anterior.
   function despuesDePintar(){
+    // Reabre las listas que estaban abiertas en esta pantalla (antes de restaurar el scroll).
+    (function(){
+      const lst = (window._abiertos || {})[claveVista];
+      if(!lst) return;
+      document.querySelectorAll("#app details").forEach(function(d, i){
+        d.open = lst.indexOf(d.getAttribute("data-k") || ("i"+i)) !== -1;
+      });
+    })();
     ajustarInicioFijo();
     autoTextareasMensajes();
     ajustarReciboPantalla();
@@ -1964,7 +2011,7 @@ function render(){
         }
       }
     }
-    window.scrollTo(0, mismaVista ? scrollY : 0);
+    window.scrollTo(0, _scrollDestino);
     prepararNotasLargas();
     medirEncabezado();
     // El salto a la sección va DESPUÉS de restaurar el scroll (antes iba antes, y el
@@ -6064,7 +6111,7 @@ function viewPagos(){
     const capitalNeto = (p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p))
       + (p.modificaciones||[]).reduce((s,m)=>s+(Number(m.adicional)||0),0);
 
-    return `<details class="tabla-card fila-pago">
+    return `<details class="tabla-card fila-pago" data-k="${p.id}">
       <summary style="padding:12px 16px;">
         <div style="min-width:0;">
           <p style="font-size:15px;font-weight:700;margin:0;">${nombre}</p>
