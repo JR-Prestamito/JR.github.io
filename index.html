@@ -454,14 +454,14 @@
   html:not([data-theme="dark"]) .fila-inicio{background:#FBF9F4;}
 
   /* ===== Recibo nuevo (siempre sobre papel claro, igual que la imagen que se comparte) ===== */
-  .rc{position:relative;overflow:hidden;background:#fff;color:#1d1d1d;border:1px solid #9A7440;border-radius:6px;padding:18px 14px 16px;font-family:Roboto,"Segoe UI",Arial,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.12);}
+  .rc{position:relative;overflow:hidden;background:#FBF9F4;color:#1d1d1d;border:1px solid #9A7440;border-radius:6px;padding:18px 14px 16px;font-family:Roboto,"Segoe UI",Arial,sans-serif;box-shadow:0 2px 10px rgba(0,0,0,.12);}
   .rc *{color:inherit;}
   .rc-wm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);font-size:54px;font-weight:800;letter-spacing:3px;color:#1B2A4A;opacity:.05;pointer-events:none;white-space:nowrap;}
   .rc-tit{margin:0;text-align:center;font-size:21px;font-weight:700;letter-spacing:.3px;color:#9A7440 !important;}
   .rc-neg{margin:2px 0 14px;text-align:center;font-size:11.5px;color:#8a8a8a !important;}
   .rc-head{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:14px;margin-bottom:6px;}
   .rc-head u{text-decoration:none;border-bottom:1px solid #1d1d1d;padding:0 4px;}
-  .rc-head small{font-size:10.5px;}
+  .rc-head small{font-size:12px;}
   .rc-big{display:flex;align-items:baseline;gap:8px;font-size:14.5px;margin-top:12px;}
   .rc-big b{white-space:nowrap;}
   .rc-big span{flex:1;min-width:0;border-bottom:1px solid #d9d9d9;padding-bottom:3px;word-break:break-word;}
@@ -469,7 +469,7 @@
   .rc-det{display:flex;gap:10px;font-size:13.5px;padding:4px 0;}
   .rc-det span:first-child{white-space:nowrap;}
   .rc-det.rojo, .rc-det.rojo *{color:#D9605F !important;}
-  .rc-pie{margin-top:14px;text-align:center;font-size:11px;color:#8a8a8a !important;}
+  .rc-pie{margin-top:14px;text-align:center;font-size:13.5px;color:#8a8a8a !important;}
   .rc-firma{margin:26px auto 4px;width:70%;border-top:1px solid #999;}
 
   .rc-over{position:fixed;inset:0;z-index:9000;background:#fff;overflow-y:auto;-webkit-overflow-scrolling:touch;}
@@ -488,21 +488,15 @@
   [data-theme="dark"] .rc-sw input:checked + i::after{background:#E8C171;}
   [data-theme="dark"] .rc-sw input:not(:checked) + i::after{background:#8a90a0;border-color:#8a90a0;}
 
-  /* ===== Recibo en pantalla: blanco tierno de la app (claro) / oscuro (modo oscuro) ===== */
-  html .rc{background:#FBF9F4;color:#1d1d1d;}
-  /* líneas Recibo No. / Fecha / Préstamo No. un poco más grandes */
-  html .rc-head{font-size:13.5px !important;}
-  html .rc-head small{font-size:12.5px !important;}
-  html .rc-head > span{white-space:nowrap !important;}
-  html .rc{max-width:100%;box-sizing:border-box;}
-  html[data-theme="dark"] .rc{background:#1B212C;color:#E3E5EA;border-color:#C9973E;box-shadow:0 2px 10px rgba(0,0,0,.45);}
-  html[data-theme="dark"] .rc-wm{color:#fff;opacity:.05;}
-  html[data-theme="dark"] .rc-tit{color:#E8C171 !important;}
-  html[data-theme="dark"] .rc-neg,html[data-theme="dark"] .rc-pie{color:#9AA1AE !important;}
-  html[data-theme="dark"] .rc-head u{border-bottom-color:rgba(255,255,255,.35);}
-  html[data-theme="dark"] .rc-big span{border-bottom-color:rgba(255,255,255,.18);}
-  html[data-theme="dark"] .rc-firma{border-top-color:rgba(255,255,255,.4);}
-  html[data-theme="dark"] .rc-det.rojo, html[data-theme="dark"] .rc-det.rojo *{color:#F0908A !important;}
+  /* ===== Recibo en pantalla sigue el modo oscuro (la imagen/PDF que se comparte sigue en papel claro) ===== */
+  [data-theme="dark"] .rc{background:#1B212C;color:#E3E5EA;border-color:#C9973E;box-shadow:0 2px 10px rgba(0,0,0,.45);}
+  [data-theme="dark"] .rc-wm{color:#fff;opacity:.05;}
+  [data-theme="dark"] .rc-tit{color:#E8C171 !important;}
+  [data-theme="dark"] .rc-neg,[data-theme="dark"] .rc-pie{color:#9AA1AE !important;}
+  [data-theme="dark"] .rc-head u{border-bottom-color:rgba(255,255,255,.35);}
+  [data-theme="dark"] .rc-big span{border-bottom-color:rgba(255,255,255,.18);}
+  [data-theme="dark"] .rc-firma{border-top-color:rgba(255,255,255,.4);}
+  [data-theme="dark"] .rc-det.rojo, [data-theme="dark"] .rc-det.rojo *{color:#F0908A !important;}
 
   /* ===== Listas desplegables con los colores de la app ===== */
   html{color-scheme:light;}
@@ -5306,16 +5300,6 @@ function htmlReciboPago(d){
 }
 
 function ajustarReciboPantalla(){
-  // Recibo No. y Fecha en una sola línea: la letra baja solo lo necesario hasta que quepan.
-  (function(){
-    const hs = document.querySelectorAll("#recibo-pago .rc-head");
-    if(!hs.length) return;
-    let fs = 14.5;
-    const poner = function(){ hs.forEach(function(h){ h.style.setProperty("font-size", fs+"px", "important"); h.style.setProperty("gap","4px 10px","important"); }); };
-    poner();
-    const sp = hs[0].children;
-    while(sp.length > 1 && sp[1].offsetTop > sp[0].offsetTop + 2 && fs > 11.5){ fs -= 0.25; poner(); }
-  })();
   document.querySelectorAll("#recibo-pago .rc-big span").forEach(function(el){
     el.style.fontSize = "";
     let fs = parseFloat(getComputedStyle(el).fontSize) || 15;
@@ -5329,7 +5313,7 @@ function refrescarReciboVista(){
   ajustarReciboPantalla();
 }
 // Dibuja el recibo en un canvas (imagen PNG) con el mismo diseño de la pantalla.
-function dibujarReciboCanvas(d, sinMarco){
+function dibujarReciboCanvas(d, sinBorde){
   const W = 720, S = 2, padX = 46, FONT = 'Roboto, "Segoe UI", Arial, sans-serif';
   const GOLD = "#9A7440", INK = "#1d1d1d", GRIS = "#8a8a8a", RAYA = "#d9d9d9", ROJO = "#D9605F";
   const cv = document.createElement("canvas");
@@ -5377,9 +5361,9 @@ function dibujarReciboCanvas(d, sinMarco){
     };
     const p1 = [["Recibo No.", d.numero], ["Fecha:", d.fecha, d.hora]];
     const maxW = W - 2*padX - 8;
-    let hp = 29; while(hp > 21 && medirLinea(p1, hp) > maxW) hp--;
-    if(medirLinea(p1, hp) <= maxW){ campoLinea(p1, y, hp); y += 48; }
-    else{ hp = 29; campoLinea([p1[0]], y, hp); y += 48; campoLinea([p1[1]], y, hp); y += 48; }
+    let hp = 26; while(hp > 19 && medirLinea(p1, hp) > maxW) hp--;
+    if(medirLinea(p1, hp) <= maxW){ campoLinea(p1, y, hp); y += 44; }
+    else{ hp = 26; campoLinea([p1[0]], y, hp); y += 44; campoLinea([p1[1]], y, hp); y += 44; }
     campoLinea([["Préstamo No.:", d.prestamo]], y, hp); y += 80;
     // principales (con raya)
     d.principales.forEach(it=>{
@@ -5411,13 +5395,13 @@ function dibujarReciboCanvas(d, sinMarco){
       y += 24;
       if(dibujar){ ctx.fillStyle = "#999"; ctx.fillRect(W*0.15, y, W*0.7, 2); }
       y += 28;
-      if(dibujar){ fuente(19,false); ctx.fillStyle = GRIS; ctx.textAlign = "center"; ctx.fillText("Firma de quien recibe el pago", W/2, y); ctx.textAlign = "left"; }
-      y += 34;
+      if(dibujar){ fuente(24,false); ctx.fillStyle = GRIS; ctx.textAlign = "center"; ctx.fillText("Firma de quien recibe el pago", W/2, y); ctx.textAlign = "left"; }
+      y += 40;
     } else if(d.firma!=="ninguno"){
-      if(dibujar){ fuente(19,false); ctx.fillStyle = GRIS; ctx.textAlign = "center"; ctx.fillText("Recibo válido sin firma.", W/2, y); ctx.textAlign = "left"; }
-      y += 30;
+      if(dibujar){ fuente(24,false); ctx.fillStyle = GRIS; ctx.textAlign = "center"; ctx.fillText("Recibo válido sin firma.", W/2, y); ctx.textAlign = "left"; }
+      y += 38;
     }
-    if(dibujar){ fuente(19,false); ctx.fillStyle = GRIS; ctx.textAlign = "center"; ctx.fillText("Gracias por su pago.", W/2, y); ctx.textAlign = "left"; }
+    if(dibujar){ fuente(24,false); ctx.fillStyle = GRIS; ctx.textAlign = "center"; ctx.fillText("Gracias por su pago.", W/2, y); ctx.textAlign = "left"; }
     y += 46;
     return y;
   };
@@ -5432,7 +5416,7 @@ function dibujarReciboCanvas(d, sinMarco){
   ctx.font = `800 110px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("PAGADO", 0, 0); ctx.restore();
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   pintar(ctx, true);
-  if(!sinMarco){ ctx.strokeStyle = GOLD; ctx.lineWidth = 2.5; ctx.strokeRect(3, 3, W-6, H-6); }
+  if(!sinBorde){ ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.strokeRect(1, 1, W-2, H-2); }
   return cv;
 }
 async function compartirReciboImagen(){
@@ -5490,16 +5474,13 @@ function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
     // Mismo formato que el recibo en pantalla y que la imagen compartida.
     const dImp = datosRecibo({ p, cli, pg, abonoLigado, numRecibo });
     if(contexto==="imprimir" && dImp.firma==="automatico") dImp.firma = "firma";
-    const cv = dibujarReciboCanvas(dImp, true);
-    // Margen blanco de 4 mm alrededor: las impresoras/visores recortan el borde extremo de la
-    // hoja, y por eso el marco se perdía arriba y abajo. Así el marco completo cae dentro de
-    // la zona imprimible.
-    const Wm = 80, M = 0, Wi = Wm - 2*M, Hi = Wi * cv.height / cv.width;
-    const docImg = new jsPDF({unit:"mm", format:[Wm, Hi + 2*M]});
-    docImg.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", M, M, Wi, Hi);
-    // Marco dorado como línea vectorial del PDF (no se pierde al reducir/imprimir, ni a la derecha)
-    docImg.setDrawColor(154,116,64); docImg.setLineWidth(0.25);
-    docImg.rect(0.35, 0.35, Wm - 0.7, Hi + 2*M - 0.7);
+    const cv = dibujarReciboCanvas(dImp, true);   // el borde se dibuja aparte, al ras de la hoja
+    const Wm = 80, Hm = Wm * cv.height / cv.width;
+    const docImg = new jsPDF({unit:"mm", format:[Wm, Hm]});
+    docImg.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, Wm, Hm);
+    docImg.setDrawColor(154,116,69); docImg.setLineCap("square");
+    docImg.setLineWidth(0.32); docImg.line(0, 0.16, Wm, 0.16); docImg.line(0.16, 0, 0.16, Hm);          // arriba e izquierda, un poco más finos
+    docImg.setLineWidth(0.5); docImg.line(0, Hm-0.25, Wm, Hm-0.25); docImg.line(Wm-0.25, 0, Wm-0.25, Hm);   // abajo y derecha   // borde a los cuatro lados, lo más afuera posible
     return docImg;
   }
   // Recibo angosto tipo ticket (80mm). El ALTO no es fijo: se mide lo que lleva el recibo y la
@@ -6345,8 +6326,7 @@ function licDeviceId(){
 async function licVerificar(clave){
   const deviceId = licDeviceId();
   let data;
-  // Sin internet: no se espera ni se intenta la conexión (así abre al instante, sin quedarse
-  // en "Verificando licencia…").
+  // Sin internet: no se espera ni se intenta la conexión (abre al instante).
   if(typeof navigator !== "undefined" && navigator.onLine === false){
     return { ok:false, red:true, motivo:"No se pudo conectar para verificar la licencia. Revisa tu conexión a internet e intenta de nuevo." };
   }
@@ -6443,8 +6423,7 @@ async function licArrancar(){
     // No se pudo conectar: si se validó bien hace poco, se deja seguir trabajando sin
     // internet dentro de un margen de días; pasado ese margen, hace falta conexión.
     let ultimaOk = Number(localStorage.getItem("jrp_licencia_ok_ts") || 0);
-    // Licencias activadas antes de que existiera esta marca de fecha: se parte desde hoy
-    // en vez de bloquear la app de golpe.
+    // Licencias activadas antes de que existiera esta marca de fecha: se parte desde hoy.
     if(!ultimaOk){ ultimaOk = Date.now(); localStorage.setItem("jrp_licencia_ok_ts", String(ultimaOk)); }
     const diasSinValidar = (Date.now() - ultimaOk) / (1000*60*60*24);
     if(ultimaOk && diasSinValidar < LIC_DIAS_GRACIA){
@@ -6934,7 +6913,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   /* Recibo en pantalla: encabezado en una sola línea y filas con más aire (como la imagen de referencia) */
   .rc-head{font-size:12.5px !important;gap:4px 12px !important;margin-bottom:9px !important;flex-wrap:wrap;}
   .rc-head > span{white-space:nowrap;}
-  .rc-head small{font-size:9.5px !important;}
+  .rc-head small{font-size:12px !important;}
   .rc-big{font-size:15px !important;margin-top:17px !important;}
   .rc-det{font-size:14px !important;padding:6px 0 !important;}
   .rc-sep{height:12px !important;}
