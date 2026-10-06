@@ -33,7 +33,9 @@ self.addEventListener("fetch", function(e){
             .then(function(r){ if(!listo){ listo = true; resolve(r || Response.error()); } });
         };
         const t = setTimeout(usarCopia, 4000);
-        fetch(req).then(function(resp){
+        // cache:"no-cache" obliga al navegador a preguntarle al servidor si hay version nueva,
+        // asi una actualizacion se ve al abrir la app y no unos minutos despues.
+        fetch(req, {cache:"no-cache"}).then(function(resp){
           clearTimeout(t);
           if(resp && resp.ok){
             const copia = resp.clone();
