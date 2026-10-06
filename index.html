@@ -762,6 +762,71 @@ document.addEventListener("toggle", function(ev){
   window._abiertos[clave] = abiertas;
   if(typeof guardarNav === "function") guardarNav();
 }, true);
+// ===== Tamaño de letra (por dispositivo, no viaja a la nube) =====
+// La app define casi todos los tamaños en píxeles, así que en vez de tocar uno por uno se
+// multiplica cada font-size en px (hojas de estilo y estilos en línea) por un factor.
+// Los recibos que se imprimen o se envían se dibujan aparte y NO cambian.
+const TL_FACTORES = { pequena:0.92, normal:1, grande:1.12, muygrande:1.25 };
+function tlActual(){ try{ return localStorage.getItem(jrKey("jr_tamano_letra")) || "normal"; }catch(e){ return "normal"; } }
+function tlFactor(){ return TL_FACTORES[tlActual()] || 1; }
+function tlEscalarHojas(){
+  const f = tlFactor();
+  if(window._tlHojaF === f) return;
+  window._tlHojaF = f;
+  const rec = function(rules){
+    for(let i=0; i<rules.length; i++){
+      const r = rules[i];
+      if(r.type === 1 && r.style){
+        const v = r.style.getPropertyValue("font-size");
+        if(r._fs0 === undefined){
+          if(!/^[\d.]+px$/.test(v)) { if(r.cssRules && r.cssRules.length) rec(r.cssRules); continue; }
+          r._fs0 = parseFloat(v); r._pri = r.style.getPropertyPriority("font-size");
+        }
+        r.style.setProperty("font-size", (r._fs0*f).toFixed(2)+"px", r._pri);
+        if(r.cssRules && r.cssRules.length) rec(r.cssRules);
+      } else if(r.cssRules){
+        if(r.type === 4 && /print/.test(r.media.mediaText)) continue;
+        rec(r.cssRules);
+      }
+    }
+  };
+  for(let i=0; i<document.styleSheets.length; i++){
+    try{ rec(document.styleSheets[i].cssRules); }catch(e){}
+  }
+}
+function tlEscalarInline(raiz){
+  const f = tlFactor();
+  (raiz || document).querySelectorAll('[style*="font-size"]').forEach(function(el){
+    if(el.closest && el.closest(".rc-big")) return;   // lo ajusta ajustarReciboPantalla
+    const v = el.style.fontSize;
+    if(el.dataset.fs0 === undefined){
+      if(f === 1 || !/px$/.test(v)) return;
+      el.dataset.fs0 = parseFloat(v);
+    } else if(v !== el.dataset.fsApl){
+      if(!/px$/.test(v)) return;
+      el.dataset.fs0 = parseFloat(v);
+    }
+    const pri = el.style.getPropertyPriority("font-size");
+    el.style.setProperty("font-size", (parseFloat(el.dataset.fs0)*f).toFixed(2)+"px", pri);
+    el.dataset.fsApl = el.style.fontSize;
+  });
+}
+function aplicarTamanoLetra(){ tlEscalarHojas(); tlEscalarInline(document); }
+function cambiarTamanoLetra(v){
+  try{ localStorage.setItem(jrKey("jr_tamano_letra"), v); }catch(e){}
+  aplicarTamanoLetra();
+  render();
+}
+(function(){
+  let t = null;
+  function iniciar(){
+    if(!document.body) return;
+    new MutationObserver(function(){
+      clearTimeout(t); t = setTimeout(function(){ tlEscalarInline(document); }, 40);
+    }).observe(document.body, { childList:true, subtree:true });
+  }
+  if(document.body) iniciar(); else document.addEventListener("DOMContentLoaded", iniciar);
+})();
 (function(){
   let _t = null;
   window.addEventListener("scroll", function(){
@@ -1589,7 +1654,17 @@ function toggleMenuOpciones(id){
     if(el.id !== "menu-panel-"+id) el.classList.remove("abierto");
   });
   const panel = document.getElementById("menu-panel-"+id);
-  if(panel) panel.classList.toggle("abierto");
+  if(panel){
+    panel.classList.toggle("abierto");
+    if(panel.classList.contains("abierto")){
+      // Alto máximo = lo que queda libre entre el menú y la barra de abajo.
+      const tabbar = document.querySelector("#app > .tabbar");
+      const limite = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
+      const alto = limite - panel.getBoundingClientRect().top - 12;
+      if(alto > 120) panel.style.maxHeight = alto + "px";
+      panel.scrollTop = 0;
+    }
+  }
 }
 function cerrarMenuOpciones(id){
   const panel = document.getElementById("menu-panel-"+id);
@@ -1935,6 +2010,7 @@ function render(){
       { icono: ICONS.alertcirc, texto:"Mora por atraso", onclick: "abrirAjustes('sec-mora')" },
       { icono: ICONS.calculator, texto:"Zona horaria", onclick: "abrirAjustes('sec-zona')" },
       { icono: ICONS.calculator, texto:"Moneda", onclick: "abrirAjustes('sec-moneda')" },
+      { icono: ICONS.edit, texto:"Tamaño de letra", onclick: "abrirAjustes('sec-letra')" },
       { icono: ICONS.refinance, texto:"Umbral de modificación (NIF)", onclick: "abrirAjustes('sec-umbral')" },
       { icono: ICONS.share, texto:"Compartir copia protegida", onclick: "abrirAjustes('sec-copia')" },
     ]);
@@ -1991,6 +2067,7 @@ function render(){
         d.open = abrir;
       });
     })();
+    aplicarTamanoLetra();
     ajustarInicioFijo();
     autoTextareasMensajes();
     ajustarReciboPantalla();
@@ -3714,6 +3791,19 @@ function viewAjustes(){
       </select>
     </label>
     <p class="hint" style="margin:0;">Ejemplo: ${money(1234.5)}</p>
+  </div>
+  <div class="row-card" style="display:block;" id="sec-letra">
+    <p style="font-weight:600;margin:0 0 4px;">Tamaño de letra</p>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">Cambia el tamaño del texto en toda la app. Los recibos que se imprimen o se envían no cambian. Se guarda solo en este celular.</p>
+    <label style="margin-bottom:6px;"><span>Tamaño</span>
+      <select id="f_tamanoLetra" onchange="cambiarTamanoLetra(this.value)">
+        <option value="pequena" ${tlActual()==="pequena"?"selected":""}>Pequeña</option>
+        <option value="normal" ${tlActual()==="normal"?"selected":""}>Normal</option>
+        <option value="grande" ${tlActual()==="grande"?"selected":""}>Grande</option>
+        <option value="muygrande" ${tlActual()==="muygrande"?"selected":""}>Muy grande</option>
+      </select>
+    </label>
+    <p class="hint" style="margin:0;">Así se ve el texto con este tamaño.</p>
   </div>
   <div class="row-card" style="display:block;" id="sec-umbral">
     <p style="font-weight:600;margin:0 0 4px;">Umbral de modificación sustancial (NIF)</p>
@@ -7009,6 +7099,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .tabla-card.fila-pago[open] > summary{background:rgba(201,151,62,.10);}
   [data-theme="dark"] .tabla-card.fila-pago[open]{border-left-color:#E8C171 !important;border-right-color:#E8C171 !important;box-shadow:0 3px 12px rgba(0,0,0,.45) !important;}
   [data-theme="dark"] .tabla-card.fila-pago[open] > summary{background:rgba(232,193,113,.09);}
+
+  /* Menú ⋮: si no cabe (letra grande, celular bajo), la lista se desliza dentro del propio menú */
+  .menu-opciones-panel{max-height:calc(100dvh - 190px);overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;}
 </style>
 <div id="aviso-conexion"></div>
 <script>
