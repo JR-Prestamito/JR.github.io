@@ -748,6 +748,12 @@ document.documentElement.setAttribute("data-theme", state.config.temaOscuro ? "d
 document.addEventListener("toggle", function(ev){
   const d = ev.target;
   if(!d || d.tagName !== "DETAILS" || !d.closest || !d.closest("#app")) return;
+  // Solo una sección abierta a la vez: al abrir una, se cierran las otras de su misma lista.
+  if(d.open && d.parentElement){
+    Array.prototype.forEach.call(d.parentElement.children, function(x){
+      if(x !== d && x.tagName === "DETAILS" && x.open) x.open = false;
+    });
+  }
   const clave = `${state.tab}|${state.vista}|${state.seleccionId||""}`;
   const todas = document.querySelectorAll("#app details");
   const abiertas = [];
@@ -1978,8 +1984,11 @@ function render(){
     (function(){
       const lst = (window._abiertos || {})[claveVista];
       if(!lst) return;
+      const conAbierta = [];
       document.querySelectorAll("#app details").forEach(function(d, i){
-        d.open = lst.indexOf(d.getAttribute("data-k") || ("i"+i)) !== -1;
+        let abrir = lst.indexOf(d.getAttribute("data-k") || ("i"+i)) !== -1;
+        if(abrir){ if(conAbierta.indexOf(d.parentElement) !== -1) abrir = false; else conAbierta.push(d.parentElement); }
+        d.open = abrir;
       });
     })();
     ajustarInicioFijo();
@@ -6994,6 +7003,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   /* Recibo en pantalla: Recibido de / Monto / Concepto siempre en una sola línea (la letra se ajusta) */
   .rc-big span{white-space:nowrap !important;overflow:hidden;word-break:normal !important;}
+
+  /* Sección abierta: se identifica con borde dorado más marcado */
+  .tabla-card.fila-pago[open]{border-left:1.5px solid #B89552 !important;border-right:1.5px solid #B89552 !important;box-shadow:0 3px 12px rgba(184,149,82,.25) !important;}
+  .tabla-card.fila-pago[open] > summary{background:rgba(201,151,62,.10);}
+  [data-theme="dark"] .tabla-card.fila-pago[open]{border-left-color:#E8C171 !important;border-right-color:#E8C171 !important;box-shadow:0 3px 12px rgba(0,0,0,.45) !important;}
+  [data-theme="dark"] .tabla-card.fila-pago[open] > summary{background:rgba(232,193,113,.09);}
 </style>
 <div id="aviso-conexion"></div>
 <script>
