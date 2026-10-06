@@ -766,6 +766,7 @@ document.addEventListener("toggle", function(ev){
 // La app define casi todos los tamaños en píxeles, así que en vez de tocar uno por uno se
 // multiplica cada font-size en px (hojas de estilo y estilos en línea) por un factor.
 // Los recibos que se imprimen o se envían se dibujan aparte y NO cambian.
+const TL_RECIBO = /\.rc(-(wm|tit|neg|head|big|sep|det|pie|firma))?(?![\w-])/;
 const TL_FACTORES = { pequena:0.92, normal:1, grande:1.12, muygrande:1.25 };
 function tlActual(){ try{ return localStorage.getItem(jrKey("jr_tamano_letra")) || "normal"; }catch(e){ return "normal"; } }
 function tlFactor(){ return TL_FACTORES[tlActual()] || 1; }
@@ -777,6 +778,8 @@ function tlEscalarHojas(){
     for(let i=0; i<rules.length; i++){
       const r = rules[i];
       if(r.type === 1 && r.style){
+        // El recibo en pantalla conserva siempre su tamaño (si no, se desordena).
+        if(TL_RECIBO.test(r.selectorText || "")) continue;
         const v = r.style.getPropertyValue("font-size");
         if(r._fs0 === undefined){
           if(!/^[\d.]+px$/.test(v)) { if(r.cssRules && r.cssRules.length) rec(r.cssRules); continue; }
@@ -797,7 +800,7 @@ function tlEscalarHojas(){
 function tlEscalarInline(raiz){
   const f = tlFactor();
   (raiz || document).querySelectorAll('[style*="font-size"]').forEach(function(el){
-    if(el.closest && el.closest(".rc-big")) return;   // lo ajusta ajustarReciboPantalla
+    if(el.closest && el.closest("#recibo-pago, .rc")) return;   // el recibo en pantalla no cambia con el tamaño de letra
     const v = el.style.fontSize;
     if(el.dataset.fs0 === undefined){
       if(f === 1 || !/px$/.test(v)) return;
