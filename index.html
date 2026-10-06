@@ -491,8 +491,10 @@
   /* ===== Recibo en pantalla: blanco tierno de la app (claro) / oscuro (modo oscuro) ===== */
   html .rc{background:#FBF9F4;color:#1d1d1d;}
   /* líneas Recibo No. / Fecha / Préstamo No. un poco más grandes */
-  html .rc-head{font-size:14.5px !important;}
-  html .rc-head small{font-size:11px !important;}
+  html .rc-head{font-size:13.5px !important;}
+  html .rc-head small{font-size:12.5px !important;}
+  html .rc-head > span{white-space:nowrap !important;}
+  html .rc{max-width:100%;box-sizing:border-box;}
   html[data-theme="dark"] .rc{background:#1B212C;color:#E3E5EA;border-color:#C9973E;box-shadow:0 2px 10px rgba(0,0,0,.45);}
   html[data-theme="dark"] .rc-wm{color:#fff;opacity:.05;}
   html[data-theme="dark"] .rc-tit{color:#E8C171 !important;}
@@ -5304,6 +5306,16 @@ function htmlReciboPago(d){
 }
 
 function ajustarReciboPantalla(){
+  // Recibo No. y Fecha en una sola línea: la letra baja solo lo necesario hasta que quepan.
+  (function(){
+    const hs = document.querySelectorAll("#recibo-pago .rc-head");
+    if(!hs.length) return;
+    let fs = 14.5;
+    const poner = function(){ hs.forEach(function(h){ h.style.setProperty("font-size", fs+"px", "important"); h.style.setProperty("gap","4px 10px","important"); }); };
+    poner();
+    const sp = hs[0].children;
+    while(sp.length > 1 && sp[1].offsetTop > sp[0].offsetTop + 2 && fs > 11.5){ fs -= 0.25; poner(); }
+  })();
   document.querySelectorAll("#recibo-pago .rc-big span").forEach(function(el){
     el.style.fontSize = "";
     let fs = parseFloat(getComputedStyle(el).fontSize) || 15;
@@ -5317,7 +5329,7 @@ function refrescarReciboVista(){
   ajustarReciboPantalla();
 }
 // Dibuja el recibo en un canvas (imagen PNG) con el mismo diseño de la pantalla.
-function dibujarReciboCanvas(d){
+function dibujarReciboCanvas(d, sinMarco){
   const W = 720, S = 2, padX = 46, FONT = 'Roboto, "Segoe UI", Arial, sans-serif';
   const GOLD = "#9A7440", INK = "#1d1d1d", GRIS = "#8a8a8a", RAYA = "#d9d9d9", ROJO = "#D9605F";
   const cv = document.createElement("canvas");
@@ -5342,7 +5354,7 @@ function dibujarReciboCanvas(d){
       partes.forEach(([lab, val, extra])=>{
         fuente(hp,true); t += ctx.measureText(lab).width + 10;
         fuente(hp,false); t += ctx.measureText(val).width;
-        if(extra){ fuente(Math.round(hp*0.74),false); t += ctx.measureText(" "+extra).width; }
+        if(extra){ fuente(Math.round(hp*0.86),false); t += ctx.measureText(" "+extra).width; }
         t += 36;
       });
       return t - 36;
@@ -5352,7 +5364,7 @@ function dibujarReciboCanvas(d){
       partes.forEach(([lab, val, extra])=>{
         fuente(hp,true); const wl = ctx.measureText(lab).width;
         fuente(hp,false); const wv = ctx.measureText(val).width;
-        const he = Math.round(hp*0.74);
+        const he = Math.round(hp*0.86);
         let we = 0; if(extra){ fuente(he,false); we = ctx.measureText(" "+extra).width; }
         if(dibujar){
           fuente(hp,true); ctx.fillStyle = INK; ctx.fillText(lab, x, yy);
@@ -5420,7 +5432,7 @@ function dibujarReciboCanvas(d){
   ctx.font = `800 110px ${FONT}`; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("PAGADO", 0, 0); ctx.restore();
   ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
   pintar(ctx, true);
-  ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.strokeRect(5, 5, W-10, H-10);
+  if(!sinMarco){ ctx.strokeStyle = GOLD; ctx.lineWidth = 2.5; ctx.strokeRect(3, 3, W-6, H-6); }
   return cv;
 }
 async function compartirReciboImagen(){
@@ -5478,13 +5490,16 @@ function generarReciboPDF(p, cli, pg, r, numRecibo, contexto, abonoLigado){
     // Mismo formato que el recibo en pantalla y que la imagen compartida.
     const dImp = datosRecibo({ p, cli, pg, abonoLigado, numRecibo });
     if(contexto==="imprimir" && dImp.firma==="automatico") dImp.firma = "firma";
-    const cv = dibujarReciboCanvas(dImp);
+    const cv = dibujarReciboCanvas(dImp, true);
     // Margen blanco de 4 mm alrededor: las impresoras/visores recortan el borde extremo de la
     // hoja, y por eso el marco se perdía arriba y abajo. Así el marco completo cae dentro de
     // la zona imprimible.
     const Wm = 80, M = 0, Wi = Wm - 2*M, Hi = Wi * cv.height / cv.width;
     const docImg = new jsPDF({unit:"mm", format:[Wm, Hi + 2*M]});
     docImg.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", M, M, Wi, Hi);
+    // Marco dorado como línea vectorial del PDF (no se pierde al reducir/imprimir, ni a la derecha)
+    docImg.setDrawColor(154,116,64); docImg.setLineWidth(0.25);
+    docImg.rect(0.35, 0.35, Wm - 0.7, Hi + 2*M - 0.7);
     return docImg;
   }
   // Recibo angosto tipo ticket (80mm). El ALTO no es fijo: se mide lo que lleva el recibo y la
@@ -6330,8 +6345,17 @@ function licDeviceId(){
 async function licVerificar(clave){
   const deviceId = licDeviceId();
   let data;
+  // Sin internet: no se espera ni se intenta la conexión (así abre al instante, sin quedarse
+  // en "Verificando licencia…").
+  if(typeof navigator !== "undefined" && navigator.onLine === false){
+    return { ok:false, red:true, motivo:"No se pudo conectar para verificar la licencia. Revisa tu conexión a internet e intenta de nuevo." };
+  }
+  // Con wifi pero sin internet real, el fetch podía quedarse colgado; se corta a los 8 s.
+  const ctl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+  const tmo = ctl ? setTimeout(function(){ ctl.abort(); }, 8000) : null;
   try{
     const resp = await fetch(`${LIC_SUPABASE_URL}/rest/v1/rpc/verificar_licencia`, {
+      signal: ctl ? ctl.signal : undefined,
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -6342,7 +6366,9 @@ async function licVerificar(clave){
     });
     if(!resp.ok) throw new Error("http " + resp.status);
     data = await resp.json();
+    if(tmo) clearTimeout(tmo);
   } catch(e){
+    if(tmo) clearTimeout(tmo);
     return { ok:false, red:true, motivo:"No se pudo conectar para verificar la licencia. Revisa tu conexión a internet e intenta de nuevo." };
   }
   if(data === "ok") return { ok:true };
@@ -6416,7 +6442,10 @@ async function licArrancar(){
   if(r.red){
     // No se pudo conectar: si se validó bien hace poco, se deja seguir trabajando sin
     // internet dentro de un margen de días; pasado ese margen, hace falta conexión.
-    const ultimaOk = Number(localStorage.getItem("jrp_licencia_ok_ts") || 0);
+    let ultimaOk = Number(localStorage.getItem("jrp_licencia_ok_ts") || 0);
+    // Licencias activadas antes de que existiera esta marca de fecha: se parte desde hoy
+    // en vez de bloquear la app de golpe.
+    if(!ultimaOk){ ultimaOk = Date.now(); localStorage.setItem("jrp_licencia_ok_ts", String(ultimaOk)); }
     const diasSinValidar = (Date.now() - ultimaOk) / (1000*60*60*24);
     if(ultimaOk && diasSinValidar < LIC_DIAS_GRACIA){
       licQuitarPantalla();
