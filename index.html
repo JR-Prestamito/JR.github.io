@@ -4974,7 +4974,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "16.1";
+const JR_VERSION = "16.0";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -5090,14 +5090,32 @@ function textoCuentas(cli){
     return t;
   }).join("\n");
 }
+function resumenCuenta(c){
+  let t = String(c.cuenta||"").trim() ? "Cuenta " + String(c.cuenta).trim() : "Sin número todavía";
+  if(String(c.titular||"").trim()) t += " · " + String(c.titular).trim();
+  return jrEscapeHtml(t);
+}
 function agregarCuenta(){
-  (state.config.cuentasBancarias = state.config.cuentasBancarias || []).push({ banco:"", cuenta:"", titular:"" });
+  (state.config.cuentasBancarias = state.config.cuentasBancarias || []).push({ id: "c" + Math.random().toString(36).slice(2, 8), banco:"", cuenta:"", titular:"" });
   save(); render();
+  // la cuenta nueva queda abierta para llenarla (las demás se cierran solas)
+  const ds = document.querySelectorAll("details.cuenta-det");
+  const d = ds[ds.length - 1];
+  if(d){
+    ds.forEach(function(x){ if(x !== d) x.open = false; });   // cierra las demás aquí mismo (evita que una reabierta por el refresco cierre la nueva)
+    d.open = true;
+    const inp = d.querySelector("input"); if(inp && inp.focus) inp.focus();
+  }
 }
 function editarCuenta(i, campo, valor){
   const a = state.config.cuentasBancarias || [];
   if(a[i]) a[i][campo] = valor;
   save();
+  const det = document.querySelector('details.cuenta-det[data-i="' + i + '"]');
+  if(det && a[i]){
+    const t = det.querySelector(".cta-t"), sm = det.querySelector(".cta-s");
+    if(t && sm){ t.firstChild.nodeValue = String(a[i].banco||"").trim() || "Banco sin nombre"; sm.innerHTML = resumenCuenta(a[i]); }
+  }
   if(typeof actualizarPreviewMensajes === "function") actualizarPreviewMensajes();
 }
 function quitarCuenta(i){
@@ -5108,12 +5126,16 @@ function quitarCuenta(i){
 function cuentasCardHtml(){
   const cs = state.config.cuentasBancarias || [];
   const filas = cs.map(function(c, i){
-    return `<div class="cuenta-fila">
-      <input placeholder="Banco (ej. Atlántida)" value="${jrEscapeHtml(c.banco||"")}" oninput="editarCuenta(${i},'banco',this.value)">
-      <input placeholder="Número de cuenta" inputmode="numeric" value="${jrEscapeHtml(c.cuenta||"")}" oninput="editarCuenta(${i},'cuenta',this.value)">
-      <input placeholder="A nombre de (opcional)" value="${jrEscapeHtml(c.titular||"")}" oninput="editarCuenta(${i},'titular',this.value)">
-      <button class="btn btn-outline" onclick="quitarCuenta(${i})">Quitar esta cuenta</button>
-    </div>`;
+    if(!c.id) c.id = "c" + Math.random().toString(36).slice(2, 8);
+    return `<details class="cuenta-det" data-k="cta-${c.id}" data-i="${i}">
+      <summary><span class="cta-t">${jrEscapeHtml(String(c.banco||"").trim() || "Banco sin nombre")}<small class="cta-s">${resumenCuenta(c)}</small></span></summary>
+      <div class="cuenta-fila">
+        <input placeholder="Banco (ej. Atlántida)" value="${jrEscapeHtml(c.banco||"")}" oninput="editarCuenta(${i},'banco',this.value)">
+        <input placeholder="Número de cuenta" inputmode="numeric" value="${jrEscapeHtml(c.cuenta||"")}" oninput="editarCuenta(${i},'cuenta',this.value)">
+        <input placeholder="A nombre de (opcional)" value="${jrEscapeHtml(c.titular||"")}" oninput="editarCuenta(${i},'titular',this.value)">
+        <button class="btn btn-outline" onclick="quitarCuenta(${i})">Quitar esta cuenta</button>
+      </div>
+    </details>`;
   }).join("");
   const n = cs.length;
   return `<div class="row-card" style="display:block;" id="sec-cuentas">
@@ -7352,6 +7374,24 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .cuentas-det[open]>summary::after{transform:rotate(-90deg);}
   .cuentas-cuerpo{margin-top:10px;}
   [data-theme="dark"] .cuentas-det>summary small{color:#9AA1AE;}
+  .cuenta-det{border:1px solid rgba(27,42,74,.14);border-radius:12px;margin-bottom:10px;}
+  .cuenta-det>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;font-weight:600;border-radius:12px;-webkit-tap-highlight-color:transparent;}
+  .cuenta-det>summary::-webkit-details-marker{display:none;}
+  .cuenta-det>summary small{display:block;font-weight:400;font-size:12px;color:#7a7f8c;margin-top:2px;}
+  .cuenta-det>summary::after{content:"›";font-size:22px;line-height:1;color:#B89552;transform:rotate(90deg);transition:transform .2s;flex:none;}
+  .cuenta-det[open]>summary::after{transform:rotate(-90deg);}
+  .cuenta-det .cuenta-fila{border:0;padding:2px 12px 12px;margin:0;}
+  /* Lo seleccionado (abierto) se marca con borde dorado en cada nivel, aunque esté dentro de otra sección */
+  .cuenta-det[open]{border-color:#B89552;box-shadow:0 3px 10px rgba(184,149,82,.22);}
+  .cuenta-det[open]>summary{background:rgba(201,151,62,.10);}
+  .row-card:has(> .cuentas-det[open]){border-color:#B89552 !important;box-shadow:0 3px 12px rgba(184,149,82,.25);}
+  .cuentas-det[open]>summary{color:#8a6a2c;}
+  [data-theme="dark"] .cuenta-det{border-color:rgba(255,255,255,.12);}
+  [data-theme="dark"] .cuenta-det>summary small{color:#9AA1AE;}
+  [data-theme="dark"] .cuenta-det[open]{border-color:#E8C171;box-shadow:0 3px 10px rgba(0,0,0,.45);}
+  [data-theme="dark"] .cuenta-det[open]>summary{background:rgba(232,193,113,.09);}
+  [data-theme="dark"] .row-card:has(> .cuentas-det[open]){border-color:#E8C171 !important;}
+  [data-theme="dark"] .cuentas-det[open]>summary{color:#E8C171;}
   .cuenta-fila{border:1px solid rgba(27,42,74,.14);border-radius:12px;padding:10px;margin-bottom:10px;display:grid;gap:8px;}
   [data-theme="dark"] .cuenta-fila{border-color:rgba(255,255,255,.12);}
 </style>
