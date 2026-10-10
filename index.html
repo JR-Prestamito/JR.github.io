@@ -833,6 +833,7 @@ function cambiarTamanoLetra(v){
 (function(){
   let _t = null;
   window.addEventListener("scroll", function(){
+    if(window.scrollX > 0) window.scrollTo(0, window.scrollY);   // nunca de lado
     clearTimeout(_t);
     _t = setTimeout(function(){ if(typeof guardarNav === "function") guardarNav(); }, 200);
   }, {passive:true});
@@ -5017,16 +5018,23 @@ if("serviceWorker" in navigator){
   });
 }
 // Agrupa las tarjetas de Ajustes en 5 grupos plegables (solo se mueven de lugar; nada se vuelve a crear).
+const AJ_SVG = {
+  general:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
+  cobros:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2.2 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/><line x1="12" y1="5" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="19"/></svg>',
+  recibos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 20l1.1-5.1A8.4 8.4 0 1 1 21 11.5z"/></svg>',
+  datos:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.3A7 7 0 1 0 4 15.3 4.5 4.5 0 0 0 6.5 20H18a5 5 0 0 0 0-10z"/></svg>',
+  seguridad:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
+};
 const AJ_GRUPOS = [
-  { k:"ajg-general", t:"General", d:"Negocio, apariencia, letra, zona horaria y moneda",
+  { k:"ajg-general", t:"General", d:"Negocio, apariencia, letra, zona horaria y moneda", i:"general", c:"59,111,176",
     ids:["sec-nombre-negocio","sec-apariencia","sec-letra","sec-zona","sec-moneda"] },
-  { k:"ajg-cobros", t:"Cobros y préstamos", d:"Mora, plazo, modificaciones y reportes",
+  { k:"ajg-cobros", t:"Cobros y préstamos", d:"Mora, plazo, modificaciones y reportes", i:"cobros", c:"63,138,94",
     ids:["sec-mora","sec-plazo","sec-umbral","sec-reportes"] },
-  { k:"ajg-recibos", t:"Recibos y mensajes", d:"Recibo, WhatsApp, mis cuentas y mensajes de cobro",
+  { k:"ajg-recibos", t:"Recibos y mensajes", d:"Recibo, WhatsApp, mis cuentas y mensajes de cobro", i:"recibos", c:"184,149,82",
     ids:["sec-recibo","sec-whatsapp","sec-cuentas","sec-msg-recordatorio","sec-msg-pendiente"] },
-  { k:"ajg-datos", t:"Datos y nube", d:"Sincronizar, respaldo y copia protegida",
+  { k:"ajg-datos", t:"Datos y nube", d:"Sincronizar, respaldo y copia protegida", i:"datos", c:"47,143,163",
     ids:["sec-sync","sec-respaldo","sec-copia"] },
-  { k:"ajg-seguridad", t:"Seguridad", d:"Clave de acceso y huella",
+  { k:"ajg-seguridad", t:"Seguridad", d:"Clave de acceso y huella", i:"seguridad", c:"192,86,74",
     ids:["sec-clave"] }
 ];
 function agruparAjustes(){
@@ -5048,7 +5056,7 @@ function agruparAjustes(){
     const det = document.createElement("details");
     det.className = "aj-grupo"; det.setAttribute("data-k", g.k);
     const sum = document.createElement("summary");
-    sum.innerHTML = "<span>"+g.t+"<small>"+g.d+"</small></span>";
+    sum.innerHTML = '<span class="aj-ico" style="--cc:'+g.c+'">'+AJ_SVG[g.i]+'</span><span class="aj-tx">'+g.t+'<small>'+g.d+'</small></span>';
     const cuerpo = document.createElement("div"); cuerpo.className = "aj-grupo-cuerpo";
     tarjetas.forEach(function(t){ cuerpo.appendChild(t); });
     det.appendChild(sum); det.appendChild(cuerpo);
@@ -6818,8 +6826,7 @@ async function licArrancar(){
   licPedirClave(r.motivo);
 }
 
-render();
-if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
+licArrancar();
 </script>
 <script type="text/plain" id="lib-jspdf">/** @license
  *
@@ -7395,6 +7402,28 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   [data-theme="dark"] .cuentas-det[open]>summary{color:#E8C171;}
   .cuenta-fila{border:1px solid rgba(27,42,74,.14);border-radius:12px;padding:10px;margin-bottom:10px;display:grid;gap:8px;}
   [data-theme="dark"] .cuenta-fila{border-color:rgba(255,255,255,.12);}
+
+  /* ===== Sin movimiento hacia los lados (scroll lateral) ===== */
+  html, body{overflow-x:clip;max-width:100%;}
+  #app, .row-card, .aj-grupo, .aj-grupo-cuerpo{max-width:100%;box-sizing:border-box;}
+  .row-card, .aj-grupo, .aj-grupo-cuerpo{min-width:0;}
+  select, input, textarea{max-width:100%;}
+  /* El interruptor oculto de cada opción del recibo quedaba sin ubicación fija; al tocarlo el navegador
+     "corría" la pantalla hacia un lado para mostrarlo. Ahora queda dentro de su propia fila. */
+  .rc-sw{position:relative;}
+  .rc-sw input{left:0;top:0;width:1px;height:1px;}
+
+  /* ===== Ajustes: más aire e iconos por grupo (solo esta pantalla) ===== */
+  .aj-grupo{margin:0 0 16px;border-radius:18px;}
+  .aj-grupo>summary{justify-content:flex-start;gap:14px;padding:16px;font-size:16px;}
+  .aj-grupo>summary .aj-tx{flex:1;min-width:0;}
+  .aj-grupo>summary small{font-size:12.5px;line-height:1.3;margin-top:3px;}
+  .aj-ico{flex:none;width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:rgba(var(--cc),.15);color:rgb(var(--cc));}
+  .aj-ico svg{width:22px;height:22px;}
+  [data-theme="dark"] .aj-ico{background:rgba(var(--cc),.22);}
+  .aj-grupo-cuerpo{padding:2px 12px 8px;}
+  .aj-grupo-cuerpo > .row-card{margin-bottom:14px;padding:16px;}
+  .aj-grupo-cuerpo .nota-ayuda{font-size:12.5px;line-height:1.5;opacity:.85;}
 </style>
 <div id="aviso-conexion"></div>
 <script>
