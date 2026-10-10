@@ -6818,7 +6818,8 @@ async function licArrancar(){
   licPedirClave(r.motivo);
 }
 
-licArrancar();
+render();
+if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
 </script>
 <script type="text/plain" id="lib-jspdf">/** @license
  *
