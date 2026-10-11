@@ -736,6 +736,7 @@ let state = {
   seleccionId: (_navPrevia && _navPrevia.seleccionId) || null,
   clienteEditId: (_navPrevia && _navPrevia.clienteEditId) || null,
   reciboSel: (_navPrevia && _navPrevia.reciboSel) || null,
+  _ajGrupo: (_navPrevia && _navPrevia.ajGrupo) || null,
   q: "",
   qPrestamos: ""
 };
@@ -842,7 +843,7 @@ function guardarNav(){
   try{
     sessionStorage.setItem(jrKey("jr_nav"), JSON.stringify({
       tab: state.tab, vista: state.vista, seleccionId: state.seleccionId,
-      clienteEditId: state.clienteEditId, reciboSel: state.reciboSel || null,
+      clienteEditId: state.clienteEditId, reciboSel: state.reciboSel || null, ajGrupo: state._ajGrupo || null,
       scroll: window.scrollY || 0, claveScroll: window._claveVistaAnterior || null, abiertos: window._abiertos || {},
       _nf: window._nf || null, _rf: window._rf || null, _calc: window._calc || null
     }));
@@ -1983,9 +1984,9 @@ function render(){
     html += `<button class="backbtn" onclick="state.vista='lista'; render();">‹</button>`;
   }
   if(state.tab==="inicio" && state.vista==="ajustes"){
-    html += `<button class="backbtn" onclick="state.vista='lista'; render();">‹</button>`;
+    html += `<button class="backbtn" onclick="volverDeAjustesPantalla()">‹</button>`;
   }
-  const tituloAjustes = state.tab==="inicio" && (state.vista==="ajustes"||state.vista==="ajustesClave") ? "Ajustes" : null;
+  const tituloAjustes = state.tab==="inicio" && (state.vista==="ajustes"||state.vista==="ajustesClave") ? ((state.vista==="ajustes" && estiloAjustes()==="pantallas" && state._ajGrupo && grupoAjustesPorClave(state._ajGrupo)) ? grupoAjustesPorClave(state._ajGrupo).t : "Ajustes") : null;
   const tituloReporte = state.tab==="inicio" && state.vista==="reportePDF" ? "Reporte para PDF" : null;
   const tituloResultados = state.tab==="inicio" && state.vista==="estadoResultados" ? "Estado de resultados" : null;
   const tituloModificaciones = state.tab==="inicio" && state.vista==="reporteModificaciones" ? "Modificaciones y refinanciamientos" : null;
@@ -3515,6 +3516,8 @@ function abrirAjustes(seccion){
   state._errorClaveAjustes = false;
   state._huellaAjustesYaIntentada = false;
   state._irSeccion = seccion || null;
+  state._ajGrupo = null;
+  if(seccion && estiloAjustes() === "pantallas"){ const g = AJ_GRUPOS.filter(function(x){ return x.ids.indexOf(seccion) !== -1; })[0]; if(g) state._ajGrupo = g.k; }
   render();
 }
 async function usarHuellaAjustes(){
@@ -3815,6 +3818,7 @@ function viewAjustes(){
     </label>
     <p class="hint" style="margin:0;">Ejemplo: ${money(1234.5)}</p>
   </div>
+  ${estiloAjustesCardHtml()}
   <div class="row-card" style="display:block;" id="sec-letra">
     <p style="font-weight:600;margin:0 0 4px;">Tamaño de letra</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Cambia el tamaño del texto en toda la app. Los recibos que se imprimen o se envían no cambian. Se guarda solo en este celular.</p>
@@ -5027,7 +5031,7 @@ const AJ_SVG = {
 };
 const AJ_GRUPOS = [
   { k:"ajg-general", t:"General", d:"Negocio, apariencia, letra, zona horaria y moneda", i:"general", c:"59,111,176",
-    ids:["sec-nombre-negocio","sec-apariencia","sec-letra","sec-zona","sec-moneda"] },
+    ids:["sec-nombre-negocio","sec-apariencia","sec-letra","sec-estilo-ajustes","sec-zona","sec-moneda"] },
   { k:"ajg-cobros", t:"Cobros y préstamos", d:"Mora, plazo, modificaciones y reportes", i:"cobros", c:"63,138,94",
     ids:["sec-mora","sec-plazo","sec-umbral","sec-reportes"] },
   { k:"ajg-recibos", t:"Recibos y mensajes", d:"Recibo, WhatsApp, mis cuentas y mensajes de cobro", i:"recibos", c:"184,149,82",
@@ -5037,7 +5041,51 @@ const AJ_GRUPOS = [
   { k:"ajg-seguridad", t:"Seguridad", d:"Clave de acceso y huella", i:"seguridad", c:"192,86,74",
     ids:["sec-clave"] }
 ];
-function agruparAjustes(){
+function grupoAjustesPorClave(k){ return AJ_GRUPOS.filter(function(g){ return g.k === k; })[0] || null; }
+function abrirGrupoAjustes(k){ state._ajGrupo = k; render(); window.scrollTo(0, 0); }
+function volverDeAjustesPantalla(){
+  if(state._ajGrupo && estiloAjustes() === "pantallas"){ state._ajGrupo = null; render(); window.scrollTo(0, 0); }
+  else { state.vista = "lista"; render(); }
+}
+// Ajustes como menú: una lista corta de secciones; cada una abre su propia pantalla.
+// Las tarjetas se crean igual que siempre; aquí solo se reparten (las de otras pantallas quedan ocultas).
+function agruparAjustesPantallas(){
+  if(state.vista !== "ajustes") return;
+  const app = document.getElementById("app");
+  if(!app || app.querySelector(".aj-menu, .aj-pan")) return;
+  const todas = [];
+  AJ_GRUPOS.forEach(function(g){ g.ids.forEach(function(id){ const e = document.getElementById(id); if(e) todas.push(e); }); });
+  if(!todas.length) return;
+  let primera = todas[0];
+  todas.forEach(function(e){ if(e.compareDocumentPosition(primera) & Node.DOCUMENT_POSITION_FOLLOWING) primera = e; });
+  const ancla = document.createComment("ajustes");
+  primera.parentNode.insertBefore(ancla, primera);
+  const frag = document.createDocumentFragment();
+  const elegido = state._ajGrupo || null;
+  const menu = document.createElement("div"); menu.className = "aj-menu";
+  AJ_GRUPOS.forEach(function(g){
+    const tarjetas = g.ids.map(function(id){ return document.getElementById(id); }).filter(Boolean);
+    if(!tarjetas.length) return;
+    const fila = document.createElement("button");
+    fila.type = "button"; fila.className = "aj-fila";
+    fila.setAttribute("onclick", "abrirGrupoAjustes('" + g.k + "')");
+    fila.innerHTML = '<span class="aj-ico" style="--cc:'+g.c+'">'+AJ_SVG[g.i]+'</span><span class="aj-tx">'+g.t+'<small>'+g.d+'</small></span>';
+    menu.appendChild(fila);
+    const pan = document.createElement("div");
+    pan.className = "aj-pan"; pan.setAttribute("data-k", g.k);
+    if(elegido !== g.k) pan.hidden = true;
+    tarjetas.forEach(function(t){ pan.appendChild(t); });
+    frag.appendChild(pan);
+  });
+  if(!elegido) frag.insertBefore(menu, frag.firstChild);
+  ancla.parentNode.insertBefore(frag, ancla);
+  ancla.remove();
+  if(!elegido){
+    const ult = app.querySelectorAll(".aj-pan"), u = ult[ult.length-1];
+    if(u && !document.getElementById("aj-version")) u.insertAdjacentHTML("afterend", '<p id="aj-version">JR Prestamito · versión ' + JR_VERSION + '</p>');
+  }
+}
+function agruparAjustesPlegables(){
   if(state.vista !== "ajustes") return;
   const app = document.getElementById("app");
   if(!app || app.querySelector("details.aj-grupo")) return;
@@ -5069,6 +5117,29 @@ function agruparAjustes(){
     ult[ult.length-1].insertAdjacentHTML("afterend", '<p id="aj-version">JR Prestamito · versión ' + JR_VERSION + '</p>');
   }
 }
+// ===== Estilo de Ajustes (se elige en Ajustes > General; se guarda solo en este celular) =====
+function estiloAjustes(){
+  try{ return localStorage.getItem(jrKey("jr_estilo_ajustes")) === "pantallas" ? "pantallas" : "plegables"; }catch(e){ return "plegables"; }
+}
+function cambiarEstiloAjustes(v){
+  try{ localStorage.setItem(jrKey("jr_estilo_ajustes"), v); }catch(e){}
+  state._ajGrupo = (v === "pantallas") ? "ajg-general" : null;   // te deja en General, donde está esta opción
+  render();
+}
+function estiloAjustesCardHtml(){
+  const e = estiloAjustes();
+  return `<div class="row-card" style="display:block;" id="sec-estilo-ajustes">
+    <p style="font-weight:600;margin:0 0 4px;">Estilo de Ajustes</p>
+    <p class="hint nota-ayuda" style="margin:0 0 10px;">Elige cómo se ve esta pantalla. Se guarda solo en este celular.</p>
+    <label style="margin-bottom:0;"><span>Estilo</span>
+      <select id="f_estiloAjustes" onchange="cambiarEstiloAjustes(this.value)">
+        <option value="plegables" ${e==="plegables"?"selected":""}>Grupos plegables (todo en una pantalla)</option>
+        <option value="pantallas" ${e==="pantallas"?"selected":""}>Menú por pantallas (una pantalla por sección)</option>
+      </select>
+    </label>
+  </div>`;
+}
+function agruparAjustes(){ return estiloAjustes() === "pantallas" ? agruparAjustesPantallas() : agruparAjustesPlegables(); }
 // ===== Cuentas bancarias por banco del cliente =====
 // El cliente tiene un campo "Banco que usa". En los mensajes, la palabra {cuentas} se reemplaza
 // por tus cuentas de ESE banco; si el cliente no tiene banco anotado (o no coincide con ninguna
@@ -7390,15 +7461,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .cuenta-det[open]>summary::after{transform:rotate(-90deg);}
   .cuenta-det .cuenta-fila{border:0;padding:2px 12px 12px;margin:0;}
   /* Lo seleccionado (abierto) se marca con borde dorado en cada nivel, aunque esté dentro de otra sección */
-  .cuenta-det[open]{border-color:#B89552;box-shadow:0 3px 10px rgba(184,149,82,.22);}
   .cuenta-det[open]>summary{background:rgba(201,151,62,.10);}
-  .row-card:has(> .cuentas-det[open]){border-color:#B89552 !important;box-shadow:0 3px 12px rgba(184,149,82,.25);}
   .cuentas-det[open]>summary{color:#8a6a2c;}
   [data-theme="dark"] .cuenta-det{border-color:rgba(255,255,255,.12);}
   [data-theme="dark"] .cuenta-det>summary small{color:#9AA1AE;}
-  [data-theme="dark"] .cuenta-det[open]{border-color:#E8C171;box-shadow:0 3px 10px rgba(0,0,0,.45);}
   [data-theme="dark"] .cuenta-det[open]>summary{background:rgba(232,193,113,.09);}
-  [data-theme="dark"] .row-card:has(> .cuentas-det[open]){border-color:#E8C171 !important;}
   [data-theme="dark"] .cuentas-det[open]>summary{color:#E8C171;}
   .cuenta-fila{border:1px solid rgba(27,42,74,.14);border-radius:12px;padding:10px;margin-bottom:10px;display:grid;gap:8px;}
   [data-theme="dark"] .cuenta-fila{border-color:rgba(255,255,255,.12);}
@@ -7414,16 +7481,39 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .rc-sw input{left:0;top:0;width:1px;height:1px;}
 
   /* ===== Ajustes: más aire e iconos por grupo (solo esta pantalla) ===== */
-  .aj-grupo{margin:0 0 16px;border-radius:18px;}
-  .aj-grupo>summary{justify-content:flex-start;gap:14px;padding:16px;font-size:16px;}
+  .aj-grupo{margin:0 0 14px;border-radius:18px;}
+  .aj-grupo>summary{justify-content:flex-start;gap:13px;padding:15px 16px;font-size:15.5px;}
   .aj-grupo>summary .aj-tx{flex:1;min-width:0;}
-  .aj-grupo>summary small{font-size:12.5px;line-height:1.3;margin-top:3px;}
+  .aj-grupo>summary small{font-size:12.25px;line-height:1.3;margin-top:2.5px;}
   .aj-ico{flex:none;width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:rgba(var(--cc),.15);color:rgb(var(--cc));}
   .aj-ico svg{width:22px;height:22px;}
   [data-theme="dark"] .aj-ico{background:rgba(var(--cc),.22);}
-  .aj-grupo-cuerpo{padding:2px 12px 8px;}
-  .aj-grupo-cuerpo > .row-card{margin-bottom:14px;padding:16px;}
+  .aj-grupo-cuerpo{padding:1px 11px 6px;}
+  .aj-grupo-cuerpo > .row-card{margin-bottom:11px;padding:14px;}
   .aj-grupo-cuerpo .nota-ayuda{font-size:12.5px;line-height:1.5;opacity:.85;}
+
+  /* ===== Ajustes como menú de lista (una pantalla por sección) ===== */
+  .aj-menu{display:grid;gap:11px;margin:0 0 14px;}
+  .aj-fila{display:flex;align-items:center;gap:13px;width:100%;box-sizing:border-box;text-align:left;padding:15px 16px;border:1px solid rgba(27,42,74,.14);border-radius:18px;background:rgba(255,255,255,.55);color:#1B2A4A;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .aj-fila:active{background:rgba(201,151,62,.12);}
+  .aj-fila .aj-tx{flex:1;min-width:0;font-weight:700;font-size:15.5px;}
+  .aj-fila small{display:block;font-weight:400;font-size:12.25px;line-height:1.3;color:#7a7f8c;margin-top:2.5px;}
+  .aj-fila::after{content:"›";font-size:26px;line-height:1;color:#B89552;flex:none;}
+  [data-theme="dark"] .aj-fila{border-color:rgba(255,255,255,.1);background:rgba(255,255,255,.03);color:#E3E5EA;}
+  [data-theme="dark"] .aj-fila small{color:#9AA1AE;}
+  [data-theme="dark"] .aj-fila:active{background:rgba(232,193,113,.1);}
+  .aj-pan[hidden]{display:none !important;}
+  .aj-pan > .row-card{margin-bottom:11px;padding:14px;}
+  .aj-pan .nota-ayuda{font-size:12.5px;line-height:1.5;opacity:.85;}
+
+  /* Lo seleccionado (abierto): título dorado + fondo tenue; sin bordes. Solo el borde del grupo completo se queda. */
+  .aj-grupo[open] > summary{background:rgba(201,151,62,.10);color:#8a6a2c;border-radius:18px 18px 0 0;}
+  .cuentas-det > summary{padding:8px 10px;margin:-8px -10px 0;border-radius:12px;}
+  .cuentas-det[open] > summary{background:rgba(201,151,62,.10);color:#8a6a2c;}
+  .cuenta-det[open] > summary{color:#8a6a2c;}
+  [data-theme="dark"] .aj-grupo[open] > summary{background:rgba(232,193,113,.09);color:#E8C171;}
+  [data-theme="dark"] .cuentas-det[open] > summary{background:rgba(232,193,113,.09);color:#E8C171;}
+  [data-theme="dark"] .cuenta-det[open] > summary{color:#E8C171;}
 </style>
 <div id="aviso-conexion"></div>
 <script>
