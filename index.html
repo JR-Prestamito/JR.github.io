@@ -635,8 +635,12 @@ function confirmarConClave(mensaje, cb, opciones){
   }, opciones);
 }
 const METODOS = ["Francés (cuota fija)","Alemán (cuota decreciente)","Tasa plana (interés fijo)","Capital al final (bullet)","Sistema Americano (puro)","Indefinido (solo interés)"];
-const PERIODOS = ["Semanal","Quincenal","Mensual"];
-const DIAS_PERIODO = { Semanal:7, Quincenal:15, Mensual:30 };
+const PERIODOS = ["Semanal","Quincenal","Mensual","Semestral","Anual"];
+// Días "nominales" de cada período (se usan para el interés diario de una liquidación anticipada).
+const DIAS_PERIODO = { Semanal:7, Quincenal:15, Mensual:30, Semestral:182, Anual:365 };
+// Semestral y Anual se cuentan en MESES de calendario (6 y 12), así las cuotas caen el mismo día del
+// mes (ej. 15 de marzo y 15 de septiembre) y no se corren un par de días.
+const MESES_PERIODO = { Semestral:6, Anual:12 };
 
 // Cada instalación guarda sus datos por separado según la RUTA donde vive (no solo el
 // dominio). Esto es clave si alojas dos negocios distintos bajo el mismo dominio, por
@@ -1191,6 +1195,16 @@ function addDays(dateStr, days){
   d.setDate(d.getDate()+days);
   return d.toISOString().slice(0,10);
 }
+function addMonths(dateStr, meses){
+  const d = new Date(dateStr + "T00:00:00");
+  const dia = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + meses);
+  const ultimo = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();   // si el mes es más corto, cae el último día
+  d.setDate(Math.min(dia, ultimo));
+  const mm = String(d.getMonth() + 1).padStart(2, "0"), dd = String(d.getDate()).padStart(2, "0");
+  return d.getFullYear() + "-" + mm + "-" + dd;
+}
 function fmtDate(dateStr){
   if(!dateStr) return "—";
   const d = new Date(dateStr + "T00:00:00");
@@ -1276,9 +1290,10 @@ function generarTabla(p){
   // quieres que la primera cuota caiga en una fecha específica (fin de mes, día de pago del
   // cliente, etc.) en vez de "un período exacto después". Las cuotas siguientes siempre
   // caen cada "dias" después de esa primera.
+  const mesesP = MESES_PERIODO[p.periodo] || 0;
   const fechaCuota = p.fechaPrimeraCuota
-    ? (i => addDays(p.fechaPrimeraCuota, dias*(i-1)))
-    : (i => addDays(p.fechaInicio, dias*i - offsetDia1));
+    ? (i => mesesP ? addMonths(p.fechaPrimeraCuota, mesesP*(i-1)) : addDays(p.fechaPrimeraCuota, dias*(i-1)))
+    : (i => mesesP ? addDays(addMonths(p.fechaInicio, mesesP*i), -offsetDia1) : addDays(p.fechaInicio, dias*i - offsetDia1));
   const filas = [];
   if(p.metodo === METODOS[0]){ // Francés (cuota fija)
     const cuotaFija = n===0 ? 0 : (tasa===0 ? capital/n : (capital*tasa)/(1-Math.pow(1+tasa,-n)));
@@ -1377,9 +1392,10 @@ function generarTablaDinamica(p){
   // Misma regla que generarTabla(): si p.fechaPrimeraCuota está fijada a mano, se respeta
   // aquí también (antes esta tabla "dinámica" —la que se usa cuando el préstamo tiene
   // abonos extra a capital— la ignoraba y siempre calculaba la fecha sola).
+  const mesesP = MESES_PERIODO[p.periodo] || 0;
   const fechaCuota = p.fechaPrimeraCuota
-    ? (i => addDays(p.fechaPrimeraCuota, dias*(i-1)))
-    : (i => addDays(p.fechaInicio, dias*i - offsetDia1));
+    ? (i => mesesP ? addMonths(p.fechaPrimeraCuota, mesesP*(i-1)) : addDays(p.fechaPrimeraCuota, dias*(i-1)))
+    : (i => mesesP ? addDays(addMonths(p.fechaInicio, mesesP*i), -offsetDia1) : addDays(p.fechaInicio, dias*i - offsetDia1));
   const metodo = p.metodo;
   const esIndef = metodo === METODOS[5];
   const nOriginal = Number(p.cuotas)||0;
@@ -3766,7 +3782,7 @@ function viewAjustes(){
   <div class="row-card" style="display:block;" id="sec-msg-recordatorio">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de recordatorio (WhatsApp / SMS)</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp" o "Recordar por SMS" en Cartera vencida. Puedes usar estas palabras entre llaves y la app las reemplaza solas: <b>{nombre}</b> (nombre y un apellido del cliente), <b>{nombre_completo}</b>, <b>{primer_nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{monto}</b> (total vencido, sumando todas las cuotas atrasadas y la mora si aplica), <b>{cuotas}</b> (cantidad de cuotas vencidas, ej. "2 cuotas"), <b>{fecha}</b>, <b>{dias}</b>, <b>{negocio}</b> o <b>{nombre del negocio}</b> (tu nombre del negocio de Ajustes).</p>
-    <details class="chips-det" ${(state._chipsOpen||{}).f_mensajeRecordatorio?"open":""} ontoggle="(state._chipsOpen=state._chipsOpen||{}).f_mensajeRecordatorio=this.open"><summary>Palabras para insertar</summary><div class="chips-var"><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{nombre}\')">Nombre</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuentas}\')">Cuentas</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{nombre del negocio}\')">Negocio</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{codigo}\')">Código</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuota}\')">Cuota</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{monto}\')">Monto</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuotas}\')">Cuotas</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{fecha}\')">Fecha</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{dias}\')">Días</button></div></details><label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="2" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajeRecordatorio=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajeRecordatorio||PLANTILLA_RECORDATORIO_DEFECTO)}</textarea></label>
+    <details class="chips-det" ${(state._chipsOpen||{}).f_mensajeRecordatorio?"open":""} ontoggle="(state._chipsOpen=state._chipsOpen||{}).f_mensajeRecordatorio=this.open"><summary>Palabras para insertar</summary><div class="chips-var"><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{nombre}\')">Nombre</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuentas}\')">Cuentas</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'\\n\')">↵ Salto de línea</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{nombre del negocio}\')">Negocio</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{codigo}\')">Código</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuota}\')">Cuota</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{monto}\')">Monto</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{cuotas}\')">Cuotas</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{fecha}\')">Fecha</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajeRecordatorio\',\'{dias}\')">Días</button></div></details><label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajeRecordatorio" rows="3" enterkeyhint="enter" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajeRecordatorio=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajeRecordatorio||PLANTILLA_RECORDATORIO_DEFECTO)}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> <span id="prev_recordatorio">${mensajeRecordatorio({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()}, 3, {monto:3000, mora:90, nVenc:2})}</span></p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajeRecordatorio=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
@@ -3774,7 +3790,7 @@ function viewAjustes(){
   <div class="row-card" style="display:block;" id="sec-msg-pendiente">
     <p style="font-weight:600;margin:0 0 4px;">Mensaje de pendiente de cobro (1 día antes)</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Este es el mensaje que se manda al presionar "Recordar por WhatsApp/SMS" en Cartera vencida, en la sección "Pendientes de cobro" (cuotas que vencen mañana, todavía no están atrasadas). Usa las mismas palabras entre llaves: <b>{nombre}</b> (nombre y un apellido del cliente), <b>{nombre_completo}</b>, <b>{primer_nombre}</b>, <b>{codigo}</b>, <b>{cuota}</b>, <b>{fecha}</b>, <b>{negocio}</b> o <b>{nombre del negocio}</b> (tu nombre del negocio de Ajustes).</p>
-    <details class="chips-det" ${(state._chipsOpen||{}).f_mensajePendiente?"open":""} ontoggle="(state._chipsOpen=state._chipsOpen||{}).f_mensajePendiente=this.open"><summary>Palabras para insertar</summary><div class="chips-var"><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{nombre}\')">Nombre</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{nombre del negocio}\')">Negocio</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{codigo}\')">Código</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{cuota}\')">Cuota</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{cuentas}\')">Cuentas</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{fecha}\')">Fecha</button></div></details><label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="2" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajePendiente=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajePendiente||PLANTILLA_PENDIENTE_DEFECTO)}</textarea></label>
+    <details class="chips-det" ${(state._chipsOpen||{}).f_mensajePendiente?"open":""} ontoggle="(state._chipsOpen=state._chipsOpen||{}).f_mensajePendiente=this.open"><summary>Palabras para insertar</summary><div class="chips-var"><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{nombre}\')">Nombre</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{nombre del negocio}\')">Negocio</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{codigo}\')">Código</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{cuota}\')">Cuota</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{cuentas}\')">Cuentas</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'\\n\')">↵ Salto de línea</button><button type="button" class="chip-var" onpointerdown="event.preventDefault()" onclick="insertarVariable(\'f_mensajePendiente\',\'{fecha}\')">Fecha</button></div></details><label style="margin-bottom:8px;"><span>Mensaje</span><textarea id="f_mensajePendiente" rows="3" enterkeyhint="enter" autocapitalize="sentences" spellcheck="false" oninput="state.config.mensajePendiente=this.value; save(); actualizarPreviewMensajes();">${jrEscapeHtml(state.config.mensajePendiente||PLANTILLA_PENDIENTE_DEFECTO)}</textarea></label>
     <p class="hint" style="margin:0 0 10px;"><b>Vista previa:</b> <span id="prev_pendiente">${mensajePendiente({codigo:"P-0001"}, {nombre:"María López"}, {cuotaActual:null, cuota:1500, proximaFecha:hoyISO()})}</span></p>
     <button class="btn btn-outline" onclick="mostrarConfirmacion('¿Volver al mensaje original?', function(ok){ if(ok){ state.config.mensajePendiente=''; save(); render(); } })">Restablecer mensaje original</button>
   </div>`}
@@ -7380,7 +7396,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .rc-det{padding:4px 0 !important;}
   .rc-sep{height:8px !important;}
   /* Recordatorios: textarea que se ajusta al texto + palabras plegables */
-  #f_mensajeRecordatorio,#f_mensajePendiente{resize:none;overflow:hidden;min-height:64px;}
+  #f_mensajeRecordatorio,#f_mensajePendiente{resize:none;overflow:hidden;min-height:64px;white-space:pre-wrap;}
+  #prev_recordatorio,#prev_pendiente{white-space:pre-wrap;display:block;margin-top:4px;}
   .chips-det{margin:0 0 8px;}
   .chips-det > summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:12.5px;font-weight:600;color:#8A6416;padding:4px 0;}
   .chips-det > summary::-webkit-details-marker{display:none;}
