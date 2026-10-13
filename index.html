@@ -1987,6 +1987,9 @@ function render(){
   if(state.tab==="inicio" && state.vista==="estadoResultados"){
     html += `<button class="backbtn" onclick="volverDeReporte()">‹</button>`;
   }
+  if(state.tab==="inicio" && state.vista==="estadisticas"){
+    html += `<button class="backbtn" onclick="state.vista='lista'; render(); window.scrollTo(0,0);">‹</button>`;
+  }
   if(state.tab==="inicio" && state.vista==="reporteModificaciones"){
     html += `<button class="backbtn" onclick="volverDeReporte()">‹</button>`;
   }
@@ -2008,16 +2011,18 @@ function render(){
   const tituloModificaciones = state.tab==="inicio" && state.vista==="reporteModificaciones" ? "Modificaciones y refinanciamientos" : null;
   const tituloDesembolsos = state.tab==="inicio" && state.vista==="reporteDesembolsos" ? "Reporte de desembolsos" : null;
   const tituloHistorialPagos = state.tab==="inicio" && state.vista==="reporteHistorialPagos" ? "Historial de pagos" : null;
+  const tituloEstadisticas = state.tab==="inicio" && state.vista==="estadisticas" ? "Estadísticas" : null;
   const tituloNuevoPrestamo = state.tab==="prestamos" && state.vista==="nuevo" ? ((window._nf && window._nf.editId) ? `Editando ${window._nf.codigo}` : "Nuevo préstamo") : null;
   const tituloNuevoCliente = state.tab==="clientes" && state.vista==="nuevo" ? (state.clienteEditId ? "Editar cliente" : "Nuevo cliente") : null;
   const tituloCalculadora = state.tab==="prestamos" && state.vista==="calculadora" ? "Calculadora" : null;
   const tituloContrato = state.tab==="prestamos" && state.vista==="contrato" ? "Contrato de préstamo" : null;
   document.title = nombreApp();
-  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="prestamos"&&state.vista==="colaRecordatorio"?"Enviar recordatorios":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloAjustes||tituloNuevoPrestamo||tituloNuevoCliente||tituloCalculadora||tituloContrato||titles[state.tab]))))}</h1></div>
+  html += `<div><p>${nombreApp().toUpperCase()}</p><h1>${state.tab==="prestamos"&&state.vista==="cartera"?"Cartera vencida":(state.tab==="prestamos"&&state.vista==="refinanciar"?"Refinanciar":(state.tab==="prestamos"&&state.vista==="colaRecordatorio"?"Enviar recordatorios":(state.tab==="pagos"&&state.vista==="recibo"?"Recibo de pago":(tituloReporte||tituloResultados||tituloModificaciones||tituloDesembolsos||tituloHistorialPagos||tituloEstadisticas||tituloAjustes||tituloNuevoPrestamo||tituloNuevoCliente||tituloCalculadora||tituloContrato||titles[state.tab]))))}</h1></div>
     </div>`;
   if(state.tab==="inicio" && state.vista==="lista"){
     html += `<button class="backbtn" id="btn-recargar" style="margin-right:6px;" title="Recargar" onclick="recargarApp()">${ICONS.refresh}</button>`;
     html += menuOpcionesHtml("inicio", [
+      { icono: ICONS.calculator, texto:"Estadísticas", onclick: "irEstadisticas()" },
       { icono: ICONS.edit, texto:"Nombre del negocio", onclick: "abrirAjustes('sec-nombre-negocio')" },
       { icono: ICONS.settings, texto:"Apariencia", onclick: "abrirAjustes('sec-apariencia')" },
       { icono: ICONS.filetext, texto:"Reportes", onclick: "abrirAjustes('sec-reportes')" },
@@ -3425,6 +3430,7 @@ function viewInicio(){
   if(state.vista==="reporteModificaciones") return viewReporteModificaciones();
   if(state.vista==="reporteDesembolsos") return viewReporteDesembolsos();
   if(state.vista==="reporteHistorialPagos") return viewReporteHistorialPagos();
+  if(state.vista==="estadisticas") return viewEstadisticas();
   if(state.vista==="ajustesClave") return viewAjustesClave();
   if(state.vista==="ajustes") return viewAjustes();
   let prestado=0, activos=0, vencidos=0, proximos=0, capitalActual=0;
@@ -4828,7 +4834,8 @@ function viewDetallePrestamo(){
   let filasHtml = filasPagina.map((f,iRel)=>{
     const i = inicioPagina + iRel;
     let estadoCelda;
-    if(i < r.pagosHechos) estadoCelda = '<span style="color:#3B6D11">✓ Pagada</span>';
+    if(p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) estadoCelda = '<span style="color:#8a8f9c">Sin cuota</span>';
+    else if(i < r.pagosHechos) estadoCelda = '<span style="color:#3B6D11">✓ Pagada</span>';
     else {
       // "Pendiente" antes se usaba para cualquier cuota sin pagar, ya fuera futura o ya
       // vencida — ahora se distingue de verdad comparando la fecha de la fila contra hoy.
@@ -5244,6 +5251,142 @@ function cuentasCardHtml(){
     </details>
   </div>`;
 }
+// ===== Estadísticas =====
+const MESES_ABR = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+function irEstadisticas(){ state.tab = "inicio"; state.vista = "estadisticas"; render(); window.scrollTo(0, 0); }
+function setEstRango(n){ state._estRango = n; render(); }
+function mesesAtrasClaves(n){
+  const h = new Date(hoyISO() + "T00:00:00"), out = [];
+  for(let i = n - 1; i >= 0; i--){
+    const d = new Date(h.getFullYear(), h.getMonth() - i, 1);
+    out.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"));
+  }
+  return out;
+}
+function compactoMoneda(n){
+  n = Math.round(Number(n) || 0);
+  let t;
+  if(n >= 1000000) t = (n / 1000000).toFixed(1).replace(/\.0$/, "") + " M";
+  else if(n >= 1000) t = (n / 1000).toFixed(1).replace(/\.0$/, "") + " mil";
+  else t = String(n);
+  return simboloMoneda() + " " + t;
+}
+function datosEstadisticas(rango){
+  const pagos = todosLosEventosPago(), desem = listaDesembolsos();
+  const nBarras = rango === 0 ? 12 : rango;
+  const claves = mesesAtrasClaves(nBarras);
+  const cobM = {}, preM = {};
+  claves.forEach(function(k){ cobM[k] = 0; preM[k] = 0; });
+  const desde = rango === 0 ? "" : claves[0] + "-01";
+  const desdeAnt = rango === 0 ? "" : mesesAtrasClaves(nBarras * 2)[0] + "-01";
+  let cobrado = 0, mora = 0, prestado = 0, nPagos = 0, cobradoAnt = 0;
+  pagos.forEach(function(e){
+    const tot = (Number(e.monto) || 0) + (Number(e.mora) || 0), k = (e.fecha || "").slice(0, 7), f = e.fecha || "";
+    if(k in cobM) cobM[k] += tot;
+    if(!desde || f >= desde){ cobrado += tot; mora += Number(e.mora) || 0; nPagos++; }
+    else if(desdeAnt && f >= desdeAnt) cobradoAnt += tot;
+  });
+  desem.forEach(function(e){
+    const m = Number(e.monto) || 0, k = (e.fecha || "").slice(0, 7), f = e.fecha || "";
+    if(k in preM) preM[k] += m;
+    if(!desde || f >= desde) prestado += m;
+  });
+  // Foto de hoy de la cartera
+  let capitalCalle = 0, activos = 0, alDia = 0, vencidos = 0, cerrados = 0;
+  const porCliente = {};
+  state.prestamos.forEach(function(p){
+    const r = resumen(p);
+    if(r.estado === "Activo"){
+      activos++;
+      capitalCalle += Number(r.capitalPendiente) || 0;
+      if(r.proximaFecha && diasAtraso(r.proximaFecha) > 0) vencidos++; else alDia++;
+      porCliente[p.clienteId] = (porCliente[p.clienteId] || 0) + (Number(r.saldoPendiente) || 0);
+    } else cerrados++;
+  });
+  const top = Object.keys(porCliente).map(function(id){
+    const c = state.clientes.find(function(x){ return x.id === id; });
+    return { nombre: c ? c.nombre : "—", saldo: porCliente[id] };
+  }).filter(function(x){ return x.saldo > 0.005; }).sort(function(a, b){ return b.saldo - a.saldo; }).slice(0, 5);
+  const T = desgloseIngresosCobrados();
+  return { claves: claves, cobM: cobM, preM: preM, cobrado: cobrado, mora: mora, prestado: prestado, nPagos: nPagos,
+    cobradoAnt: cobradoAnt, capitalCalle: capitalCalle, activos: activos, alDia: alDia, vencidos: vencidos, cerrados: cerrados,
+    top: top, T: T };
+}
+function svgBarrasMensuales(d){
+  const W = 340, H = 180, pL = 8, pR = 8, pT = 16, pB = 26, n = d.claves.length;
+  let max = 1;
+  d.claves.forEach(function(k){ max = Math.max(max, d.cobM[k], d.preM[k]); });
+  const gw = (W - pL - pR) / n, bw = Math.max(4, Math.min(14, gw / 2 - 2)), alto = H - pT - pB;
+  let g = "";
+  [0, 0.5, 1].forEach(function(f){
+    const y = pT + alto * (1 - f);
+    g += '<line x1="' + pL + '" x2="' + (W - pR) + '" y1="' + y + '" y2="' + y + '" class="est-guia"/>';
+  });
+  d.claves.forEach(function(k, i){
+    const x0 = pL + gw * i + gw / 2;
+    const hc = alto * d.cobM[k] / max, hp = alto * d.preM[k] / max;
+    g += '<rect class="est-cob" x="' + (x0 - bw - 1) + '" y="' + (H - pB - hc) + '" width="' + bw + '" height="' + (d.cobM[k] > 0 ? Math.max(hc, 2) : 0) + '" rx="3"/>';
+    g += '<rect class="est-pre" x="' + (x0 + 1) + '" y="' + (H - pB - hp) + '" width="' + bw + '" height="' + (d.preM[k] > 0 ? Math.max(hp, 2) : 0) + '" rx="3"/>';
+    g += '<text x="' + x0 + '" y="' + (H - 8) + '" class="est-mes" text-anchor="middle">' + MESES_ABR[Number(k.split("-")[1]) - 1] + '</text>';
+  });
+  g += '<text x="' + pL + '" y="10" class="est-max">' + compactoMoneda(max) + '</text>';
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Cobrado y prestado por mes">' + g + '</svg>';
+}
+function viewEstadisticas(){
+  const rango = (state._estRango === undefined) ? 6 : state._estRango;
+  const d = datosEstadisticas(rango);
+  const rotulo = rango === 0 ? "todo el historial" : "los últimos " + rango + " meses";
+  const chip = function(n, t){ return '<button class="est-chip' + (rango === n ? ' on' : '') + '" onclick="setEstRango(' + n + ')">' + t + '</button>'; };
+  let delta = "";
+  if(rango !== 0 && d.cobradoAnt > 0){
+    const pct = Math.round((d.cobrado - d.cobradoAnt) / d.cobradoAnt * 100);
+    delta = '<span class="est-delta ' + (pct >= 0 ? "sube" : "baja") + '">' + (pct >= 0 ? "▲ " : "▼ ") + Math.abs(pct) + '% vs. período anterior</span>';
+  }
+  const totalCartera = d.alDia + d.vencidos + d.cerrados;
+  const pc = function(x){ return totalCartera ? (x / totalCartera * 100) : 0; };
+  const pctVenc = d.activos ? Math.round(d.vencidos / d.activos * 100) : 0;
+  const ing = d.T.intereses + d.T.capital + d.T.mora;
+  const pi = function(x){ return ing > 0 ? Math.round(x / ing * 100) : 0; };
+  const filaOrigen = function(t, v, cls){
+    return '<div class="est-fila"><div class="est-fila-t"><span>' + t + '</span><b>' + money(v) + ' · ' + pi(v) + '%</b></div><div class="est-barra"><i class="' + cls + '" style="width:' + pi(v) + '%"></i></div></div>';
+  };
+  const maxTop = d.top.length ? d.top[0].saldo : 1;
+  const topHtml = d.top.length ? d.top.map(function(c){
+    return '<div class="est-fila"><div class="est-fila-t"><span>' + jrEscapeHtml(c.nombre) + '</span><b>' + money(c.saldo) + '</b></div><div class="est-barra"><i class="b-oro" style="width:' + Math.max(4, Math.round(c.saldo / maxTop * 100)) + '%"></i></div></div>';
+  }).join("") : '<p class="hint" style="margin:0;">Todavía no hay saldos pendientes.</p>';
+  const hayDatos = state.prestamos.length > 0;
+  return `<div class="est">
+    <div class="est-filtros">${chip(3, "3 meses")}${chip(6, "6 meses")}${chip(12, "12 meses")}${chip(0, "Todo")}</div>
+    ${!hayDatos ? '<div class="est-card"><p class="hint" style="margin:0;">Todavía no hay préstamos. Cuando registres préstamos y pagos, aquí verás tus números.</p></div>' : ''}
+    <div class="est-kpis">
+      <div class="est-kpi"><p class="est-k-l">Cobrado</p><p class="est-k-v">${money(d.cobrado)}</p>${delta}</div>
+      <div class="est-kpi"><p class="est-k-l">Prestado</p><p class="est-k-v">${money(d.prestado)}</p></div>
+      <div class="est-kpi"><p class="est-k-l">Mora cobrada</p><p class="est-k-v">${money(d.mora)}</p></div>
+      <div class="est-kpi"><p class="est-k-l">Pagos recibidos</p><p class="est-k-v">${d.nPagos}</p></div>
+    </div>
+    <p class="hint" style="margin:0 2px 12px;">Datos de ${rotulo}.</p>
+    <div class="est-card">
+      <p class="est-t">Cobrado y prestado por mes</p>
+      ${svgBarrasMensuales(d)}
+      <div class="est-leyenda"><span><i class="est-cob-p"></i>Cobrado</span><span><i class="est-pre-p"></i>Prestado</span></div>
+    </div>
+    <div class="est-card">
+      <p class="est-t">Estado de la cartera</p>
+      <div class="est-apilada"><i class="b-verde" style="width:${pc(d.alDia)}%"></i><i class="b-rojo" style="width:${pc(d.vencidos)}%"></i><i class="b-gris" style="width:${pc(d.cerrados)}%"></i></div>
+      <div class="est-leyenda"><span><i class="b-verde"></i>Al día ${d.alDia}</span><span><i class="b-rojo"></i>Vencidos ${d.vencidos}</span><span><i class="b-gris"></i>Cerrados ${d.cerrados}</span></div>
+      <div class="est-dos"><div><p class="est-k-l">Capital en la calle</p><p class="est-k-v">${money(d.capitalCalle)}</p></div><div><p class="est-k-l">Préstamos vencidos</p><p class="est-k-v">${pctVenc}%</p></div></div>
+    </div>
+    <div class="est-card">
+      <p class="est-t">De dónde viene lo cobrado</p>
+      <p class="hint" style="margin:0 0 8px;">Acumulado de todos los préstamos.</p>
+      ${ing > 0 ? filaOrigen("Intereses", d.T.intereses, "b-oro") + filaOrigen("Capital", d.T.capital, "b-azul") + filaOrigen("Mora", d.T.mora, "b-rojo") : '<p class="hint" style="margin:0;">Todavía no hay cobros.</p>'}
+    </div>
+    <div class="est-card">
+      <p class="est-t">Clientes con más saldo pendiente</p>
+      ${topHtml}
+    </div>
+  </div>`;
+}
 // ===== Navegador de Redmi/Xiaomi (Mi Browser) =====
 // Su "compartir" abre una hoja de texto vacía (el archivo no llega a WhatsApp) y no sabe
 // mostrar ni imprimir PDF dentro de la página (queda en blanco). Ahí se descarga el archivo
@@ -5304,7 +5447,7 @@ function generarAmortizacionPDF(p, cli, r, mostrarTotales){
   const filasConAjustePDF = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
   const filas = filasBase.map((f,i)=>{
     const tieneAjuste = filasConAjustePDF.has(f.n);
-    const estado = i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente");
+    const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"));
     return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
   });
   const totalCuota = filasBase.reduce((s,f)=>s+(Number(f.cuota)||0),0);
@@ -5452,7 +5595,7 @@ function generarEstadoCuentaPDF(p, cli, r){
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
     body: filasEC.map((f,i)=>{
       const tieneAjuste = filasConAjusteEC.has(f.n);
-      const estado = i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente");
+      const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"));
       return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
     }),
     foot: [["Total","","",money(totalCuotaEC),money(totalInteresEC),money(totalAbonoEC),"",""]],
@@ -7533,6 +7676,42 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   [data-theme="dark"] .cuenta-det[open] > summary{color:#E8C171;}
   .aj-grupo-cuerpo .hint, .aj-pan .hint{font-size:13px;}
   .cuentas-det > summary small, .cuenta-det > summary small{font-size:13px;}
+
+  /* ===== Pantalla de estadísticas ===== */
+  .est{max-width:100%;box-sizing:border-box;}
+  .est-filtros{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap;}
+  .est-chip{border:1px solid rgba(27,42,74,.2);background:transparent;color:inherit;border-radius:999px;padding:8px 14px;font-size:13.5px;cursor:pointer;}
+  .est-chip.on{background:#1B2A4A;color:#fff;border-color:#1B2A4A;}
+  .est-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 6px;}
+  .est-kpi,.est-card{background:#fff;border:1px solid #e5e1d8;border-radius:16px;padding:14px;box-sizing:border-box;min-width:0;}
+  .est-card{margin:0 0 12px;}
+  .est-k-l{margin:0 0 4px;font-size:12.5px;color:#7a7f8c;}
+  .est-k-v{margin:0;font-size:18px;font-weight:700;word-break:break-word;}
+  .est-t{margin:0 0 10px;font-weight:700;font-size:15px;}
+  .est-delta{display:block;margin-top:4px;font-size:12px;font-weight:600;}
+  .est-delta.sube{color:#3B8A5E;} .est-delta.baja{color:#c0433b;}
+  .est svg{display:block;max-width:100%;}
+  .est .est-guia{stroke:rgba(120,125,140,.25);stroke-width:1;}
+  .est .est-mes,.est .est-max{fill:#7a7f8c;font-size:10px;}
+  .est .est-cob{fill:#C9973E;} .est .est-pre{fill:#1B2A4A;}
+  .est-leyenda{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:#7a7f8c;}
+  .est-leyenda span{display:inline-flex;align-items:center;gap:6px;}
+  .est-leyenda i{width:10px;height:10px;border-radius:3px;display:inline-block;}
+  .est-cob-p{background:#C9973E;} .est-pre-p{background:#1B2A4A;}
+  .b-oro{background:#C9973E;} .b-azul{background:#3B6FB0;} .b-rojo{background:#C0564A;} .b-verde{background:#3F8A5E;} .b-gris{background:#9aa0ad;}
+  .est-apilada{display:flex;height:14px;border-radius:8px;overflow:hidden;background:rgba(120,125,140,.18);}
+  .est-apilada i{display:block;height:100%;}
+  .est-dos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+  .est-fila{margin:0 0 10px;}
+  .est-fila-t{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;margin-bottom:4px;}
+  .est-fila-t b{white-space:nowrap;}
+  .est-barra{height:8px;border-radius:6px;background:rgba(120,125,140,.18);overflow:hidden;}
+  .est-barra i{display:block;height:100%;border-radius:6px;}
+  [data-theme="dark"] .est-kpi,[data-theme="dark"] .est-card{background:#1B212C;border-color:rgba(255,255,255,.1);}
+  [data-theme="dark"] .est-chip{border-color:rgba(255,255,255,.2);}
+  [data-theme="dark"] .est-chip.on{background:#C9973E;color:#1B2A4A;border-color:#C9973E;}
+  [data-theme="dark"] .est .est-pre{fill:#6C86B8;} [data-theme="dark"] .est-pre-p{background:#6C86B8;}
+  [data-theme="dark"] .est-k-l,[data-theme="dark"] .est-leyenda{color:#9AA1AE;}
 </style>
 <div id="aviso-conexion"></div>
 <script>
