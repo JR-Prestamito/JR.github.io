@@ -5002,7 +5002,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "16.0";
+const JR_VERSION = "17.0";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -5251,10 +5251,11 @@ function cuentasCardHtml(){
     </details>
   </div>`;
 }
-// ===== Estadísticas =====
+// ===== Estadísticas (v17: pantalla profesional) =====
 const MESES_ABR = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const MESES_LARGO = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 function irEstadisticas(){ state.tab = "inicio"; state.vista = "estadisticas"; render(); window.scrollTo(0, 0); }
-function setEstRango(n){ state._estRango = n; render(); }
+function setEstRango(n){ state._estRango = n; state._estMes = null; render(); }
 function mesesAtrasClaves(n){
   const h = new Date(hoyISO() + "T00:00:00"), out = [];
   for(let i = n - 1; i >= 0; i--){
@@ -5271,6 +5272,41 @@ function compactoMoneda(n){
   else t = String(n);
   return simboloMoneda() + " " + t;
 }
+function etiquetaMesClave(k){
+  const p = k.split("-");
+  return MESES_LARGO[Number(p[1]) - 1] + " " + p[0];
+}
+// Reparte lo cobrado de cada mes entre capital (incluye enganches y abonos), interés y mora.
+// Cada mes suma exactamente lo mismo que "Cobrado" de ese mes.
+function composicionMensual(claves){
+  const out = {};
+  let estimado = false;   // true si algún pago de la ventana no guardó su desglose (se reparte con la proporción del préstamo)
+  claves.forEach(function(k){ out[k] = { capital:0, interes:0, mora:0 }; });
+  state.prestamos.forEach(function(p){
+    const d = desglosePagado(p), a = desgloseCobrosArchivados(p);
+    const ti = d.interes + a.interes, tc = d.capital + a.capital;
+    const ratio = (ti + tc) > 0.005 ? ti / (ti + tc) : 0;
+    const lista = (p.pagos || []).slice();
+    (p.modificaciones || []).forEach(function(m){ (m.pagosPrevios || []).forEach(function(pg){ lista.push(pg); }); });
+    lista.forEach(function(pg){
+      const o = out[(pg.fecha || "").slice(0, 7)]; if(!o) return;
+      const monto = Number(pg.monto) || 0;
+      o.mora += Number(pg.mora) || 0;
+      if(pg.tipo === "enganche" || pg.tipo === "abono_capital"){ o.capital += monto; return; }
+      const exacto = (pg.interes !== undefined && pg.capital !== undefined);
+      if(!exacto && monto > 0.005) estimado = true;
+      const i = exacto ? Math.max(0, Math.min(monto, Number(pg.interes) || 0)) : monto * ratio;
+      o.interes += i; o.capital += monto - i;
+    });
+  });
+  Object.defineProperty(out, "__estimado", { value: estimado, enumerable: false });
+  return out;
+}
+// "Todo" usa exactamente la misma fuente que la pantalla de Inicio (capital incluye enganches).
+function composicionTodo(){
+  const T = desgloseIngresosCobrados();
+  return { interes: T.intereses, capital: T.capital + T.enganches, enganche: T.enganches, mora: T.mora };
+}
 function datosEstadisticas(rango){
   const pagos = todosLosEventosPago(), desem = listaDesembolsos();
   const nBarras = rango === 0 ? 12 : rango;
@@ -5279,7 +5315,7 @@ function datosEstadisticas(rango){
   claves.forEach(function(k){ cobM[k] = 0; preM[k] = 0; });
   const desde = rango === 0 ? "" : claves[0] + "-01";
   const desdeAnt = rango === 0 ? "" : mesesAtrasClaves(nBarras * 2)[0] + "-01";
-  let cobrado = 0, mora = 0, prestado = 0, nPagos = 0, cobradoAnt = 0;
+  let cobrado = 0, mora = 0, prestado = 0, nPagos = 0, nDesem = 0, cobradoAnt = 0;
   pagos.forEach(function(e){
     const tot = (Number(e.monto) || 0) + (Number(e.mora) || 0), k = (e.fecha || "").slice(0, 7), f = e.fecha || "";
     if(k in cobM) cobM[k] += tot;
@@ -5289,31 +5325,66 @@ function datosEstadisticas(rango){
   desem.forEach(function(e){
     const m = Number(e.monto) || 0, k = (e.fecha || "").slice(0, 7), f = e.fecha || "";
     if(k in preM) preM[k] += m;
-    if(!desde || f >= desde) prestado += m;
+    if(!desde || f >= desde){ prestado += m; nDesem++; }
   });
   // Foto de hoy de la cartera
-  let capitalCalle = 0, activos = 0, alDia = 0, vencidos = 0, cerrados = 0;
+  let capitalCalle = 0, saldoActivo = 0, saldoRiesgo = 0, activos = 0, alDia = 0, vencidos = 0, cerrados = 0;
+  let porCobrar7 = 0, nPorCobrar7 = 0;
+  const aging = [
+    { t: "1 a 7 días", n: 0, s: 0, c: "b-ambar" }, { t: "8 a 30 días", n: 0, s: 0, c: "b-naranja" },
+    { t: "31 a 60 días", n: 0, s: 0, c: "b-rojo" }, { t: "Más de 60 días", n: 0, s: 0, c: "b-granate" }
+  ];
   const porCliente = {};
   state.prestamos.forEach(function(p){
     const r = resumen(p);
     if(r.estado === "Activo"){
       activos++;
+      const saldo = Number(r.saldoPendiente) || 0;
       capitalCalle += Number(r.capitalPendiente) || 0;
-      if(r.proximaFecha && diasAtraso(r.proximaFecha) > 0) vencidos++; else alDia++;
-      porCliente[p.clienteId] = (porCliente[p.clienteId] || 0) + (Number(r.saldoPendiente) || 0);
+      saldoActivo += saldo;
+      const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
+      if(atraso > 0){
+        vencidos++; saldoRiesgo += saldo;
+        const b = atraso <= 7 ? aging[0] : atraso <= 30 ? aging[1] : atraso <= 60 ? aging[2] : aging[3];
+        b.n++; b.s += saldo;
+      } else {
+        alDia++;
+        const dv = r.proximaFecha ? diasParaVencer(r.proximaFecha) : null;
+        if(dv !== null && dv >= 0 && dv <= 7){ porCobrar7 += Number(r.cuota) || 0; nPorCobrar7++; }
+      }
+      porCliente[p.clienteId] = (porCliente[p.clienteId] || 0) + saldo;
     } else cerrados++;
   });
   const top = Object.keys(porCliente).map(function(id){
     const c = state.clientes.find(function(x){ return x.id === id; });
     return { nombre: c ? c.nombre : "—", saldo: porCliente[id] };
-  }).filter(function(x){ return x.saldo > 0.005; }).sort(function(a, b){ return b.saldo - a.saldo; }).slice(0, 5);
-  const T = desgloseIngresosCobrados();
-  return { claves: claves, cobM: cobM, preM: preM, cobrado: cobrado, mora: mora, prestado: prestado, nPagos: nPagos,
-    cobradoAnt: cobradoAnt, capitalCalle: capitalCalle, activos: activos, alDia: alDia, vencidos: vencidos, cerrados: cerrados,
-    top: top, T: T };
+  }).filter(function(x){ return x.saldo > 0.005; }).sort(function(a, b){ return b.saldo - a.saldo; });
+  const topTotal = top.reduce(function(s, x){ return s + x.saldo; }, 0);
+  const top5 = top.slice(0, 5), top5Suma = top5.reduce(function(s, x){ return s + x.saldo; }, 0);
+  const T = composicionTodo(), compM = composicionMensual(claves);
+  return { claves: claves, compM: compM, estimado: compM.__estimado === true, cobM: cobM, preM: preM, cobrado: cobrado, mora: mora, prestado: prestado, nPagos: nPagos, nDesem: nDesem,
+    cobradoAnt: cobradoAnt, capitalCalle: capitalCalle, saldoActivo: saldoActivo, saldoRiesgo: saldoRiesgo,
+    activos: activos, alDia: alDia, vencidos: vencidos, cerrados: cerrados, aging: aging,
+    porCobrar7: porCobrar7, nPorCobrar7: nPorCobrar7, top: top5, nClientesSaldo: top.length,
+    concTop5: topTotal > 0 ? top5Suma / topTotal : 0, T: T };
 }
-function svgBarrasMensuales(d){
-  const W = 340, H = 180, pL = 8, pR = 8, pT = 16, pB = 26, n = d.claves.length;
+// Línea suave con área (mini gráfica del resumen principal)
+function svgTendencia(d){
+  const W = 320, H = 64, p = 4, vals = d.claves.map(function(k){ return d.cobM[k]; });
+  const n = vals.length, max = Math.max.apply(null, vals.concat([1]));
+  const px = function(i){ return n === 1 ? W / 2 : p + (W - 2 * p) * i / (n - 1); };
+  const py = function(v){ return H - p - (H - 2 * p - 4) * v / max; };
+  let ln = "";
+  vals.forEach(function(v, i){ ln += (i ? "L" : "M") + px(i).toFixed(1) + " " + py(v).toFixed(1) + " "; });
+  const area = ln + "L" + px(n - 1).toFixed(1) + " " + H + " L" + px(0).toFixed(1) + " " + H + " Z";
+  const ult = n - 1;
+  return '<svg class="est-spark" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true">' +
+    '<defs><linearGradient id="estG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8FD1AB" stop-opacity=".45"/><stop offset="1" stop-color="#E8C171" stop-opacity="0"/></linearGradient></defs>' +
+    '<path d="' + area + '" fill="url(#estG)"/><path d="' + ln + '" fill="none" stroke="#8FD1AB" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>' +
+    '<circle cx="' + px(ult).toFixed(1) + '" cy="' + py(vals[ult]).toFixed(1) + '" r="3.2" fill="#8FD1AB"/></svg>';
+}
+function svgBarrasMensuales(d, sel){
+  const W = 340, H = 190, pL = 6, pR = 6, pT = 18, pB = 26, n = d.claves.length;
   let max = 1;
   d.claves.forEach(function(k){ max = Math.max(max, d.cobM[k], d.preM[k]); });
   const gw = (W - pL - pR) / n, bw = Math.max(4, Math.min(14, gw / 2 - 2)), alto = H - pT - pB;
@@ -5325,61 +5396,129 @@ function svgBarrasMensuales(d){
   d.claves.forEach(function(k, i){
     const x0 = pL + gw * i + gw / 2;
     const hc = alto * d.cobM[k] / max, hp = alto * d.preM[k] / max;
-    g += '<rect class="est-cob" x="' + (x0 - bw - 1) + '" y="' + (H - pB - hc) + '" width="' + bw + '" height="' + (d.cobM[k] > 0 ? Math.max(hc, 2) : 0) + '" rx="3"/>';
+    g += '<g class="est-mes-g' + (k === sel ? ' sel' : '') + '" data-k="' + k + '" onclick="setEstMes(\'' + k + '\')">';
+    g += '<rect class="est-hit" x="' + (x0 - gw / 2) + '" y="0" width="' + gw + '" height="' + H + '"/>';
+    const cm = d.compM[k], tot = (cm.capital + cm.interes + cm.mora) || 1;
+    let yb = H - pB;
+    [["est-cap", cm.capital], ["est-int", cm.interes], ["est-mor", cm.mora]].forEach(function(s){
+      const hs = hc * s[1] / tot; if(hs <= 0.3) return;
+      g += '<rect class="' + s[0] + '" x="' + (x0 - bw - 1) + '" y="' + (yb - hs) + '" width="' + bw + '" height="' + hs + '"/>'; yb -= hs;
+    });
     g += '<rect class="est-pre" x="' + (x0 + 1) + '" y="' + (H - pB - hp) + '" width="' + bw + '" height="' + (d.preM[k] > 0 ? Math.max(hp, 2) : 0) + '" rx="3"/>';
-    g += '<text x="' + x0 + '" y="' + (H - 8) + '" class="est-mes" text-anchor="middle">' + MESES_ABR[Number(k.split("-")[1]) - 1] + '</text>';
+    g += '<text x="' + x0 + '" y="' + (H - 8) + '" class="est-mes" text-anchor="middle">' + MESES_ABR[Number(k.split("-")[1]) - 1] + '</text></g>';
   });
   g += '<text x="' + pL + '" y="10" class="est-max">' + compactoMoneda(max) + '</text>';
-  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Cobrado y prestado por mes">' + g + '</svg>';
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" role="img" aria-label="Capital, interés y prestado por mes">' + g + '</svg>';
+}
+function lecturaMes(d, k){
+  const c = d.compM[k];
+  return '<b>' + etiquetaMesClave(k) + '</b><span class="est-l-tot">Cobrado ' + money(d.cobM[k]) + '</span>' +
+    '<span><i class="est-cap-p"></i>Capital ' + money(c.capital) + '</span><span><i class="est-int-p"></i>Interés ' + money(c.interes) + '</span>' +
+    (c.mora > 0.005 ? '<span><i class="est-mor-p"></i>Mora ' + money(c.mora) + '</span>' : '') +
+    '<span class="est-l-pre"><i class="est-pre-p"></i>Prestado ' + money(d.preM[k]) + '</span>';
+}
+// Tocar un mes: se actualiza en el lugar, sin volver a dibujar toda la pantalla
+function setEstMes(k){
+  state._estMes = k;
+  const d = window._estD; if(!d) return;
+  document.querySelectorAll(".est-mes-g").forEach(function(g){ g.classList.toggle("sel", g.getAttribute("data-k") === k); });
+  const el = document.getElementById("est-lectura"); if(el) el.innerHTML = lecturaMes(d, k);
+}
+function svgDona(partes, centroGrande, centroChico){
+  const R = 42, C = 2 * Math.PI * R, tot = partes.reduce(function(s, x){ return s + x.v; }, 0);
+  let off = 0, arcos = "";
+  if(tot > 0){
+    partes.forEach(function(x){
+      if(x.v <= 0) return;
+      const len = C * x.v / tot, gap = partes.filter(function(y){ return y.v > 0; }).length > 1 ? 2 : 0;
+      arcos += '<circle cx="60" cy="60" r="' + R + '" fill="none" class="' + x.c + '" stroke-width="13" stroke-dasharray="' + Math.max(len - gap, 0.5).toFixed(2) + ' ' + (C - Math.max(len - gap, 0.5)).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 60 60)"/>';
+      off += len;
+    });
+  }
+  return '<svg class="est-dona" viewBox="0 0 120 120" role="img" aria-label="Estado de la cartera"><circle cx="60" cy="60" r="' + R + '" fill="none" class="est-dona-fondo" stroke-width="13"/>' + arcos +
+    '<text x="60" y="58" text-anchor="middle" class="est-dona-n">' + centroGrande + '</text><text x="60" y="73" text-anchor="middle" class="est-dona-s">' + centroChico + '</text></svg>';
 }
 function viewEstadisticas(){
   const rango = (state._estRango === undefined) ? 6 : state._estRango;
   const d = datosEstadisticas(rango);
-  const rotulo = rango === 0 ? "todo el historial" : "los últimos " + rango + " meses";
+  window._estD = d;
+  const sel = (state._estMes && state._estMes in d.cobM) ? state._estMes : d.claves[d.claves.length - 1];
+  const rotulo = rango === 0 ? "últimos 12 meses en la gráfica" : "últimos " + rango + " meses";
   const chip = function(n, t){ return '<button class="est-chip' + (rango === n ? ' on' : '') + '" onclick="setEstRango(' + n + ')">' + t + '</button>'; };
   let delta = "";
   if(rango !== 0 && d.cobradoAnt > 0){
     const pct = Math.round((d.cobrado - d.cobradoAnt) / d.cobradoAnt * 100);
     delta = '<span class="est-delta ' + (pct >= 0 ? "sube" : "baja") + '">' + (pct >= 0 ? "▲ " : "▼ ") + Math.abs(pct) + '% vs. período anterior</span>';
   }
-  const totalCartera = d.alDia + d.vencidos + d.cerrados;
-  const pc = function(x){ return totalCartera ? (x / totalCartera * 100) : 0; };
+  const flujo = d.cobrado - d.prestado;
+  const hayMora = d.claves.some(function(k){ return d.compM[k].mora > 0.005; });
   const pctVenc = d.activos ? Math.round(d.vencidos / d.activos * 100) : 0;
-  const ing = d.T.intereses + d.T.capital + d.T.mora;
+  const pctRiesgo = d.saldoActivo > 0 ? Math.round(d.saldoRiesgo / d.saldoActivo * 100) : 0;
+  const salud = pctRiesgo === 0 ? ["Excelente", "ok"] : pctRiesgo <= 10 ? ["Saludable", "ok"] : pctRiesgo <= 25 ? ["Vigilar", "med"] : ["En riesgo", "mal"];
+  const ing = d.T.interes + d.T.capital + d.T.mora;
   const pi = function(x){ return ing > 0 ? Math.round(x / ing * 100) : 0; };
   const filaOrigen = function(t, v, cls){
-    return '<div class="est-fila"><div class="est-fila-t"><span>' + t + '</span><b>' + money(v) + ' · ' + pi(v) + '%</b></div><div class="est-barra"><i class="' + cls + '" style="width:' + pi(v) + '%"></i></div></div>';
+    return '<div class="est-fila"><div class="est-fila-t"><span><i class="est-pto ' + cls + '"></i>' + t + '</span><b>' + money(v) + ' · ' + pi(v) + '%</b></div></div>';
   };
+  const maxAg = Math.max.apply(null, d.aging.map(function(a){ return a.s; }).concat([1]));
+  const agingHtml = d.vencidos ? d.aging.map(function(a){
+    return '<div class="est-fila"><div class="est-fila-t"><span>' + a.t + ' <small>· ' + a.n + (a.n === 1 ? ' préstamo' : ' préstamos') + '</small></span><b>' + money(a.s) + '</b></div><div class="est-barra"><i class="' + a.c + '" style="width:' + (a.s > 0 ? Math.max(4, Math.round(a.s / maxAg * 100)) : 0) + '%"></i></div></div>';
+  }).join("") : '<div class="est-vacio ok"><b>Sin mora</b><span>Todos tus préstamos activos están al día.</span></div>';
   const maxTop = d.top.length ? d.top[0].saldo : 1;
-  const topHtml = d.top.length ? d.top.map(function(c){
-    return '<div class="est-fila"><div class="est-fila-t"><span>' + jrEscapeHtml(c.nombre) + '</span><b>' + money(c.saldo) + '</b></div><div class="est-barra"><i class="b-oro" style="width:' + Math.max(4, Math.round(c.saldo / maxTop * 100)) + '%"></i></div></div>';
-  }).join("") : '<p class="hint" style="margin:0;">Todavía no hay saldos pendientes.</p>';
+  const topHtml = d.top.length ? d.top.map(function(c, i){
+    return '<div class="est-fila est-rank"><span class="est-pos">' + (i + 1) + '</span><div class="est-rank-c"><div class="est-fila-t"><span class="est-nom">' + jrEscapeHtml(c.nombre) + '</span><b>' + money(c.saldo) + '</b></div><div class="est-barra"><i class="b-azul" style="width:' + Math.max(4, Math.round(c.saldo / maxTop * 100)) + '%"></i></div></div></div>';
+  }).join("") + (d.nClientesSaldo > 5 ? '<p class="hint" style="margin:6px 0 0;">Estos 5 clientes concentran el ' + Math.round(d.concTop5 * 100) + '% del saldo pendiente.</p>' : '') : '<p class="hint" style="margin:0;">Todavía no hay saldos pendientes.</p>';
   const hayDatos = state.prestamos.length > 0;
+  const iconoRecibos = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+  const iconoCalle = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg>';
   return `<div class="est">
     <div class="est-filtros">${chip(3, "3 meses")}${chip(6, "6 meses")}${chip(12, "12 meses")}${chip(0, "Todo")}</div>
     ${!hayDatos ? '<div class="est-card"><p class="hint" style="margin:0;">Todavía no hay préstamos. Cuando registres préstamos y pagos, aquí verás tus números.</p></div>' : ''}
+    <div class="est-hero">
+      <p class="est-h-l">Cobrado · ${rango === 0 ? "todo el historial" : rotulo}</p>
+      <p class="est-h-v">${money(d.cobrado)}</p>
+      ${delta}
+      ${svgTendencia(d)}
+      <div class="est-h-pie">
+        <div><span>Prestado</span><b>${money(d.prestado)}</b></div>
+        <div><span>Flujo neto</span><b class="${flujo >= 0 ? 'pos' : 'neg'}">${flujo >= 0 ? "+" : "−"}${money(Math.abs(flujo))}</b></div>
+      </div>
+    </div>
     <div class="est-kpis">
-      <div class="est-kpi"><p class="est-k-l">Cobrado</p><p class="est-k-v">${money(d.cobrado)}</p>${delta}</div>
-      <div class="est-kpi"><p class="est-k-l">Prestado</p><p class="est-k-v">${money(d.prestado)}</p></div>
-      <div class="est-kpi"><p class="est-k-l">Mora cobrada</p><p class="est-k-v">${money(d.mora)}</p></div>
-      <div class="est-kpi"><p class="est-k-l">Pagos recibidos</p><p class="est-k-v">${d.nPagos}</p></div>
-    </div>
-    <p class="hint" style="margin:0 2px 12px;">Datos de ${rotulo}.</p>
-    <div class="est-card">
-      <p class="est-t">Cobrado y prestado por mes</p>
-      ${svgBarrasMensuales(d)}
-      <div class="est-leyenda"><span><i class="est-cob-p"></i>Cobrado</span><span><i class="est-pre-p"></i>Prestado</span></div>
+      <div class="est-kpi"><span class="est-ico">${iconoCalle}</span><p class="est-k-l">Capital en la calle</p><p class="est-k-v">${money(d.capitalCalle)}</p><p class="est-sub">Solo capital, sin intereses</p></div>
+      <div class="est-kpi"><span class="est-ico">${iconoRecibos}</span><p class="est-k-l">Cantidad de cobros</p><p class="est-k-v">${d.nPagos}</p></div>
     </div>
     <div class="est-card">
-      <p class="est-t">Estado de la cartera</p>
-      <div class="est-apilada"><i class="b-verde" style="width:${pc(d.alDia)}%"></i><i class="b-rojo" style="width:${pc(d.vencidos)}%"></i><i class="b-gris" style="width:${pc(d.cerrados)}%"></i></div>
-      <div class="est-leyenda"><span><i class="b-verde"></i>Al día ${d.alDia}</span><span><i class="b-rojo"></i>Vencidos ${d.vencidos}</span><span><i class="b-gris"></i>Cerrados ${d.cerrados}</span></div>
-      <div class="est-dos"><div><p class="est-k-l">Capital en la calle</p><p class="est-k-v">${money(d.capitalCalle)}</p></div><div><p class="est-k-l">Préstamos vencidos</p><p class="est-k-v">${pctVenc}%</p></div></div>
+      <p class="est-t">Cobrado por mes: capital e interés</p>
+      ${svgBarrasMensuales(d, sel)}
+      <div class="est-leyenda"><span><i class="est-cap-p"></i>Capital</span><span><i class="est-int-p"></i>Interés</span>${hayMora ? '<span><i class="est-mor-p"></i>Mora</span>' : ''}<span><i class="est-pre-p"></i>Prestado</span><span class="est-tip">Toca un mes para ver el detalle</span></div>
+      <div class="est-lectura" id="est-lectura">${lecturaMes(d, sel)}</div>
+      ${d.estimado ? '<p class="hint" style="margin:8px 0 0;">* En algunos pagos antiguos no quedó guardado cuánto fue capital y cuánto interés; para esos el reparto es aproximado. El total cobrado de cada mes es exacto.</p>' : ''}
     </div>
     <div class="est-card">
       <p class="est-t">De dónde viene lo cobrado</p>
-      <p class="hint" style="margin:0 0 8px;">Acumulado de todos los préstamos.</p>
-      ${ing > 0 ? filaOrigen("Intereses", d.T.intereses, "b-oro") + filaOrigen("Capital", d.T.capital, "b-azul") + filaOrigen("Mora", d.T.mora, "b-rojo") : '<p class="hint" style="margin:0;">Todavía no hay cobros.</p>'}
+      <p class="hint" style="margin:0 0 10px;">Acumulado de todos los préstamos.${d.T.enganche > 0.005 ? ' El capital incluye ' + money(d.T.enganche) + ' de enganches.' : ''}</p>
+      ${ing > 0 ? '<div class="est-apilada"><i class="b-oro" style="width:' + (d.T.interes / ing * 100) + '%"></i><i class="b-azul" style="width:' + (d.T.capital / ing * 100) + '%"></i><i class="b-rojo" style="width:' + (d.T.mora / ing * 100) + '%"></i></div><div style="height:12px"></div>' + filaOrigen("Intereses", d.T.interes, "b-oro") + filaOrigen("Capital", d.T.capital, "b-azul") + filaOrigen("Mora", d.T.mora, "b-rojo") : '<p class="hint" style="margin:0;">Todavía no hay cobros.</p>'}
+    </div>
+    <div class="est-card">
+      <div class="est-t-fila"><p class="est-t" style="margin:0;">Salud de la cartera</p><span class="est-pill ${salud[1]}">${salud[0]}</span></div>
+      <div class="est-dona-fila">
+        ${svgDona([{v: d.alDia, c: "est-s-verde"}, {v: d.vencidos, c: "est-s-rojo"}, {v: d.cerrados, c: "est-s-gris"}], d.activos, d.activos === 1 ? "activo" : "activos")}
+        <div class="est-dona-leyenda">
+          <div><i class="b-verde"></i><span>Al día</span><b>${d.alDia}</b></div>
+          <div><i class="b-rojo"></i><span>Vencidos</span><b>${d.vencidos}</b></div>
+          <div><i class="b-gris"></i><span>Cerrados</span><b>${d.cerrados}</b></div>
+        </div>
+      </div>
+      <div class="est-dos"><div><p class="est-k-l">Morosidad (préstamos)</p><p class="est-k-v">${pctVenc}%</p></div><div><p class="est-k-l">Saldo en riesgo</p><p class="est-k-v">${money(d.saldoRiesgo)}</p><p class="est-sub">Incluye intereses pendientes · ${pctRiesgo}% del saldo activo</p></div></div>
+    </div>
+    <div class="est-card">
+      <p class="est-t">Antigüedad de la mora</p>
+      ${agingHtml}
+    </div>
+    <div class="est-card est-prox">
+      <div><p class="est-k-l">Por cobrar en los próximos 7 días</p><p class="est-k-v">${money(d.porCobrar7)}</p></div>
+      <span class="est-cuenta">${d.nPorCobrar7}<small>${d.nPorCobrar7 === 1 ? "cuota" : "cuotas"}</small></span>
     </div>
     <div class="est-card">
       <p class="est-t">Clientes con más saldo pendiente</p>
@@ -7677,41 +7816,100 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .aj-grupo-cuerpo .hint, .aj-pan .hint{font-size:13px;}
   .cuentas-det > summary small, .cuenta-det > summary small{font-size:13px;}
 
-  /* ===== Pantalla de estadísticas ===== */
-  .est{max-width:100%;box-sizing:border-box;}
+  /* ===== Pantalla de estadísticas (v17) ===== */
+  .est{max-width:100%;box-sizing:border-box;--e-mut:#7a7f8c;--e-bd:#E5E1D8;--e-card:#FBF9F4;--e-track:rgba(120,125,140,.18);}
+  .est *{box-sizing:border-box;}
   .est-filtros{display:flex;gap:8px;margin:0 0 14px;flex-wrap:wrap;}
   .est-chip{border:1px solid rgba(27,42,74,.2);background:transparent;color:inherit;border-radius:999px;padding:8px 14px;font-size:13.5px;cursor:pointer;}
-  .est-chip.on{background:#1B2A4A;color:#fff;border-color:#1B2A4A;}
-  .est-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 6px;}
-  .est-kpi,.est-card{background:#fff;border:1px solid #e5e1d8;border-radius:16px;padding:14px;box-sizing:border-box;min-width:0;}
+  .est-chip.on{background:#1B2A4A;color:#F3F0E8;border-color:#1B2A4A;}
+  .est-hero{background:linear-gradient(155deg,#1B2A4A 0%,#26396a 100%);color:#F3F0E8;border-radius:20px;padding:16px 16px 14px;margin:0 0 12px;box-shadow:0 6px 18px rgba(27,42,74,.22);}
+  .est-h-l{margin:0 0 4px;font-size:12.5px;color:rgba(243,240,232,.72);}
+  .est-h-v{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em;color:#F3F0E8;word-break:break-word;}
+  .est-hero .est-delta{display:inline-block;margin-top:6px;padding:3px 9px;border-radius:999px;background:rgba(243,240,232,.12);font-size:12px;font-weight:600;}
+  .est-hero .est-delta.sube{color:#8FE0B0;} .est-hero .est-delta.baja{color:#FFB3AC;}
+  .est-spark{display:block;width:100%;height:auto;margin:10px 0 8px;}
+  .est-h-pie{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid rgba(243,240,232,.14);padding-top:10px;}
+  .est-h-pie span{display:block;font-size:11.5px;color:rgba(243,240,232,.65);margin-bottom:2px;}
+  .est-h-pie b{font-size:15px;color:#F3F0E8;font-weight:700;}
+  .est-h-pie b.pos{color:#8FE0B0;} .est-h-pie b.neg{color:#FFB3AC;}
+  .est-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px;}
+  .est-kpi,.est-card{background:var(--e-card);border:1px solid var(--e-bd);border-radius:16px;padding:14px;min-width:0;box-shadow:0 1px 3px rgba(27,42,74,.05);}
   .est-card{margin:0 0 12px;}
-  .est-k-l{margin:0 0 4px;font-size:12.5px;color:#7a7f8c;}
-  .est-k-v{margin:0;font-size:18px;font-weight:700;word-break:break-word;}
+  .est-ico{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:9px;background:rgba(201,151,62,.14);color:#B07F22;}
+  .est-ico svg{width:15px;height:15px;}
+  .est-k-l{margin:0 0 3px;font-size:12px;color:var(--e-mut);}
+  .est-k-v{margin:0;font-size:17px;font-weight:700;word-break:break-word;letter-spacing:-.01em;}
+  .est-sub{margin:2px 0 0;font-size:11.5px;color:var(--e-mut);}
   .est-t{margin:0 0 10px;font-weight:700;font-size:15px;}
-  .est-delta{display:block;margin-top:4px;font-size:12px;font-weight:600;}
-  .est-delta.sube{color:#3B8A5E;} .est-delta.baja{color:#c0433b;}
+  .est-t-fila{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px;}
+  .est-pill{font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;}
+  .est-pill.ok{background:rgba(63,138,94,.15);color:#2F7A52;} .est-pill.med{background:rgba(217,164,65,.2);color:#8a6416;} .est-pill.mal{background:rgba(192,86,74,.16);color:#B0392F;}
   .est svg{display:block;max-width:100%;}
   .est .est-guia{stroke:rgba(120,125,140,.25);stroke-width:1;}
-  .est .est-mes,.est .est-max{fill:#7a7f8c;font-size:10px;}
-  .est .est-cob{fill:#C9973E;} .est .est-pre{fill:#1B2A4A;}
-  .est-leyenda{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:#7a7f8c;}
+  .est .est-mes,.est .est-max{fill:var(--e-mut);font-size:10px;}
+  .est .est-cap{fill:#2F7D57;} .est .est-int{fill:#7DBE9A;} .est .est-mor{fill:#C0564A;} .est .est-pre{fill:#1B2A4A;} .est .est-pre,.est .est-cap,.est .est-int,.est .est-mor{rx:3px;}
+  .est .est-hit{fill:transparent;cursor:pointer;}
+  .est .est-mes-g{opacity:.5;transition:opacity .15s;} .est .est-mes-g.sel{opacity:1;} .est .est-mes-g.sel .est-mes{font-weight:700;}
+  .est-leyenda{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:12.5px;color:var(--e-mut);}
   .est-leyenda span{display:inline-flex;align-items:center;gap:6px;}
   .est-leyenda i{width:10px;height:10px;border-radius:3px;display:inline-block;}
-  .est-cob-p{background:#C9973E;} .est-pre-p{background:#1B2A4A;}
-  .b-oro{background:#C9973E;} .b-azul{background:#3B6FB0;} .b-rojo{background:#C0564A;} .b-verde{background:#3F8A5E;} .b-gris{background:#9aa0ad;}
-  .est-apilada{display:flex;height:14px;border-radius:8px;overflow:hidden;background:rgba(120,125,140,.18);}
+  .est-tip{margin-left:auto;font-size:11.5px;opacity:.85;}
+  .est-lectura{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(47,125,87,.09);font-size:13px;}
+  .est-lectura b{width:100%;text-transform:capitalize;font-size:13.5px;}
+  .est-lectura span{display:inline-flex;align-items:center;gap:6px;}
+  .est-lectura i{width:9px;height:9px;border-radius:3px;display:inline-block;}
+  .est-cap-p{background:#2F7D57;} .est-int-p{background:#7DBE9A;} .est-mor-p{background:#C0564A;} .est-pre-p{background:#1B2A4A;}
+  .est-l-tot{font-weight:700;width:100%;} .est-l-pre{width:100%;margin-top:2px;padding-top:6px;border-top:1px solid rgba(120,125,140,.2);}
+  .b-oro{background:#7DBE9A;} .b-azul{background:#2F7D57;} .b-rojo{background:#C0564A;} .b-verde{background:#3F8A5E;} .b-gris{background:#9aa0ad;}
+  .b-morado{background:#8A6FB5;} .b-ambar{background:#D9A441;} .b-naranja{background:#D9783F;} .b-granate{background:#8E2F2A;}
+  .est-apilada{display:flex;height:14px;border-radius:8px;overflow:hidden;background:var(--e-track);}
   .est-apilada i{display:block;height:100%;}
-  .est-dos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
-  .est-fila{margin:0 0 10px;}
-  .est-fila-t{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;margin-bottom:4px;}
+  .est-dona-fila{display:flex;align-items:center;gap:18px;}
+  .est-dona{width:128px;height:128px;flex-shrink:0;}
+  .est .est-dona-fondo{stroke:var(--e-track);}
+  .est .est-s-verde{stroke:#3F8A5E;} .est .est-s-rojo{stroke:#C0564A;} .est .est-s-gris{stroke:#9aa0ad;}
+  .est .est-dona-n{font-size:24px;font-weight:700;fill:currentColor;} .est .est-dona-s{font-size:9.5px;fill:var(--e-mut);}
+  .est-dona-leyenda{flex:1;min-width:0;}
+  .est-dona-leyenda div{display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13.5px;border-bottom:1px solid var(--e-track);}
+  .est-dona-leyenda div:last-child{border-bottom:none;}
+  .est-dona-leyenda i{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+  .est-dona-leyenda span{flex:1;} .est-dona-leyenda b{font-weight:700;}
+  .est-dos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;padding-top:12px;border-top:1px solid var(--e-track);}
+  .est-fila{margin:0 0 11px;}
+  .est-fila:last-child{margin-bottom:0;}
+  .est-fila-t{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;margin-bottom:5px;align-items:baseline;}
+  .est-fila-t small{color:var(--e-mut);font-size:11.5px;}
   .est-fila-t b{white-space:nowrap;}
-  .est-barra{height:8px;border-radius:6px;background:rgba(120,125,140,.18);overflow:hidden;}
+  .est-pto{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:8px;}
+  .est-barra{height:8px;border-radius:6px;background:var(--e-track);overflow:hidden;}
   .est-barra i{display:block;height:100%;border-radius:6px;}
-  [data-theme="dark"] .est-kpi,[data-theme="dark"] .est-card{background:#1B212C;border-color:rgba(255,255,255,.1);}
-  [data-theme="dark"] .est-chip{border-color:rgba(255,255,255,.2);}
+  .est-rank{display:flex;gap:10px;align-items:center;}
+  .est-rank-c{flex:1;min-width:0;}
+  .est-pos{width:24px;height:24px;border-radius:50%;background:rgba(201,151,62,.16);color:#8a6416;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .est-nom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
+  .est-vacio{display:flex;flex-direction:column;gap:2px;padding:12px;border-radius:12px;font-size:13px;}
+  .est-vacio.ok{background:rgba(63,138,94,.1);} .est-vacio.ok b{color:#2F7A52;}
+  .est-prox{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .est-cuenta{display:flex;flex-direction:column;align-items:center;min-width:56px;padding:8px 12px;border-radius:12px;background:rgba(201,151,62,.14);font-size:20px;font-weight:700;line-height:1;color:#8a6416;}
+  .est-cuenta small{font-size:10.5px;font-weight:600;margin-top:3px;}
+  @media (prefers-reduced-motion: no-preference){
+    .est-hero,.est-kpi,.est-card{animation:estIn .35s ease both;}
+    .est-kpi:nth-child(2){animation-delay:.04s;} .est-kpi:nth-child(3){animation-delay:.08s;} .est-kpi:nth-child(4){animation-delay:.12s;}
+    @keyframes estIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  }
+  [data-theme="dark"] .est{--e-mut:#9AA1AE;--e-bd:rgba(243,240,232,.1);--e-card:#1B212C;--e-track:rgba(243,240,232,.1);}
+  [data-theme="dark"] .est-kpi,[data-theme="dark"] .est-card{box-shadow:none;}
+  [data-theme="dark"] .est-chip{border-color:rgba(243,240,232,.2);}
   [data-theme="dark"] .est-chip.on{background:#C9973E;color:#1B2A4A;border-color:#C9973E;}
-  [data-theme="dark"] .est .est-pre{fill:#6C86B8;} [data-theme="dark"] .est-pre-p{background:#6C86B8;}
-  [data-theme="dark"] .est-k-l,[data-theme="dark"] .est-leyenda{color:#9AA1AE;}
+  [data-theme="dark"] .est-hero{background:linear-gradient(155deg,#1E2740 0%,#243055 100%);box-shadow:none;border:1px solid rgba(243,240,232,.08);}
+  [data-theme="dark"] .est .est-cap{fill:#3FA878;} [data-theme="dark"] .est .est-int{fill:#8FD1AB;} [data-theme="dark"] .est-cap-p,[data-theme="dark"] .b-azul{background:#3FA878;} [data-theme="dark"] .est-int-p,[data-theme="dark"] .b-oro{background:#8FD1AB;} [data-theme="dark"] .est .est-pre{fill:#6C86B8;} [data-theme="dark"] .est-pre-p{background:#6C86B8;}
+  [data-theme="dark"] .est-ico{background:rgba(232,193,113,.14);color:#E8C171;}
+  [data-theme="dark"] .est-pill.ok{color:#74D39A;} [data-theme="dark"] .est-pill.med{color:#E8C171;} [data-theme="dark"] .est-pill.mal{color:#F0908A;}
+  [data-theme="dark"] .est-vacio.ok b{color:#74D39A;}
+  [data-theme="dark"] .est-pos,[data-theme="dark"] .est-cuenta{color:#E8C171;}
+  [data-theme="dark"] .est-lectura{background:rgba(143,209,171,.1);}
+  [data-theme="dark"] .est .est-dona-n{fill:#D5D8DE;}
+  [data-theme="dark"] .b-granate{background:#B8504A;}
 </style>
 <div id="aviso-conexion"></div>
 <script>
