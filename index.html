@@ -1147,12 +1147,30 @@ function configNube(){
   return { tasaMoraDiaria: state.config.tasaMoraDiaria, moraModo: state.config.moraModo||"dia",
     moraBase: state.config.moraBase||"cuota", zonaHoraria: state.config.zonaHoraria||"", moneda: state.config.moneda||"HNL",
     reciboCampos: state.config.reciboCampos||{}, reciboCobrador: state.config.reciboCobrador||"", reciboFormaPago: state.config.reciboFormaPago||"Efectivo",
-    cuentasBancarias: state.config.cuentasBancarias||[] };
+    cuentasBancarias: state.config.cuentasBancarias||[], contarDiaInicio: state.config.contarDiaInicio===true };
+}
+// Lista ya calculada por la app (misma lógica que se ve en pantalla) para que el aviso por
+// correo (Apps Script) NO tenga que recalcular nada: solo guarda, por cada préstamo activo,
+// la fecha de su próxima cuota pendiente y el monto. Los días de atraso los calcula el script
+// con la fecha de hoy, así el aviso sigue correcto aunque pasen días sin abrir la app.
+function avisosNube(){
+  const out = [];
+  state.prestamos.forEach(p=>{
+    try{
+      const r = resumen(p);
+      if(r.estado==="Activo" && r.proximaFecha){
+        const cli = state.clientes.find(c=>c.id===p.clienteId);
+        out.push({ codigo:p.codigo, nombre: cli ? cli.nombre : "Cliente sin nombre",
+          proximaFecha: r.proximaFecha, cuota: r.cuotaActual ? r.cuotaActual.cuota : (r.cuota||0) });
+      }
+    }catch(e){}
+  });
+  return out;
 }
 function aplicarConfigNube(c){
   if(!c) return;
   if(c.tasaMoraDiaria!==undefined) state.config.tasaMoraDiaria = c.tasaMoraDiaria;
-  ["moraModo","moraBase","zonaHoraria","moneda","reciboCampos","reciboCobrador","reciboFormaPago","cuentasBancarias"].forEach(k=>{ if(c[k]!==undefined) state.config[k] = c[k]; });
+  ["moraModo","moraBase","zonaHoraria","moneda","reciboCampos","reciboCobrador","reciboFormaPago","cuentasBancarias","contarDiaInicio"].forEach(k=>{ if(c[k]!==undefined) state.config[k] = c[k]; });
 }
 function textoMora(d){
   const t = state.config.tasaMoraDiaria;
@@ -3304,7 +3322,7 @@ async function subirNube(silencioso){
   if(state.syncBusy) return;
   state.syncBusy = "push"; if(!silencioso) render();
   try{
-    const payload = { clientes: state.clientes, prestamos: state.prestamos, config: configNube() };
+    const payload = { clientes: state.clientes, prestamos: state.prestamos, config: configNube(), avisos: avisosNube() };
     const sep = url.includes("?") ? "&" : "?";
     const res = await fetch(url + sep + "action=push&key=" + encodeURIComponent(key), {
       method: "POST",
