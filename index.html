@@ -3697,6 +3697,17 @@ function viewAjustes(){
   </div>
   <div class="row-card" style="display:block;" id="sec-sync">
     <p style="font-weight:600;margin:0 0 4px;">Sincronizar entre celulares</p>
+    <details style="margin:0 0 12px;">
+      <summary style="cursor:pointer;font-weight:600;font-size:14px;">📘 Cómo configurar la nube (paso a paso)</summary>
+      <ol class="hint nota-ayuda" style="margin:8px 0 0;padding-left:20px;line-height:1.55;">
+        <li>Entra a <b>script.google.com</b> con tu cuenta de Google y toca <b>Nuevo proyecto</b>.</li>
+        <li>Borra lo que aparezca y pega el código del script que te entregaron.</li>
+        <li>Arriba elige la función <b>configurarTodo</b> y toca <b>Ejecutar</b>. Acepta los permisos que pida Google.</li>
+        <li>Te llega un correo con tu <b>clave</b>. Cópiala y pégala abajo, en el campo "Clave".</li>
+        <li>Toca <b>Implementar → Nueva implementación → Aplicación web</b>. En "Ejecutar como" pon <b>Yo</b> y en "Quién tiene acceso" pon <b>Cualquier persona</b>. Copia la URL que termina en <b>/exec</b> y pégala abajo en "URL".</li>
+        <li>Toca <b>Subir ahora</b>. Si dice "Datos subidos correctamente", ya quedó. El aviso de préstamos vencidos te llegará por correo todos los días.</li>
+      </ol>
+    </details>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Usa una Google Sheet como nube compartida. Configúrala una sola vez (instrucciones aparte) y luego pega aquí la URL y la clave. Con la URL y clave puestas, cada vez que abras la app en cualquier celular trae automáticamente lo último de la nube.</p>
     <label><span>URL de la aplicación web</span><input id="f_syncUrl" placeholder="https://script.google.com/macros/s/.../exec" value="${state.config.syncUrl||""}" oninput="state.config.syncUrl=this.value; save({sinAutoSync:true});"></label>
     <label style="margin-bottom:10px;"><span>Clave</span>
