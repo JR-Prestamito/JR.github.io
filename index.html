@@ -714,7 +714,7 @@
   .est-h-v{margin:0;font-size:28px;font-weight:700;letter-spacing:-.02em;color:#F3F0E8;word-break:break-word;}
   .est-hero .est-delta{display:inline-block;margin-top:6px;padding:3px 9px;border-radius:999px;background:rgba(243,240,232,.12);font-size:12px;font-weight:600;}
   .est-hero .est-delta.sube{color:#8FE0B0;} .est-hero .est-delta.baja{color:#FFB3AC;}
-  .est-spark{display:block;width:100%;height:auto;margin:10px 0 8px;}
+  .est-spark{display:block;width:100%;height:auto;margin:8px 0 6px;}
   .est-h-pie{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid rgba(243,240,232,.14);padding-top:10px;}
   .est-h-pie span{display:block;font-size:11.5px;color:rgba(243,240,232,.65);margin-bottom:2px;}
   .est-h-pie b{font-size:15px;color:#F3F0E8;font-weight:700;}
@@ -886,20 +886,30 @@
   .ini-bars .hoy small::after{content:"";position:absolute;left:50%;bottom:-5px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:var(--i-verde);}
   .ini-bars{padding-bottom:5px;}
   .ini-mini{margin-top:calc(-5px - var(--ex) * .15);}
+  .ini-bars .pasado i{opacity:.18 !important;} .ini-bars .pasado small{opacity:.55;}
+  /* ===== Estilo de Inicio: Azul marino y dorado (opcional desde Ajustes > Apariencia) ===== */
+  [data-inicio="marino"] #app:has(.v3-home){background:radial-gradient(120% 40% at 50% 0%,rgba(27,42,74,.07) 0%,rgba(27,42,74,0) 70%),#F7F5F0;}
+  [data-inicio="marino"][data-theme="dark"] #app:has(.v3-home){background:radial-gradient(120% 40% at 50% 0%,rgba(201,151,62,.08) 0%,rgba(201,151,62,0) 70%),#12161f;}
+  [data-inicio="marino"] .ini{--i-verde:#B07F22;}
+  [data-inicio="marino"][data-theme="dark"] .ini{--i-verde:#E8C171;}
+  [data-inicio="marino"] .ini-hero{background:radial-gradient(circle at 90% 6%,rgba(201,151,62,.28) 0,rgba(201,151,62,0) 45%),linear-gradient(155deg,#1B2A4A 0%,#0F1A30 100%);border:1px solid rgba(255,255,255,.07);box-shadow:0 10px 24px rgba(15,20,36,.3);}
+  [data-inicio="marino"][data-theme="dark"] .ini-hero{background:radial-gradient(circle at 90% 6%,rgba(201,151,62,.20) 0,rgba(201,151,62,0) 45%),linear-gradient(155deg,#1E2740 0%,#141B30 100%);box-shadow:none;}
+  [data-inicio="marino"] .ini-prog i{background:linear-gradient(90deg,#C9973E,#E0B35A);}
+  [data-inicio="marino"] .ini-rep-main{background:linear-gradient(155deg,#1B2A4A 0%,#0F1A30 100%);border-color:rgba(255,255,255,.07);color:#F3F0E8;box-shadow:0 6px 14px -8px rgba(15,20,36,.5);}
+  [data-inicio="marino"][data-theme="dark"] .ini-rep-main{background:linear-gradient(155deg,#1E2740 0%,#141B30 100%);border-color:rgba(255,255,255,.08);color:#F3F0E8;box-shadow:none;}
+  [data-inicio="marino"] .ini-cob.sem .ini-cob-m{color:#1B2A4A;}
+  [data-inicio="marino"][data-theme="dark"] .ini-cob.sem .ini-cob-m{color:#E8C171;}
+  [data-inicio="marino"] .ini-bars i{background:#1B2A4A;}
+  [data-inicio="marino"][data-theme="dark"] .ini-bars i{background:#E8C171;}
+  [data-inicio="marino"] .ini-bars .hoy small{color:#B07F22;} [data-inicio="marino"] .ini-bars .hoy small::after{background:#C9973E;}
+  [data-inicio="marino"][data-theme="dark"] .ini-bars .hoy small{color:#E8C171;} [data-inicio="marino"][data-theme="dark"] .ini-bars .hoy small::after{background:#E8C171;}
+  [data-inicio="marino"] .est-hero{background:linear-gradient(155deg,#1B2A4A 0%,#26396a 100%) !important;box-shadow:0 6px 18px rgba(27,42,74,.22) !important;}
+  [data-inicio="marino"][data-theme="dark"] .est-hero{background:linear-gradient(155deg,#1E2740 0%,#243055 100%) !important;box-shadow:none !important;}
+  /* v24.5: tamaños fijos (no cambian con el monto) y un poco más pequeños */
+  .ini-val{font-size:20px !important;}
+  .ini-cob.venc .ini-cob-m,.ini-cob.venc.cero .ini-cob-m,.ini-cob .ini-cob-m{font-size:clamp(15px,4.4vw,17px) !important;}
   .ini-sec-flex{display:flex;justify-content:space-between;align-items:baseline;}
   .ini-sec-flex span{font-size:11px;font-weight:500;text-transform:none;letter-spacing:0;}
-  .ini-rep-more{grid-column:1 / -1;}
-  .ini-sheet-ov{position:fixed;inset:0;background:rgba(20,20,25,.45);display:flex;align-items:flex-end;justify-content:center;z-index:9999;animation:jrFadeIn .15s ease-out;}
-  .ini-sheet{width:100%;max-width:420px;box-sizing:border-box;background:#FBF9F4;color:#1B2A4A;border-radius:20px 20px 0 0;padding:14px 16px calc(18px + env(safe-area-inset-bottom,0px));box-shadow:0 -10px 30px rgba(0,0,0,.25);}
-  .ini-sheet-h{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px;}
-  .ini-sheet-h b{font-size:15px;}
-  .ini-sheet-h button{border:0;background:transparent;color:#7a7f8c;font-size:18px;line-height:1;padding:6px 8px;cursor:pointer;}
-  .ini-sheet-it{display:flex;align-items:center;justify-content:space-between;width:100%;box-sizing:border-box;min-height:48px;margin:0 0 8px;padding:0 14px;border:1px solid #E5E1D8;border-radius:14px;background:#F3F0E8;color:#1B2A4A;font:inherit;font-weight:600;font-size:15px;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-  .ini-sheet-it:last-child{margin-bottom:0;} .ini-sheet-it:active{transform:scale(.98);}
-  .ini-sheet-it i{font-style:normal;font-size:18px;color:#2F7D57;}
-  [data-theme="dark"] .ini-sheet{background:#1B212C;color:#D5D8DE;box-shadow:none;border-top:1px solid rgba(255,255,255,.09);}
-  [data-theme="dark"] .ini-sheet-it{background:#232A37;border-color:rgba(255,255,255,.09);color:#D5D8DE;}
-  [data-theme="dark"] .ini-sheet-it i{color:#8FD1AB;}
 </style>
 </head>
 <body>
@@ -1131,6 +1141,7 @@ let state = {
 // Se aplica el tema antes del primer render para que no haya un parpadeo de tema claro
 // al abrir la app si el modo oscuro está activado.
 document.documentElement.setAttribute("data-theme", state.config.temaOscuro ? "dark" : "light");
+document.documentElement.setAttribute("data-inicio", state.config.estiloInicio === "marino" ? "marino" : "verde");
   document.documentElement.setAttribute("data-ayudas", state.config.mostrarAyudas ? "on" : "off");
 // Recuerda qué listas (tarjetas desplegables) están abiertas en cada pantalla, para dejarlas
 // abiertas al volver de un recibo y al refrescar.
@@ -2432,6 +2443,7 @@ function medirEncabezado(){
 window.addEventListener("resize", medirEncabezado);
 function render(){
   document.documentElement.setAttribute("data-theme", state.config.temaOscuro ? "dark" : "light");
+document.documentElement.setAttribute("data-inicio", state.config.estiloInicio === "marino" ? "marino" : "verde");
   document.documentElement.setAttribute("data-ayudas", state.config.mostrarAyudas ? "on" : "off");
   if(state.config.pin && !desbloqueado){
     renderBloqueo();
@@ -3913,8 +3925,8 @@ function ajustarInicioFijo(){
   // Si sobra espacio, se reparte entre las secciones: tarjetas un poco más altas (todas por
   // igual, así siguen uniformes) y más aire entre secciones. Tope: 28 px por tarjeta.
   if(z >= 1 && sobra > 0){
-    const sens = (reps && reps.style.display !== "none") ? 2.6 : 2.2;
-    home.style.setProperty("--ex", Math.min(sobra / sens, 40).toFixed(1) + "px");
+    const sens = (reps && reps.style.display !== "none") ? 2.9 : 2.2;
+    home.style.setProperty("--ex", Math.min(sobra / sens, 34).toFixed(1) + "px");
   }
   // Si sobra espacio, se reparte entre arriba y abajo (arriba crece máx. 30 px).
   if(pill){
@@ -3960,7 +3972,7 @@ function viewInicio(){
       else if(r.proximaFecha){
         // lo que vence hoy y en los próximos 6 días (7 días en total), por día
         const dv = diasParaVencer(r.proximaFecha);
-        if(dv !== null && dv >= 0 && dv <= 6){ const m = Number(r.faltaEnCuotaActual) || (r.cuotaActual ? r.cuotaActual.cuota : 0); semana[dv] += m; montoSem += m; nSem++; }
+        if(dv !== null && dv >= 0 && dv <= diasHastaDomingo()){ const m = Number(r.faltaEnCuotaActual) || (r.cuotaActual ? r.cuotaActual.cuota : 0); semana[(6 - diasHastaDomingo()) + dv] += m; montoSem += m; nSem++; }
       }
     }
   });
@@ -3980,16 +3992,18 @@ function viewInicio(){
     <div class="ini-prog"><i style="width:${pctRec > 0 ? Math.max(pctRec, 2).toFixed(1) : 0}%"></i></div>
     <div class="ini-prog-t"><span>Capital recuperado <b>${pctRec.toFixed(1)}%</b></span><span>${money(cobCap)} de ${money(prestado)}</span></div>
   </div>
-  <div><p class="v3-sec ini-sec-flex">Para cobrar<span>${activos} ${activos === 1 ? "préstamo activo" : "préstamos activos"}</span></p>
+  <div><p class="v3-sec ini-sec-flex">Para cobrar<span>${activos} ${activos === 1 ? "activo" : "activos"} · ${state.clientes.length} ${state.clientes.length === 1 ? "cliente" : "clientes"}</span></p>
     <div class="ini-cobrar">
       ${cardCobrar("Vencido", vencidos, montoVenc, vencidos > 0 ? "mal" : "cero", "verCartera()", " atrasados")}
-      <div class="ini-cob sem" onclick="verProximosAVencer()"><div><span class="ini-cob-l">Próximos 7 días</span><b class="ini-cob-m">${money(montoSem)}</b><span class="ini-cob-n">${nSem > 0 ? nSem + (nSem === 1 ? " cuota" : " cuotas") : "Ninguna"}</span></div>
-        <div class="ini-bars">${semana.map(function(m, i){ const mx = Math.max.apply(null, semana) || 1; const dia = ["D","L","M","M","J","V","S"][new Date(addDays(hoyISO(), i) + "T12:00:00").getDay()]; return '<div class="' + (m > 0 ? "has " : "") + (i === 0 ? "hoy" : "") + '"><i style="height:' + (m > 0 ? Math.max(14, m / mx * 100) : 8) + '%"></i><small>' + dia + '</small></div>'; }).join("")}</div></div>
+      <div class="ini-cob sem" onclick="verProximosAVencer()"><div><span class="ini-cob-l">Esta semana</span><b class="ini-cob-m">${money(montoSem)}</b><span class="ini-cob-n">${nSem > 0 ? nSem + (nSem === 1 ? " cuota" : " cuotas") : "Ninguna"}</span></div>
+        <div class="ini-bars">${semana.map(function(m, i){ const mx = Math.max.apply(null, semana) || 1; const hoyI = 6 - diasHastaDomingo(); const dia = ["L","M","M","J","V","S","D"][i]; return '<div class="' + (m > 0 ? "has " : "") + (i === hoyI ? "hoy " : "") + (i < hoyI ? "pasado" : "") + '"><i style="height:' + (m > 0 ? Math.max(14, m / mx * 100) : 8) + '%"></i><small>' + dia + '</small></div>'; }).join("")}</div></div>
     </div></div>
   <div class="v3-reps-wrap"><p class="v3-sec">Reportes</p>
     <div class="ini-reps">
-      ${filaRep("Estadísticas", "irEstadisticas()", "ini-rep-main")}
-      ${filaRep("Más reportes", "abrirMasReportes()", "ini-rep-more")}
+      ${filaRep("Historial de pagos", "state._reporteDesdeInicio=true;abrirReporteHistorialPagos()")}
+      ${filaRep("Desembolsos", "state._reporteDesdeInicio=true;abrirReporteDesembolsos()")}
+      ${filaRep("Estado de resultados", "state._reporteDesdeInicio=true;abrirEstadoResultados()")}
+      ${filaRep("Reporte PDF", "state._reporteDesdeInicio=true;abrirReportePDF()")}
     </div></div>
   </div>`;
   return html;
@@ -4169,6 +4183,12 @@ function viewAjustes(){
       <span style="margin:0;font-size:14px;">Modo oscuro</span>
     </label>
     <p class="hint nota-ayuda" style="margin:6px 0 0;">Los recibos y reportes que imprimes o envías siempre se ven en claro, pensados para papel.</p>
+    <label style="margin:14px 0 0;"><span>Estilo de Inicio y Estadísticas</span>
+      <select id="f_estiloInicio" onchange="state.config.estiloInicio=this.value; document.documentElement.setAttribute('data-inicio', this.value); save(); render();">
+        <option value="verde" ${state.config.estiloInicio!=="marino"?"selected":""}>Verde confianza</option>
+        <option value="marino" ${state.config.estiloInicio==="marino"?"selected":""}>Azul marino y dorado</option>
+      </select>
+    </label>
     <label style="display:flex;align-items:center;gap:8px;margin:14px 0 0;cursor:pointer;">
       <input type="checkbox" style="width:auto;" ${state.config.mostrarAyudas?"checked":""} onchange="state.config.mostrarAyudas=this.checked; document.documentElement.setAttribute('data-ayudas', this.checked?'on':'off'); save(); render();">
       <span style="margin:0;font-size:14px;">Mostrar notas de ayuda</span>
@@ -4550,13 +4570,6 @@ function viewPrestamos(){
 }
 function verDetalle(id){ state._detalleDesde = (state.tab==="prestamos" && state.vista==="cartera") ? "cartera" : null; state.tab="prestamos"; state.seleccionId=id; state.vista="detalle"; state.paginaAmortizacion=null; render(); }
 function cambiarPaginaAmortizacion(delta){ state.paginaAmortizacion = Math.max(0, (state.paginaAmortizacion||0) + delta); render(); }
-function abrirMasReportes(){
-  const root = document.getElementById("jr-modal-root"); if(!root) return;
-  const it = function(t, fn){ return '<button class="ini-sheet-it" onclick="jrCerrarModal();state._reporteDesdeInicio=true;' + fn + '"><span>' + t + '</span><i>›</i></button>'; };
-  root.innerHTML = '<div class="ini-sheet-ov" onclick="if(event.target===this)jrCerrarModal()"><div class="ini-sheet"><div class="ini-sheet-h"><b>Más reportes</b><button onclick="jrCerrarModal()" aria-label="Cerrar">✕</button></div>'
-    + it("Historial de pagos", "abrirReporteHistorialPagos()") + it("Desembolsos", "abrirReporteDesembolsos()")
-    + it("Estado de resultados", "abrirEstadoResultados()") + it("Reporte PDF", "abrirReportePDF()") + '</div></div>';
-}
 // Botón ‹ del encabezado en Préstamos: si se llegó desde Inicio (Vencido / Próximos 7 días), regresa a Inicio;
 // si se abrió un préstamo desde esa lista, regresa primero a la lista.
 function volverAtras(){
@@ -4571,6 +4584,8 @@ function verCartera(){ state._origenInicio = (state.tab==="inicio"); state._deta
 
 const PLANTILLA_RECORDATORIO_DEFECTO = "Hola {nombre}, su préstamo {codigo} tiene {cuotas} vencida(s) desde el {fecha} ({dias} de atraso), por un total de {monto}{detalleProxima}. Le agradecemos ponerse al día lo antes posible. Cualquier duda, con gusto le atendemos. ¡Gracias!";
 const PLANTILLA_PENDIENTE_DEFECTO = "Hola {nombre}, le recordamos que su préstamo {codigo} tiene una cuota de {cuota} pendiente de cobro, con fecha {fecha}. Cualquier duda, con gusto le atendemos. ¡Gracias!";
+// Días que faltan para el domingo de esta semana (la semana va de lunes a domingo).
+function diasHastaDomingo(){ return 6 - ((new Date(hoyISO() + "T12:00:00").getDay() + 6) % 7); }
 function diasParaVencer(fecha){
   if(!fecha) return null;
   const hoy = hoyISO();
@@ -4841,7 +4856,7 @@ function viewColaRecordatorio(){
 }
 function viewCartera(){
   const prox = state.prestamos.map(p=>({p, r:resumen(p)}))
-    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasParaVencer(x.r.proximaFecha) >= 0 && diasParaVencer(x.r.proximaFecha) <= 6)
+    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasParaVencer(x.r.proximaFecha) >= 0 && diasParaVencer(x.r.proximaFecha) <= diasHastaDomingo())
     .sort((a,b)=> new Date(a.r.proximaFecha) - new Date(b.r.proximaFecha));
   const vencidos = state.prestamos.map(p=>({p, r:resumen(p)}))
     .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasAtraso(x.r.proximaFecha)>0)
@@ -5531,7 +5546,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "25.0";
+const JR_VERSION = "24.6";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -5879,7 +5894,7 @@ function datosEstadisticas(rango){
       } else {
         alDia++;
         const dv = r.proximaFecha ? diasParaVencer(r.proximaFecha) : null;
-        if(dv !== null && dv >= 0 && dv <= 6){ porCobrar7 += Number(r.faltaEnCuotaActual) || (r.cuotaActual ? r.cuotaActual.cuota : 0); nPorCobrar7++; }
+        if(dv !== null && dv >= 0 && dv <= diasHastaDomingo()){ porCobrar7 += Number(r.faltaEnCuotaActual) || (r.cuotaActual ? r.cuotaActual.cuota : 0); nPorCobrar7++; }
       }
       porCliente[p.clienteId] = (porCliente[p.clienteId] || 0) + saldo;
     } else cerrados++;
@@ -5899,7 +5914,7 @@ function datosEstadisticas(rango){
 }
 // Línea suave con área (mini gráfica del resumen principal)
 function svgTendencia(d){
-  const W = 320, H = 64, p = 4, vals = d.claves.map(function(k){ return d.cobM[k]; });
+  const W = 320, H = 42, p = 4, vals = d.claves.map(function(k){ return d.cobM[k]; });
   const n = vals.length, max = Math.max.apply(null, vals.concat([1]));
   const px = function(i){ return n === 1 ? W / 2 : p + (W - 2 * p) * i / (n - 1); };
   const py = function(v){ return H - p - (H - 2 * p - 4) * v / max; };
@@ -6049,7 +6064,7 @@ function viewEstadisticas(){
       <div><p class="est-k-l">Pendiente por cobrar</p><p class="est-k-v">${money(d.saldoActivo)}</p><p class="est-sub">Capital + intereses que faltan de los préstamos activos · sin mora</p></div>
     </div>
     <div class="est-card est-prox">
-      <div><p class="est-k-l">Por cobrar en los próximos 7 días</p><p class="est-k-v">${money(d.porCobrar7)}</p></div>
+      <div><p class="est-k-l">Por cobrar esta semana (hasta el domingo)</p><p class="est-k-v">${money(d.porCobrar7)}</p></div>
       <span class="est-cuenta">${d.nPorCobrar7}<small>${d.nPorCobrar7 === 1 ? "cuota" : "cuotas"}</small></span>
     </div>
     <div class="est-card">
