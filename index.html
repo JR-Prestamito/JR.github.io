@@ -1005,6 +1005,87 @@
   /* v25.22: tarjetas azul marino de Inicio y Estadísticas sin degradado */
   [data-inicio="marino"] .ini-hero,[data-inicio="marino"][data-theme="dark"] .ini-hero{background:#1B2A4A !important;}
   [data-inicio="marino"] .est-hero,[data-inicio="marino"][data-theme="dark"] .est-hero{background:#1B2A4A !important;}
+  /* v25.26: en estilo verde, la tarjeta de saldo pendiente usa el verde de la app */
+  [data-inicio="verde"] .card[style*="1B2A4A"]{background:#00796A !important;}
+  [data-inicio="verde"][data-theme="dark"] .card[style*="1B2A4A"]{background:#00574C !important;}
+  [data-inicio="verde"] .card[style*="1B2A4A"] .b-activo,[data-inicio="verde"] .card[style*="1B2A4A"] .b-pagado{color:#F3F0E8 !important;}
+  /* v25.34: etiquetas "Palabras para insertar" según el estilo elegido (verde confianza / azul marino) */
+  [data-inicio="verde"] .chip-var{color:#00796A;background:rgba(0,121,106,.10);border-color:rgba(0,121,106,.45);}
+  [data-inicio="verde"][data-theme="dark"] .chip-var{color:#80CBC4;background:rgba(128,203,196,.12);border-color:rgba(128,203,196,.40);}
+  [data-inicio="verde"] .chips-det > summary{color:#00796A;}
+  [data-inicio="verde"][data-theme="dark"] .chips-det > summary{color:#80CBC4;}
+  /* v25.39: etiquetas de estado con fondo, tarjeta de préstamo más suave y secciones de la lista */
+  .badge.b-activo,.badge.b-pagado{background:rgba(0,121,106,.14) !important;color:#00796A;box-shadow:none !important;padding:3px 10px;}
+  .badge.b-vencido{background:rgba(176,57,47,.13) !important;color:#B0392F;box-shadow:none !important;padding:3px 10px;}
+  .badge.b-refinanciado{background:rgba(27,42,74,.10) !important;color:#1B2A4A;box-shadow:none !important;padding:3px 10px;}
+  .badge.b-porcobrar{background:rgba(201,151,62,.20) !important;color:#A97B25;box-shadow:none !important;padding:3px 10px;}
+  [data-theme="dark"] .badge.b-activo,[data-theme="dark"] .badge.b-pagado{background:rgba(0,121,106,.32) !important;color:#80CBC4;}
+  [data-theme="dark"] .badge.b-vencido{background:rgba(176,57,47,.32) !important;color:#F0908A;}
+  [data-theme="dark"] .badge.b-refinanciado{background:rgba(143,178,232,.18) !important;color:#8FB2E8;}
+  [data-theme="dark"] .badge.b-porcobrar{background:rgba(201,151,62,.26) !important;color:#C9973E;}
+  .fila-inicio .badge.b-activo,.fila-inicio .badge.b-pagado,.fila-inicio .badge.b-vencido,.fila-inicio .badge.b-refinanciado,.fila-inicio .badge.b-porcobrar{padding:2px 9px;}
+  /* sobre la tarjeta azul/verde del préstamo: pastilla crema que se distingue del texto */
+  .card[style*="1B2A4A"] .badge{background:#F3F0E8 !important;}
+  .card[style*="1B2A4A"] .badge.b-activo,.card[style*="1B2A4A"] .badge.b-pagado{color:#00796A !important;}
+  .card[style*="1B2A4A"] .badge.b-vencido{color:#B0392F !important;}
+  .card[style*="1B2A4A"] .badge.b-refinanciado{color:#1B2A4A !important;}
+  .card[style*="1B2A4A"] > p[style*="font-size:12px"],.card[style*="1B2A4A"] .flex-gap > span{color:rgba(243,240,232,.78) !important;}
+  /* secciones de la lista de préstamos */
+  .panel-prox .section-title.dorado.st-venc,.panel-prox .section-title.dorado.st-act,.panel-prox .section-title.dorado.st-pag,.panel-prox .section-title.dorado.st-ref{text-transform:uppercase;letter-spacing:.07em;font-size:12px;font-weight:700;}
+  .panel-prox .section-title.dorado.st-venc{color:#B0392F;} .panel-prox .section-title.dorado.st-venc::before{background:#B0392F;}
+  .panel-prox .section-title.dorado.st-act{color:#00796A;} .panel-prox .section-title.dorado.st-act::before{background:#00796A;}
+  .panel-prox .section-title.dorado.st-pag{color:#A97B25;} .panel-prox .section-title.dorado.st-pag::before{background:#C9973E;}
+  .panel-prox .section-title.dorado.st-ref{color:#1B2A4A;} .panel-prox .section-title.dorado.st-ref::before{background:#1B2A4A;}
+  [data-theme="dark"] .panel-prox .section-title.dorado.st-venc{color:#F0908A;} [data-theme="dark"] .panel-prox .section-title.dorado.st-venc::before{background:#F0908A;}
+  [data-theme="dark"] .panel-prox .section-title.dorado.st-act{color:#80CBC4;} [data-theme="dark"] .panel-prox .section-title.dorado.st-act::before{background:#80CBC4;}
+  [data-theme="dark"] .panel-prox .section-title.dorado.st-pag{color:#C9973E;}
+  [data-theme="dark"] .panel-prox .section-title.dorado.st-ref{color:#8FB2E8;} [data-theme="dark"] .panel-prox .section-title.dorado.st-ref::before{background:#8FB2E8;}
+  /* v25.40: etiqueta "Pagado" en dorado (distinta de Activo) y tarjeta de saldo del préstamo reorganizada */
+  .badge.b-pagado{background:rgba(201,151,62,.20) !important;color:#A97B25;}
+  [data-theme="dark"] .badge.b-pagado{background:rgba(201,151,62,.26) !important;color:#C9973E;}
+  .card[style*="1B2A4A"] .badge.b-pagado{color:#A97B25 !important;}
+  .card[style*="1B2A4A"] .dp-met,.card[style*="1B2A4A"] p.dp-sub{color:rgba(243,240,232,.78) !important;}
+  /* v25.41: etiqueta de estado sobre la tarjeta del préstamo según estilo; fondo en etiquetas de Estadísticas; flujo neto en color */
+  /* azul marino (y respaldo): fondo claro translúcido, texto de color suave */
+  .card[style*="1B2A4A"] .badge{background:rgba(243,240,232,.12) !important;}
+  .card[style*="1B2A4A"] .badge.b-activo{color:#80CBC4 !important;}
+  .card[style*="1B2A4A"] .badge.b-pagado{color:#E3BE6B !important;}
+  .card[style*="1B2A4A"] .badge.b-vencido{color:#F0908A !important;}
+  .card[style*="1B2A4A"] .badge.b-refinanciado{color:#9DBBEA !important;}
+  /* verde confianza: pastilla oscura translúcida sobre el verde */
+  [data-inicio="verde"] .card[style*="1B2A4A"] .badge{background:rgba(0,0,0,.24) !important;}
+  [data-inicio="verde"] .card[style*="1B2A4A"] .badge.b-activo{color:#F3F0E8 !important;}
+  [data-inicio="verde"] .card[style*="1B2A4A"] .badge.b-pagado{color:#F0CF85 !important;}
+  [data-inicio="verde"] .card[style*="1B2A4A"] .badge.b-vencido{color:#F0908A !important;}
+  [data-inicio="verde"] .card[style*="1B2A4A"] .badge.b-refinanciado{color:#B7CFF2 !important;}
+  /* Estadísticas: etiqueta "Salud de la cartera" con fondo */
+  .est-pill{padding:4px 10px !important;}
+  .est-pill.ok{background:rgba(0,121,106,.15) !important;color:#00796A;}
+  .est-pill.med{background:rgba(201,151,62,.22) !important;color:#A97B25;}
+  .est-pill.mal{background:rgba(176,57,47,.15) !important;color:#B0392F;}
+  [data-theme="dark"] .est-pill.ok{background:rgba(0,121,106,.32) !important;color:#80CBC4;}
+  [data-theme="dark"] .est-pill.med{background:rgba(201,151,62,.26) !important;color:#C9973E;}
+  [data-theme="dark"] .est-pill.mal{background:rgba(176,57,47,.32) !important;color:#F0908A;}
+  /* Flujo neto de la tarjeta: positivo en verde, negativo en rojo */
+  .est-hero .est-h-pie b.pos{color:#9BE3C4 !important;}
+  .est-hero .est-h-pie b.neg{color:#F0908A !important;}
+  [data-inicio="verde"] .est-hero .est-h-pie b.pos{color:#C4F5E2 !important;}
+  [data-inicio="verde"] .est-hero .est-h-pie b.neg{color:#F0908A !important;}
+  /* v25.42: etiqueta de la tarjeta = misma que en la lista (marino); dorado y rojo de la paleta */
+  [data-inicio="marino"] .card[style*="1B2A4A"] .badge.b-activo{background:rgba(0,121,106,.32) !important;color:#80CBC4 !important;}
+  [data-inicio="marino"] .card[style*="1B2A4A"] .badge.b-pagado{background:rgba(201,151,62,.26) !important;color:#C9973E !important;}
+  [data-inicio="marino"] .card[style*="1B2A4A"] .badge.b-vencido{background:rgba(176,57,47,.32) !important;color:#F0908A !important;}
+  [data-inicio="marino"] .card[style*="1B2A4A"] .badge.b-refinanciado{background:rgba(143,178,232,.18) !important;color:#8FB2E8 !important;}
+  [data-inicio="verde"] .card[style*="1B2A4A"] .badge.b-activo{color:#80CBC4 !important;}
+  [data-inicio="verde"] .card[style*="1B2A4A"] .badge.b-pagado{color:#C9973E !important;}
+  [data-inicio="verde"] .card[style*="1B2A4A"] .badge.b-vencido{color:#F0908A !important;}
+  [data-inicio="verde"] .card[style*="1B2A4A"] .badge.b-refinanciado{color:#8FB2E8 !important;}
+  .est-hero .est-h-pie b.neg,[data-inicio="verde"] .est-hero .est-h-pie b.neg{color:#B0392F !important;}
+  /* v25.43: flujo neto negativo en rojo claro (legible sobre verde y marino) */
+  .est-hero .est-h-pie b.neg{color:#F0908A !important;}
+  [data-inicio="verde"] .est-hero .est-h-pie b.neg{color:#F0908A !important;}
+  /* v25.44: rojo suave estandarizado en el flujo neto negativo */
+  .est-hero .est-h-pie b.neg,[data-inicio="verde"] .est-hero .est-h-pie b.neg{color:#F0908A !important;}
 </style>
 </head>
 <body>
@@ -2130,8 +2211,34 @@ function resumen(p, fechaRef){
   const moraTotal = pagosParaCronograma.reduce((s,pg)=> s + (Number(pg.mora)||0), 0);
 
   if(p.liquidadoAnticipado){
-    return { cuota: tabla[0]?tabla[0].cuota:0, saldoPendiente:0, capitalPendiente:0, estado:"Pagado", proximaFecha:null,
-      tabla, pagosHechos: tabla.length, cuotaActual:null, abonadoEnCuotaActual:0, faltaEnCuotaActual:0,
+    // Cuotas realmente cobradas ANTES de liquidar (sin contar el pago de la liquidación) + la cuota
+    // en curso, que es la que cierra la liquidación. Antes se marcaban TODAS las filas de la tabla
+    // como pagadas (p. ej. "9 cuotas") y la cuota mostrada salía inflada por un abono a capital.
+    const totalSinLiq = pagosParaCronograma.filter(pg=>!pg.liquidacion).reduce((s,pg)=> s + (Number(pg.monto)||0), 0);
+    let cumL = 0, completasL = 0;
+    for(let i=0;i<tabla.length;i++){
+      cumL += tabla[i].cuota;
+      if(totalSinLiq+0.01 >= cumL) completasL = i+1; else break;
+    }
+    const nFilasL = Math.min(tabla.length, completasL + 1);
+    // La fila de la liquidación lleva la fecha y los montos reales de esa liquidación (no los de la
+    // cuota del período siguiente): cuota = total pagado, interés = prorrateado, abono = capital cerrado.
+    const filasL = tabla.slice(0, nFilasL);
+    const pgLiq = pagos.slice().reverse().find(pg=>pg.liquidacion);
+    if(pgLiq && nFilasL > completasL){
+      filasL[completasL] = Object.assign({}, filasL[completasL], {
+        fecha: pgLiq.fecha, saldoInicial: Number(pgLiq.capital)||0, cuota: Number(pgLiq.monto)||0,
+        interes: Number(pgLiq.interes)||0, abono: Number(pgLiq.capital)||0, saldo: 0, liquidacion: true });
+    }
+    // "Cuota" de un préstamo cerrado = la última cuota normal realmente cobrada (sin filas con abono extra).
+    const _ajL = new Set((p.ajustesCapital||[]).map(x=>x.despuesDeFila));
+    const _hechasL = tabla.slice(0, completasL);
+    const _normalL = _hechasL.filter(x=>!_ajL.has(x.n)).pop();
+    const cuotaRegL = _normalL ? _normalL.cuota
+      : (_hechasL.length ? (esIndef ? _hechasL[_hechasL.length-1].interes : _hechasL[0].cuota)
+      : (tabla[0] ? (esIndef ? tabla[0].interes : tabla[0].cuota) : 0));
+    return { cuota: cuotaRegL, saldoPendiente:0, capitalPendiente:0, estado:"Pagado", proximaFecha:null,
+      tabla: filasL, totalCuotasOriginal: tabla.length, pagosHechos: completasL, cuotaActual:null, abonadoEnCuotaActual:0, faltaEnCuotaActual:0,
       moraTotal, totalPagado };
   }
   if(p.refinanciado){
@@ -2179,7 +2286,10 @@ function resumen(p, fechaRef){
     const cuotaActualRow = tabla[periodosPagados] || null;
     const baseAnterior = periodosPagados>0 ? tabla.slice(0,periodosPagados).reduce((s,f)=>s+f.cuota,0) : 0;
     const abonadoEnCuotaActual = Math.max(0, totalPagado-baseAnterior);
-    const capitalPendienteIndef = periodosPagados>0 ? (tabla[periodosPagados-1].saldo||capital) : capital;
+    // Abonos a capital sueltos ya recibidos pero aplicados "después de" una cuota que aún no se completa:
+    // el capital ya bajó, aunque la tabla lo muestre desde la cuota siguiente.
+    const abonosAdelantadosI = (p.ajustesCapital||[]).filter(a=>a.despuesDeFila > periodosPagados).reduce((s,a)=>s+(Number(a.monto)||0),0);
+    const capitalPendienteIndef = Math.max(0, (periodosPagados>0 ? (tabla[periodosPagados-1].saldo||capital) : capital) - abonosAdelantadosI);
     // Como este método es "solo interés", cada cuota vencida sin pagar es interés puro (el
     // capital no baja por el cronograma normal, solo por abono a capital) — por eso ese
     // interés vencido SÍ es deuda real de hoy y debe sumarse al saldo pendiente, aunque
@@ -2221,7 +2331,8 @@ function resumen(p, fechaRef){
   const faltaEnCuotaActual = cuotaActual ? Math.max(0, cuotaActual.cuota - abonadoEnCuotaActual) : 0;
   const saldoPendiente = Math.max(0, (acumulados[totalCuotas-1]||0) - totalPagado);
   // capital realmente pendiente (sin contar el interés de las cuotas que faltan), util para refinanciar
-  const capitalPendiente = pagado ? 0 : (cuotasCompletas>0 ? Math.max(0, tabla[cuotasCompletas-1].saldo||0) : capital);
+  const abonosAdelantados = (p.ajustesCapital||[]).filter(a=>a.despuesDeFila > cuotasCompletas).reduce((s,a)=>s+(Number(a.monto)||0),0);
+  const capitalPendiente = pagado ? 0 : Math.max(0, (cuotasCompletas>0 ? Math.max(0, tabla[cuotasCompletas-1].saldo||0) : capital) - abonosAdelantados);
 
   return { cuota: tabla[0]?tabla[0].cuota:0, saldoPendiente, capitalPendiente, estado: pagado?"Pagado":"Activo",
     proximaFecha: pagado?null:(cuotaActual?cuotaActual.fecha:null), tabla, pagosHechos: cuotasCompletas,
@@ -2753,7 +2864,7 @@ document.documentElement.setAttribute("data-inicio", state.config.estiloInicio =
     // quedaba pegado en la última opción elegida sin importar cuál se marcara. Se corrige
     // forzando el valor real después de pintar, en vez de confiar solo en "selected".
     const selWA = document.getElementById("f_whatsappApp");
-    if(selWA) selWA.value = (state.config.whatsappApp==="business"||state.config.whatsappApp==="normal") ? state.config.whatsappApp : "auto";
+    if(selWA) selWA.value = (state.config.whatsappApp==="business"||state.config.whatsappApp==="normal"||state.config.whatsappApp==="preguntar") ? state.config.whatsappApp : "auto";
   }
   if(_esNavegacion && document.startViewTransition){
     document.startViewTransition(() => {
@@ -3921,7 +4032,7 @@ function viewInicio(){
       else if(r.proximaFecha){
         // lo que vence hoy y en los próximos 6 días (7 días en total), por día
         const dv = diasParaVencer(r.proximaFecha);
-        if(dv !== null && dv >= 0 && dv <= diasHastaDomingo()){ const m = Number(r.faltaEnCuotaActual) || (r.cuotaActual ? r.cuotaActual.cuota : 0); semana[(6 - diasHastaDomingo()) + dv] += m; montoSem += m; nSem++; }
+        if(dv !== null && dv >= 0 && dv <= diasVentanaCobro()){ const m = Number(r.faltaEnCuotaActual) || (r.cuotaActual ? r.cuotaActual.cuota : 0); if((6 - diasHastaDomingo()) + dv <= 6) semana[(6 - diasHastaDomingo()) + dv] += m; montoSem += m; nSem++; }
       }
     }
   });
@@ -4264,6 +4375,7 @@ function viewAjustes(){
         <option value="auto" ${(!state.config.whatsappApp||state.config.whatsappApp==="auto")?"selected":""}>El predeterminado del celular</option>
         <option value="normal" ${state.config.whatsappApp==="normal"?"selected":""}>WhatsApp normal (Android)</option>
         <option value="business" ${state.config.whatsappApp==="business"?"selected":""}>WhatsApp Business (Android)</option>
+        <option value="preguntar" ${state.config.whatsappApp==="preguntar"?"selected":""}>Preguntar cada vez (Android)</option>
       </select>
     </label>
   </div>
@@ -4493,18 +4605,20 @@ function viewPrestamos(){
   // un vistazo cuáles préstamos siguen activos y cuáles ya están cerrados de una forma u
   // otra. Se calcula el estado de cada uno una sola vez aquí, no dentro de cada grupo, para
   // no llamar resumen() dos veces por préstamo.
-  const conEstado = filtrados.map(p=>({p, estado: resumen(p).estado}));
-  const activos = conEstado.filter(x=>x.estado==="Activo").map(x=>x.p);
+  const conEstado = filtrados.map(p=>{ const rr = resumen(p); return {p, estado: rr.estado, venc: rr.estado==="Activo" && !!rr.proximaFecha && diasAtraso(rr.proximaFecha)>0}; });
+  const vencidos = conEstado.filter(x=>x.venc).map(x=>x.p);
+  const activos = conEstado.filter(x=>x.estado==="Activo" && !x.venc).map(x=>x.p);
   const pagados = conEstado.filter(x=>x.estado==="Pagado").map(x=>x.p);
   const refinanciados = conEstado.filter(x=>x.estado==="Refinanciado").map(x=>x.p);
   const grupos = [
-    { label:"Activos", lista:activos },
-    { label:"Pagados", lista:pagados },
-    { label:"Refinanciados", lista:refinanciados }
+    { label:"Vencidos", cls:"st-venc", lista:vencidos },
+    { label:"Activos", cls:"st-act", lista:activos },
+    { label:"Pagados", cls:"st-pag", lista:pagados },
+    { label:"Refinanciados", cls:"st-ref", lista:refinanciados }
   ];
   grupos.forEach(g=>{
     if(g.lista.length===0) return;
-    html += `<div class="panel-prox panel-lista"><p class="section-title dorado">${g.label} (${g.lista.length})</p>`;
+    html += `<div class="panel-prox panel-lista"><p class="section-title dorado ${g.cls}">${g.label} (${g.lista.length})</p>`;
     g.lista.forEach(p=>{ html += filaPrestamo(p); });
     html += `</div>`;
   });
@@ -4527,6 +4641,8 @@ function verCartera(){ state._origenInicio = (state.tab==="inicio"); state._deta
 const PLANTILLA_RECORDATORIO_DEFECTO = "Hola {nombre}, su préstamo {codigo} tiene {cuotas} vencida(s) desde el {fecha} ({dias} de atraso), por un total de {monto}{detalleProxima}. Le agradecemos ponerse al día lo antes posible. Cualquier duda, con gusto le atendemos. ¡Gracias!";
 const PLANTILLA_PENDIENTE_DEFECTO = "Hola {nombre}, le recordamos que su préstamo {codigo} tiene una cuota de {cuota} pendiente de cobro, con fecha {fecha}. Cualquier duda, con gusto le atendemos. ¡Gracias!";
 // Días que faltan para el domingo de esta semana (la semana va de lunes a domingo).
+// Los domingos la ventana llega hasta el lunes, para ver la cuota de mañana (un día antes).
+function diasVentanaCobro(){ return Math.max(diasHastaDomingo(), 1); }
 function diasHastaDomingo(){ return 6 - ((new Date(hoyISO() + "T12:00:00").getDay() + 6) % 7); }
 function diasParaVencer(fecha){
   if(!fecha) return null;
@@ -4688,7 +4804,7 @@ function linkWhatsapp(cli, mensaje){
   // no hace diferencia en iPhone (Apple no deja elegir entre las dos apps desde un enlace).
   const esAndroid = /Android/i.test(navigator.userAgent||"");
   const appElegida = state.config.whatsappApp || "auto";
-  if(esAndroid && appElegida!=="auto"){
+  if(esAndroid && appElegida!=="auto" && appElegida!=="preguntar"){
     const paquete = appElegida==="business" ? "com.whatsapp.w4b" : "com.whatsapp";
     return `intent://send?phone=${numero}&text=${texto}#Intent;scheme=whatsapp;package=${paquete};S.browser_fallback_url=${encodeURIComponent(linkNormal)};end`;
   }
@@ -4719,6 +4835,7 @@ function construirColaRecordatorios(tipo){
     if(tipo==="vencidos"){
       const atraso = diasAtraso(r.proximaFecha);
       const pendiente = calcularPendiente(p, r, true);
+      if((window._moraOff||{})[p.id]) pendiente.mora = 0;
       mensaje = mensajeRecordatorio(p, cli, r, atraso, pendiente);
     } else {
       mensaje = mensajePendiente(p, cli, r);
@@ -4798,7 +4915,7 @@ function viewColaRecordatorio(){
 }
 function viewCartera(){
   const prox = state.prestamos.map(p=>({p, r:resumen(p)}))
-    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasParaVencer(x.r.proximaFecha) >= 0 && diasParaVencer(x.r.proximaFecha) <= diasHastaDomingo())
+    .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasParaVencer(x.r.proximaFecha) >= 0 && diasParaVencer(x.r.proximaFecha) <= diasVentanaCobro())
     .sort((a,b)=> new Date(a.r.proximaFecha) - new Date(b.r.proximaFecha));
   const vencidos = state.prestamos.map(p=>({p, r:resumen(p)}))
     .filter(x=>x.r.estado==="Activo" && x.r.proximaFecha && diasAtraso(x.r.proximaFecha)>0)
@@ -5271,6 +5388,7 @@ function menuOpcionesDetallePrestamo(p){
     { icono: ICONS.edit, texto: "Editar préstamo", onclick: `abrirEditarPrestamo('${p.id}')` }
   ];
   if(r.estado==="Activo"){
+    items.push({ icono: ICONS.wallet, texto: "Abonar a capital", onclick: `abrirAbonoCapital()` });
     items.push({ icono: ICONS.calculator, texto: "Liquidar anticipado", onclick: `abrirLiquidacion()` });
     items.push({ icono: ICONS.refinance, texto: "Refinanciar este préstamo", onclick: `abrirRefinanciar('${p.id}')` });
   }
@@ -5294,7 +5412,9 @@ function viewDetallePrestamo(){
   // como período pagado o pendiente, en vez de mostrar de una vez varias filas futuras que
   // todavía no tocan, o esconder todo detrás de una sola fila fija.
   const esIndefDetalle = p.metodo === METODOS[5];
-  const filasParaTabla = esIndefDetalle
+  const filasParaTabla = (esIndefDetalle && p.liquidadoAnticipado)
+    ? r.tabla   // liquidado: se muestran todas las filas cobradas + la de la liquidación, aunque su fecha aún no llegue
+    : esIndefDetalle
     ? (function(){
         const hoy = hoyISO();
         const visibles = r.tabla.filter((f,i)=> i===0 || addDays(r.tabla[i-1].fecha,1) <= hoy);
@@ -5322,6 +5442,7 @@ function viewDetallePrestamo(){
     let estadoCelda;
     if(p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) estadoCelda = '<span style="color:#6B7080">Sin cuota</span>';
     else if(i < r.pagosHechos) estadoCelda = '<span style="color:#00796A">✓ Pagada</span>';
+    else if(p.liquidadoAnticipado && i === r.pagosHechos) estadoCelda = '<span style="color:#00796A">✓ Liquidación</span>';
     else {
       // "Pendiente" antes se usaba para cualquier cuota sin pagar, ya fuera futura o ya
       // vencida — ahora se distingue de verdad comparando la fecha de la fila contra hoy.
@@ -5366,6 +5487,7 @@ function viewDetallePrestamo(){
 
   const pendiente = calcularPendiente(p, r);
   const pendienteRecordatorio = calcularPendiente(p, r, true);
+  if((window._moraOff||{})[p.id]) pendienteRecordatorio.mora = 0;   // casilla "Cobrar la mora" desmarcada: el aviso tampoco la incluye
   const sugerido = pendiente.monto;
   const moraCalc = pendiente.mora;
   const nVenc = pendiente.nVenc;
@@ -5388,10 +5510,16 @@ function viewDetallePrestamo(){
 
   return `
     <div class="card" style="background:${NAVY};margin-bottom:16px;">
-      <p style="color:#F3F0E8;font-size:12px;margin:0;">${p.codigo} · ${cli?cli.nombre:"—"}</p>
-      <p style="color:#F3F0E8;font-size:22px;font-weight:700;margin:4px 0 0;">${money(r.saldoPendiente)}</p>
-      <p style="color:#F3F0E8;font-size:12px;margin:2px 0 10px;">saldo pendiente</p>
-      <div class="flex-gap">${badge(atraso>0?"Vencido":r.estado)}<span style="color:#F3F0E8;font-size:12px;">${p.metodo}</span></div>
+      <p style="color:#F3F0E8;font-size:18px;font-weight:600;line-height:1.25;margin:0;">${p.codigo} · ${cli?cli.nombre:"—"}</p>
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-top:10px;">
+        <div>
+          <p style="color:#F3F0E8;font-size:22px;font-weight:700;margin:0;">${money(r.saldoPendiente)}</p>
+          <p class="dp-sub" style="color:#F3F0E8;font-size:12px;margin:2px 0 0;">Saldo pendiente</p>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;text-align:right;">
+          ${badge(atraso>0?"Vencido":r.estado)}<span class="dp-met" style="color:#F3F0E8;font-size:12px;">${p.metodo}</span>
+        </div>
+      </div>
     </div>
     <div class="grid2">
       <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Capital</p><p style="font-size:15px;font-weight:600;margin:0;">${money(p.capital)}</p></div>
@@ -5414,9 +5542,9 @@ function viewDetallePrestamo(){
       ${r.abonadoEnCuotaActual>0 ? `<p class="hint" style="color:#C9973E;font-weight:600;margin:0 0 10px;">Ya abonaste ${money(r.abonadoEnCuotaActual)} a esta cuota. Falta ${money(r.faltaEnCuotaActual)}.</p>` : ""}
       ${moraCalc>0 ? `<p class="hint" style="color:#B0392F;margin:0 0 6px;">${nVenc>1 ? `Tienes ${nVenc} cuotas vencidas. Mora total calculada: ${money(moraCalc)}` : `Este pago tiene ${pendiente.diasAtr} día(s) de atraso. Mora calculada: ${money(moraCalc)}`}</p>
       <p class="hint nota-ayuda" style="margin:0 0 10px;">Cómo se calculó: ${pendiente.detalleMora.map(d=>`${textoMora(d)}`).join(" + ")}${pendiente.detalleMora.length>1?` → total ${money(moraCalc)}.${(state.config.moraModo!=="cuota" && (!state.config.moraBase||state.config.moraBase==="cuota")) ? ` La mora se calcula por separado para cada cuota vencida, cada una según sus propios días de atraso — por eso el ${nVenc}° vencimiento no acumula los mismos ${pendiente.diasAtr} días que la primera cuota vencida.` : ""}`:"."}</p>
-      <label style="display:flex;align-items:center;gap:6px;margin-bottom:12px;"><input type="checkbox" id="incluirMora" checked style="width:auto;" onchange="document.getElementById('montoPago').value = this.checked ? '${round2(sugerido+moraCalc).toFixed(2)}' : '${sugerido.toFixed(2)}';"><span style="margin:0;font-size:13px;color:#6B7080;">Cobrar la mora junto con este pago</span></label>` : ""}
+      <label style="display:flex;align-items:center;gap:6px;margin-bottom:12px;"><input type="checkbox" id="incluirMora" ${(window._moraOff||{})[p.id]?"":"checked"} style="width:auto;" onchange="(window._moraOff=window._moraOff||{})['${p.id}']=!this.checked; render();"><span style="margin:0;font-size:13px;color:#6B7080;">Cobrar la mora junto con este pago</span></label>` : ""}
       <div class="flexrow">
-        <input type="text" inputmode="decimal" id="montoPago" value="${moraCalc>0 ? round2(sugerido+moraCalc).toFixed(2) : ""}" placeholder="${sugerido.toFixed(2)}">
+        <input type="text" inputmode="decimal" id="montoPago" value="${(moraCalc>0 && !(window._moraOff||{})[p.id]) ? round2(sugerido+moraCalc).toFixed(2) : ""}" placeholder="${sugerido.toFixed(2)}">
         <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarPago('${p.id}')">Pagar</button>
       </div>
       <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#6B7080;">Fecha del pago</span><input type="date" id="fechaPago" value="${hoyISO()}" max="${hoyISO()}"></label>
@@ -5426,6 +5554,21 @@ function viewDetallePrestamo(){
         </select>
       </label>
       <p class="hint nota-ayuda">${nVenc>1 ? `El monto sugerido ya incluye las ${nVenc} cuotas vencidas${moraCalc>0?" y la mora":""}.` : (moraCalc>0 ? "El monto ya incluye la mora; desmarca la casilla para dejar solo la cuota." : "Déjalo vacío para pagar lo sugerido.")} Un monto menor queda como abono parcial a la cuota. Si pagas de más (después de completarla), el excedente se registra como <b>abono a capital</b> — se puede hacer cualquier día.</p>
+    </div>
+    <div class="row-card" style="display:none;" id="card-abono-capital">
+      <p style="font-weight:600;margin:0 0 6px;">Solo abono a capital</p>
+      <p class="hint nota-ayuda" style="margin:0 0 10px;">Baja el capital sin pagar la cuota. El interés de la cuota en curso se sigue calculando sobre el capital anterior; el nuevo capital cuenta desde la cuota siguiente.</p>
+      <div class="flexrow">
+        <input type="text" inputmode="decimal" id="montoAbonoCapital" placeholder="Monto a capital">
+        <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarAbonoCapital('${p.id}')">Abonar</button>
+      </div>
+      <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#6B7080;">Fecha del abono</span><input type="date" id="fechaAbonoCapital" value="${hoyISO()}" max="${hoyISO()}"></label>
+      <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#6B7080;">Forma de pago</span>
+        <select id="formaAbonoCapital">
+          ${["Efectivo","Transferencia","Depósito","Cheque","Otro"].map(o=>`<option ${((state.config.reciboFormaPago||"Efectivo")===o)?"selected":""}>${o}</option>`).join("")}
+        </select>
+      </label>
+      <button class="btn btn-outline" style="margin-top:10px;" onclick="document.getElementById('card-abono-capital').style.display='none'">Cancelar</button>
     </div>
     ${puedeLiquidarAnticipado ? `
     <div class="row-card" style="display:none;" id="card-liquidar">
@@ -5488,7 +5631,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "25.24";
+const JR_VERSION = "25.44";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -5836,7 +5979,7 @@ function datosEstadisticas(rango){
       } else {
         alDia++;
         const dv = r.proximaFecha ? diasParaVencer(r.proximaFecha) : null;
-        if(dv !== null && dv >= 0 && dv <= diasHastaDomingo()){ porCobrar7 += Number(r.faltaEnCuotaActual) || (r.cuotaActual ? r.cuotaActual.cuota : 0); nPorCobrar7++; }
+        if(dv !== null && dv >= 0 && dv <= diasVentanaCobro()){ porCobrar7 += Number(r.faltaEnCuotaActual) || (r.cuotaActual ? r.cuotaActual.cuota : 0); nPorCobrar7++; }
       }
       porCliente[p.clienteId] = (porCliente[p.clienteId] || 0) + saldo;
     } else cerrados++;
@@ -6059,7 +6202,7 @@ function generarAmortizacionPDF(p, cli, r, mostrarTotales){
   doc.setFontSize(9);
   doc.text(`${p.codigo}  ·  ${cli?cli.nombre:"—"}  ·  Capital ${money(p.capital)}  ·  Tasa ${p.tasa}%  ·  ${p.periodo}  ·  ${p.metodo}`, 14, 23);
   const esIndefPDF = p.metodo === METODOS[5];
-  const filasBase = esIndefPDF
+  const filasBase = (esIndefPDF && !p.liquidadoAnticipado)
     ? (function(){
         const hoy = hoyISO();
         const visibles = r.tabla.filter((f,i)=> i===0 || addDays(r.tabla[i-1].fecha,1) <= hoy);
@@ -6075,7 +6218,7 @@ function generarAmortizacionPDF(p, cli, r, mostrarTotales){
   const filasConAjustePDF = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
   const filas = filasBase.map((f,i)=>{
     const tieneAjuste = filasConAjustePDF.has(f.n);
-    const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"));
+    const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (p.liquidadoAnticipado && i===r.pagosHechos ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente")));
     return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
   });
   const totalCuota = filasBase.reduce((s,f)=>s+(Number(f.cuota)||0),0);
@@ -6133,7 +6276,25 @@ function generarEstadoCuentaPDF(p, cli, r){
   doc.text(`Método: ${p.metodo}`, col2, y); y += 4.2;
   if(cli && cli.celular){ doc.text(`Celular: ${cli.celular}`, col1, y); }
   doc.text(`Tasa: ${p.tasa}% · ${p.periodo}`, col2, y); y += 4.2;
-  doc.text(`Fecha de inicio: ${fmtDate(p.fechaInicio)}`, col2, y);
+  // Con modificaciones, p.fechaInicio es la del último refinanciamiento: el inicio real es el de la primera.
+  const _m0i = (p.modificaciones && p.modificaciones.length) ? p.modificaciones[0] : null;
+  let _fIni = p.fechaInicio;
+  if(_m0i){
+    if(_m0i.fechaInicioAnterior){ _fIni = _m0i.fechaInicioAnterior; }
+    else {
+      // Modificaciones antiguas no guardaron la fecha original: se estima como un período antes del
+      // primer pago real (la primera cuota cae un período después del inicio).
+      const _fp = []; (p.pagos||[]).forEach(g=>_fp.push(g)); (p.modificaciones||[]).forEach(m=>(m.pagosPrevios||[]).forEach(g=>_fp.push(g)));
+      const _ds = _fp.filter(g=>g.tipo!=="enganche" && g.fecha).map(g=>g.fecha).sort();
+      _fIni = _m0i.fecha || p.fechaInicio;
+      if(_ds.length){
+        const d0 = new Date(_ds[0] + "T12:00:00"); d0.setDate(d0.getDate() - (DIAS_PERIODO[_m0i.periodoAnterior || p.periodo] || 0));
+        const est = d0.toISOString().slice(0,10);
+        if(est < _fIni) _fIni = est;
+      }
+    }
+  }
+  doc.text(`Fecha de inicio: ${fmtDate(_fIni)}`, col2, y);
   doc.setTextColor(20);
   y += 7;
 
@@ -6173,9 +6334,9 @@ function generarEstadoCuentaPDF(p, cli, r){
     if(p.modificaciones && p.modificaciones.length){
       doc.autoTable({
         startY: y,
-        head: [["Fecha","Capital antes","Capital después","Tasa antes","Tasa después"]],
+        head: [["Fecha","Capital antes","Aumento","Capital después","Tasa antes","Tasa después"]],
         body: p.modificaciones.map(m=>[
-          fmtDate(m.fecha), money(m.capitalAnterior), money(m.capitalNuevo),
+          fmtDate(m.fecha), money(m.capitalAnterior), money(m.adicional!=null ? (Number(m.adicional)||0) : Math.max((Number(m.capitalNuevo)||0)-(Number(m.capitalAnterior)||0),0)), money(m.capitalNuevo),
           `${m.tasaAnterior}%`, `${m.tasaNueva}%`
         ]),
         styles: { fontSize: 8, cellPadding: 1 },
@@ -6207,7 +6368,7 @@ function generarEstadoCuentaPDF(p, cli, r){
   doc.setFontSize(11); doc.setFont("helvetica","bold"); doc.text("Tabla de amortización", 14, y);
   doc.setFont("helvetica","normal"); y += 3;
   const esIndefEC = p.metodo === METODOS[5];
-  const filasEC = esIndefEC
+  const filasEC = (esIndefEC && !p.liquidadoAnticipado)
     ? (function(){
         const hoy = hoyISO();
         const visibles = r.tabla.filter((f,i)=> i===0 || addDays(r.tabla[i-1].fecha,1) <= hoy);
@@ -6223,7 +6384,7 @@ function generarEstadoCuentaPDF(p, cli, r){
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
     body: filasEC.map((f,i)=>{
       const tieneAjuste = filasConAjusteEC.has(f.n);
-      const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"));
+      const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (p.liquidadoAnticipado && i===r.pagosHechos ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente")));
       return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
     }),
     foot: [["Total","","",money(totalCuotaEC),money(totalInteresEC),money(totalAbonoEC),"",""]],
@@ -7131,7 +7292,44 @@ function registrarPago(id){
       if(r2.proximaFecha) msg += `\nPróxima cuota: ${fmtDate(r2.proximaFecha)}.`;
     }
     mostrarAlerta(msg);
+    if(window._moraOff) delete window._moraOff[id];
   }, { textoAceptar:"Registrar" });
+}
+function abrirAbonoCapital(){
+  const c = document.getElementById("card-abono-capital");
+  if(!c) return;
+  const l = document.getElementById("card-liquidar"); if(l) l.style.display = "none";
+  c.style.display = "block";
+  c.scrollIntoView({ behavior:"smooth", block:"center" });
+}
+// Abono a capital suelto (sin pagar la cuota): baja el saldo desde la cuota siguiente. Se guarda como
+// pago tipo "abono_capital" + ajuste en p.ajustesCapital, igual que el excedente de un cobro normal.
+function registrarAbonoCapital(id){
+  const p = state.prestamos.find(x=>x.id===id);
+  if(!p) return;
+  const r = resumen(p);
+  const monto = round2(Number(String(document.getElementById("montoAbonoCapital").value||"").replace(/,/g,"")) || 0);
+  if(monto <= 0){ mostrarAlerta("Escribe el monto que vas a abonar a capital."); return; }
+  const capActual = r.capitalPendiente!=null ? r.capitalPendiente : Number(p.capital)||0;
+  if(monto >= capActual - 0.01){ mostrarAlerta("Ese monto cubre todo el capital pendiente (" + money(capActual) + "). Para cerrar el préstamo usa \"Liquidar anticipado\"."); return; }
+  const fEl = document.getElementById("fechaAbonoCapital");
+  const fecha = (fEl && fEl.value) ? fEl.value : hoyISO();
+  const forma = (document.getElementById("formaAbonoCapital")||{}).value || state.config.reciboFormaPago || "Efectivo";
+  mostrarConfirmacion(
+    `¿Registrar abono a capital con fecha ${fmtDate(fecha)}?\n\nAbono: ${money(monto)}\nCapital actual: ${money(capActual)}\nCapital nuevo: ${money(capActual-monto)}`,
+    function(ok){
+      if(!ok) return;
+      const idAbono = uid();
+      p.pagos = p.pagos || [];
+      p.pagos.push({ id:idAbono, ts:new Date().toISOString(), fecha, monto, mora:0, tipo:"abono_capital", interes:0, capital:monto, formaPago:forma });
+      p.ajustesCapital = p.ajustesCapital || [];
+      p.ajustesCapital.push({ despuesDeFila: (r.pagosHechos||0) + 1, monto, fecha, pagoId: idAbono });
+      save(); render();
+      const r2 = resumen(p);
+      mostrarAlerta(`✅ Abono a capital registrado: ${money(monto)}.\n\nCapital pendiente: ${money(r2.capitalPendiente)}.`);
+    },
+    { textoAceptar:"Registrar" }
+  );
 }
 function abrirLiquidacion(){
   const c = document.getElementById("card-liquidar");
@@ -7148,12 +7346,28 @@ function liquidarAnticipado(id){
   const fechaBase = r.pagosHechos>0 ? r.tabla[r.pagosHechos-1].fecha : p.fechaInicio;
   const diasReales = Math.max(0, Math.round((new Date(fechaLiq+"T00:00:00") - new Date(fechaBase+"T00:00:00"))/86400000));
   const capitalPendiente = r.capitalPendiente!=null ? r.capitalPendiente : Number(p.capital)||0;
-  const interes = Math.round(capitalPendiente*tasaDiaria*diasReales*100)/100;
+  // Interés día por día sobre el saldo que había cada día: los abonos a capital recibidos en este período
+  // (aún sin cuota completada) bajan el saldo desde SU fecha, no desde el inicio del período.
+  const _msDia = 86400000;
+  const _dia = function(f){ return Math.round((new Date(f+"T00:00:00") - new Date(fechaBase+"T00:00:00"))/_msDia); };
+  const abonosPeriodo = (p.ajustesCapital||[]).filter(function(x){ return x.despuesDeFila > (r.pagosHechos||0) && Number(x.monto)>0; })
+    .map(function(x){ return { d: Math.min(diasReales, Math.max(0, _dia(x.fecha||fechaBase))), monto: Number(x.monto)||0 }; })
+    .sort(function(x,y){ return x.d - y.d; });
+  let capSeg = capitalPendiente + abonosPeriodo.reduce(function(s,x){ return s + x.monto; }, 0);
+  let diaPrev = 0, interesSeg = 0;
+  const tramos = [];
+  abonosPeriodo.forEach(function(x){
+    if(x.d > diaPrev){ interesSeg += capSeg*tasaDiaria*(x.d - diaPrev); tramos.push({ dias: x.d - diaPrev, cap: capSeg }); }
+    capSeg -= x.monto; diaPrev = Math.max(diaPrev, x.d);
+  });
+  if(diasReales > diaPrev){ interesSeg += capSeg*tasaDiaria*(diasReales - diaPrev); tramos.push({ dias: diasReales - diaPrev, cap: capSeg }); }
+  const interes = Math.round(interesSeg*100)/100;
   const total = capitalPendiente + interes;
+  const detalleTramos = abonosPeriodo.length ? "\n(" + tramos.map(function(x){ return x.dias + " día" + (x.dias===1?"":"s") + " sobre " + money(x.cap); }).join(" + ") + ")" : "";
   mostrarConfirmacion(
     `Liquidación anticipada al ${fmtDate(fechaLiq)}:\n` +
     `Días reales transcurridos: ${diasReales}\n` +
-    `Interés prorateado: ${money(interes)}\n` +
+    `Interés prorateado: ${money(interes)}${detalleTramos}\n` +
     `Capital pendiente: ${money(capitalPendiente)}\n` +
     `Total a pagar: ${money(total)}\n\n` +
     `¿Registrar este pago y cerrar el préstamo?`,
@@ -7308,6 +7522,18 @@ function viewPagos(){
     const capitalNeto = (p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p))
       + (p.modificaciones||[]).reduce((s,m)=>s+(Number(m.adicional)||0),0);
 
+    // Desglose bajo "Prestado (neto)": inicial + aumentos si hubo modificaciones; o lo entregado + el
+    // saldo que vino del préstamo anterior si nació de un refinanciamiento.
+    const _aum = (p.modificaciones||[]).reduce((s,m)=>s+(Number(m.adicional)||0),0);
+    let desgloseNeto = "";
+    if(p.refinanciaDe){
+      const _ant = state.prestamos.find(x=>x.id===p.refinanciaDe);
+      const _saldoPrev = capitalOriginalDesembolsado(p) - (Number(p.adicionalAlRefinanciar)||0);
+      if(_saldoPrev > 0.005) desgloseNeto = `Entregado ${money(Number(p.adicionalAlRefinanciar)||0)} + saldo de ${_ant?_ant.codigo:"préstamo anterior"} ${money(_saldoPrev)}` + (_aum>0.005 ? ` + aumentos ${money(_aum)}` : "");
+      else if(_aum>0.005) desgloseNeto = `Inicial ${money(Number(p.adicionalAlRefinanciar)||0)} + aumentos ${money(_aum)}`;
+    } else if(_aum>0.005){
+      desgloseNeto = `Inicial ${money(capitalOriginalDesembolsado(p))} + aumentos ${money(_aum)}`;
+    }
     return `<details class="tabla-card fila-pago" data-k="${p.id}">
       <summary style="padding:12px 16px;">
         <div style="min-width:0;">
@@ -7319,7 +7545,7 @@ function viewPagos(){
       <div style="padding:10px 16px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-bottom:1px solid #e5e1d8;">
         <div><p class="hint" style="margin:0 0 2px;white-space:nowrap;">Prestado (neto)</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(capitalNeto)}</p></div>
         <div><p class="hint" style="margin:0 0 2px;white-space:nowrap;">Pendiente hoy</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(r.capitalPendiente||0)}</p></div>
-        <div><p class="hint" style="margin:0 0 2px;white-space:nowrap;">Total cobrado</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(totalGeneral)}</p></div>
+        <div><p class="hint" style="margin:0 0 2px;white-space:nowrap;">Total cobrado</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(totalGeneral)}</p></div>${desgloseNeto?`<p class="hint" style="grid-column:1/-1;margin:0;font-size:11.5px;">${desgloseNeto}</p>`:""}
       </div>
       <div style="padding:12px 16px;">
         ${vigentes.length ? `<p class="hint" style="margin:0 0 6px;">Pagos vigentes (${vigentes.length}) · ${money(totalVigente)}</p>${vigentes.map(pg=>filaVigente(p,pg,vigentes)).join("")}` : ""}
@@ -7475,6 +7701,36 @@ let _recargaIntencional = false;
 // la protección se reactiva sola un instante después (por si la app externa no estaba
 // instalada y el usuario se quedó aquí mismo, sigue protegido para el resto de la sesión).
 let _saliendoAAppExterna = false;
+// ── Elegir a qué WhatsApp enviar, en el momento (Ajustes > "Preguntar cada vez") ──
+// Intercepta el toque en un enlace de WhatsApp y muestra dos opciones. Solo en Android.
+function _waIntentPara(url, paquete){
+  const m = url.match(/wa\.me\/(\d+)\?text=(.*)$/);
+  if(!m) return url;
+  return "intent://send?phone=" + m[1] + "&text=" + m[2] + "#Intent;scheme=whatsapp;package=" + paquete + ";S.browser_fallback_url=" + encodeURIComponent(url) + ";end";
+}
+let _waPend = null;
+function waElegir(paquete){
+  const p = _waPend; _waPend = null; jrCerrarModal();
+  if(!p || !paquete) return;
+  abrirEnlaceExterno();
+  window.location.href = _waIntentPara(p.url, paquete);
+  if(p.cola) setTimeout(marcarEnviadoYSiguiente, 400);
+}
+document.addEventListener("click", function(e){
+  const a = e.target.closest && e.target.closest("a[href^='https://wa.me/']");
+  if(!a || state.config.whatsappApp !== "preguntar" || !/Android/i.test(navigator.userAgent||"")) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  _waPend = { url: a.getAttribute("href"), cola: /marcarEnviadoYSiguiente/.test(a.getAttribute("onclick")||"") };
+  const root = document.getElementById("jr-modal-root");
+  if(!root) return;
+  root.innerHTML = `<div class="jr-modal-overlay"><div class="jr-modal-card">
+    <p class="jr-modal-msg" style="margin-bottom:14px;">¿Con cuál WhatsApp lo envías?</p>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn btn-gold" onclick="waElegir('com.whatsapp')">WhatsApp</button>
+      <button class="btn btn-gold" onclick="waElegir('com.whatsapp.w4b')">WhatsApp Business</button>
+      <button class="btn btn-outline" onclick="waElegir(null)">Cancelar</button>
+    </div></div></div>`;
+}, true);
 function abrirEnlaceExterno(){
   _saliendoAAppExterna = true;
   setTimeout(function(){ _saliendoAAppExterna = false; }, 1500);
