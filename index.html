@@ -1086,6 +1086,22 @@
   [data-inicio="verde"] .est-hero .est-h-pie b.neg{color:#F0908A !important;}
   /* v25.44: rojo suave estandarizado en el flujo neto negativo */
   .est-hero .est-h-pie b.neg,[data-inicio="verde"] .est-hero .est-h-pie b.neg{color:#F0908A !important;}
+  /* v25.46: antigüedad de la mora desplegable con clientes; columnas de vencido en el reporte */
+  .est-ag{cursor:default;}
+  .est-ag.hay{cursor:pointer;}
+  .est-ag.hay .est-fila-t span::after{content:"›";display:inline-block;margin-left:7px;font-weight:700;transition:transform .15s;}
+  .est-ag.hay.on .est-fila-t span::after{transform:rotate(90deg);}
+  .est-ag-l{display:none;margin:8px 0 2px;}
+  .est-ag.on .est-ag-l{display:block;}
+  .est-ag.on{margin-bottom:14px;}
+  .est-ag-f{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 11px;border-radius:12px;background:rgba(27,42,74,.06);margin-top:6px;cursor:pointer;}
+  .est-ag-f p{margin:0;}
+  .est-ag-f .n{font-size:13px;font-weight:600;}
+  .est-ag-f .s{font-size:11.5px;opacity:.7;margin-top:1px !important;}
+  .est-ag-f .m{font-size:13px;font-weight:700;color:#B0392F;white-space:nowrap;}
+  .est-ag-f .m small{display:block;font-size:10.5px;font-weight:500;opacity:.7;text-align:right;color:inherit;}
+  [data-theme="dark"] .est-ag-f{background:rgba(255,255,255,.06);}
+  [data-theme="dark"] .est-ag-f .m{color:#F0908A;}
 </style>
 </head>
 <body>
@@ -1314,8 +1330,20 @@ let state = {
   q: "",
   qPrestamos: ""
 };
+// Tema automático: si el modo es "auto", se sigue el modo claro/oscuro del teléfono.
+function sincronizarTemaAuto(){
+  if(state.config.temaModo === "auto"){
+    try{ state.config.temaOscuro = !!(window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches); }catch(e){}
+  }
+}
+try{
+  const _mqTema = window.matchMedia("(prefers-color-scheme: dark)");
+  const _onTema = function(){ if(state.config.temaModo === "auto"){ sincronizarTemaAuto(); try{ render(); }catch(e){} } };
+  if(_mqTema.addEventListener) _mqTema.addEventListener("change", _onTema); else if(_mqTema.addListener) _mqTema.addListener(_onTema);
+}catch(e){}
 // Se aplica el tema antes del primer render para que no haya un parpadeo de tema claro
 // al abrir la app si el modo oscuro está activado.
+sincronizarTemaAuto();
 document.documentElement.setAttribute("data-theme", state.config.temaOscuro ? "dark" : "light");
 document.documentElement.setAttribute("data-inicio", state.config.estiloInicio === "marino" ? "marino" : "verde");
   document.documentElement.setAttribute("data-ayudas", state.config.mostrarAyudas ? "on" : "off");
@@ -2632,6 +2660,7 @@ function medirEncabezado(){
 }
 window.addEventListener("resize", medirEncabezado);
 function render(){
+  sincronizarTemaAuto();
   document.documentElement.setAttribute("data-theme", state.config.temaOscuro ? "dark" : "light");
 document.documentElement.setAttribute("data-inicio", state.config.estiloInicio === "marino" ? "marino" : "verde");
   document.documentElement.setAttribute("data-ayudas", state.config.mostrarAyudas ? "on" : "off");
@@ -3018,6 +3047,33 @@ function abrirReportePDF(){
   state.vista = "reportePDF";
   render();
 }
+function datosVencidoReporte(p, r){
+  // Para el reporte general: días de atraso y monto realmente vencido (cuotas atrasadas + mora),
+  // calculado igual que en Cartera vencida. Si el préstamo no está vencido devuelve null.
+  const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
+  if(!(atraso > 0)) return null;
+  const pe = calcularPendiente(p, r);
+  return { atraso: atraso, monto: round2(pe.monto||0), mora: round2(pe.mora||0) };
+}
+function resumenVencidoReporte(){
+  let n = 0, total = 0, mora = 0;
+  state.prestamos.forEach(function(p){ const v = datosVencidoReporte(p, resumen(p)); if(v){ n++; total += v.monto + v.mora; mora += v.mora; } });
+  const hayUltimo = state.prestamos.some(function(p){ return !!ultimoPagoDe(p); });
+  return { n: n, total: round2(total), mora: round2(mora), hayMora: mora > 0.005, hayUltimo: hayUltimo };
+}
+function ultimoPagoDe(p){
+  // Fecha del último pago registrado del préstamo (sin contar el enganche), incluyendo
+  // los pagos archivados por una modificación anterior.
+  let u = "";
+  const ver = function(pg){ if(pg && pg.tipo !== "enganche" && pg.fecha && String(pg.fecha).slice(0,10) > u) u = String(pg.fecha).slice(0,10); };
+  (p.pagos||[]).forEach(ver);
+  (p.modificaciones||[]).forEach(function(m){ (m.pagosPrevios||[]).forEach(ver); });
+  return u || null;
+}
+function reporteSoloVencidos(){ state._repSoloVenc = !state._repSoloVenc; render(); }
+function prestamosDelReporte(){
+  return state._repSoloVenc ? state.prestamos.filter(function(p){ return datosVencidoReporte(p, resumen(p)); }) : state.prestamos;
+}
 function generarReportePDF(){
   let prestado=0, cobrado=0;
   state.prestamos.forEach(p=>{
@@ -3031,18 +3087,29 @@ function generarReportePDF(){
   doc.text(nombreApp(), 14, 16);
   doc.setFontSize(9);
   doc.text(`Reporte general  ·  ${fmtDate(hoyISO())}`, 14, 23);
+  const rv = resumenVencidoReporte();
   doc.text(`Capital prestado ${money(prestado)}   ·   Total cobrado ${money(cobrado)}   ·   Clientes ${state.clientes.length}   ·   Préstamos ${state.prestamos.length}`, 14, 29);
-  const filas = state.prestamos.map(p=>{
+  if(rv.n > 0) doc.text(`Préstamos vencidos ${rv.n}   ·   Monto vencido ${money(rv.total)}` + (rv.hayMora ? `  (incluye mora ${money(rv.mora)})` : ""), 14, 34);
+  if(state._repSoloVenc) doc.text("Filtro: solo préstamos vencidos", 14, rv.n > 0 ? 39 : 34);
+  const filas = prestamosDelReporte().map(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
     const r = resumen(p);
     const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
     const estado = atraso>0 ? "Vencido" : r.estado;
-    return [p.codigo, cli?cli.nombre:"—", money(p.capital), estado, money(r.saldoPendiente), r.proximaFecha?fmtDateCompacto(r.proximaFecha):"—"];
+    const dv = datosVencidoReporte(p, r);
+    const up = ultimoPagoDe(p);
+    return [p.codigo, cli?cli.nombre:"—", money(p.capital), estado, money(r.saldoPendiente), dv?String(dv.atraso):"—", dv?money(dv.monto):"—", dv&&dv.mora>0.005?money(dv.mora):"—", up?fmtDateCompacto(up):"—", r.proximaFecha?fmtDateCompacto(r.proximaFecha):"—"];
   });
+  // Las columnas de días de atraso, vencido, mora y último pago solo salen si hay datos (posiciones 5, 6, 7 y 8).
+  const quitar = [];
+  if(rv.n === 0) quitar.push(5, 6);
+  if(!rv.hayMora) quitar.push(7);
+  if(!rv.hayUltimo) quitar.push(8);
+  const sinCols = function(arr){ return arr.filter(function(_, i){ return quitar.indexOf(i) < 0; }); };
   doc.autoTable({
-    startY: 34,
-    head: [["Código","Cliente","Capital","Estado","Saldo","Próx. fecha"]],
-    body: filas.length ? filas : [["—","Sin préstamos registrados.","","","",""]],
+    startY: (rv.n > 0 ? 39 : 34) + (state._repSoloVenc ? 5 : 0),
+    head: [sinCols(["Código","Cliente","Capital","Estado","Saldo","Días atraso","Vencido","Mora","Último pago","Próx. fecha"])],
+    body: filas.length ? filas.map(sinCols) : [sinCols(["—","Sin préstamos registrados.","","","","","","","",""])],
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [27,42,74] }
   });
@@ -3085,24 +3152,31 @@ function imprimirReportePDF(){
   });
 }
 function viewReportePDF(){
+  const _rv = resumenVencidoReporte();
   let prestado=0, cobrado=0;
   state.prestamos.forEach(p=>{
     prestado += p.refinanciaDe ? (Number(p.adicionalAlRefinanciar)||0) : capitalOriginalDesembolsado(p);
     (p.modificaciones||[]).forEach(m=>{ prestado += Number(m.adicional)||0; });
     cobrado += (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0),0) + pagosPreviosDe(p);
   });
-  const filas = state.prestamos.map(p=>{
+  const filas = prestamosDelReporte().map(p=>{
     const cli = state.clientes.find(c=>c.id===p.clienteId);
     const r = resumen(p);
     const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
     const estado = atraso>0 ? "Vencido" : r.estado;
+    const dv = datosVencidoReporte(p, r);
+    const up = ultimoPagoDe(p);
     return `<tr class="fila-amort">
       <td style="padding:4px 5px;white-space:nowrap;">${p.codigo}</td>
       <td style="padding:4px 5px;white-space:nowrap;">${cli?cli.nombre:"—"}</td>
       <td style="padding:4px 5px;white-space:nowrap;">${money(p.capital)}</td>
       <td style="padding:4px 5px;white-space:nowrap;">${estado}</td>
       <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(r.saldoPendiente)}</td>
-      <td style="padding:4px 5px;white-space:nowrap;">${r.proximaFecha?fmtDate(r.proximaFecha):"—"}</td>
+      ${_rv.n>0?`<td style="padding:4px 5px;text-align:right;white-space:nowrap;">${dv?dv.atraso:"—"}</td>
+      <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${dv?money(dv.monto):"—"}</td>`:""}
+      ${_rv.hayMora?`<td style="padding:4px 5px;text-align:right;white-space:nowrap;">${dv&&dv.mora>0.005?money(dv.mora):"—"}</td>`:""}
+      ${_rv.hayUltimo?`<td style="padding:4px 5px;white-space:nowrap;">${up?fmtDateCompacto(up):"—"}</td>`:""}
+      <td style="padding:4px 5px;white-space:nowrap;">${r.proximaFecha?fmtDateCompacto(r.proximaFecha):"—"}</td>
     </tr>`;
   }).join("");
   return `
@@ -3114,16 +3188,19 @@ function viewReportePDF(){
         <div><p class="hint" style="margin:0;">Total cobrado</p><p style="font-weight:700;margin:2px 0;">${money(cobrado)}</p></div>
         <div><p class="hint" style="margin:0;">Clientes</p><p style="font-weight:700;margin:2px 0;">${state.clientes.length}</p></div>
         <div><p class="hint" style="margin:0;">Préstamos</p><p style="font-weight:700;margin:2px 0;">${state.prestamos.length}</p></div>
+        ${_rv.n>0?`<div><p class="hint" style="margin:0;">Préstamos vencidos</p><p style="font-weight:700;margin:2px 0;">${_rv.n}</p></div>
+        <div><p class="hint" style="margin:0;">Monto vencido${_rv.hayMora?" (con mora)":""}</p><p style="font-weight:700;margin:2px 0;">${money(_rv.total)}</p></div>`:""}
       </div>
+      ${(_rv.n>0||state._repSoloVenc)?`<div style="margin:0 0 12px;"><button class="est-chip${state._repSoloVenc?" on":""}" onclick="reporteSoloVencidos()">Solo vencidos</button></div>`:""}
       <div class="tabla-card">
       <div style="overflow:auto;max-height:242px;-webkit-overflow-scrolling:touch;">
       <table class="amort-grid" style="width:auto;border-collapse:collapse;font-size:11px;">
         <thead><tr class="thead-fijo" style="background:#F7F5F0;">
           <th style="text-align:left;padding:4px 5px;white-space:nowrap;">Código</th><th style="text-align:left;padding:4px 5px;white-space:nowrap;">Cliente</th>
           <th style="text-align:left;padding:4px 5px;white-space:nowrap;">Capital</th><th style="text-align:left;padding:4px 5px;white-space:nowrap;">Estado</th>
-          <th style="text-align:right;padding:4px 5px;white-space:nowrap;">Saldo</th><th style="text-align:left;padding:4px 5px;white-space:nowrap;">Próx. fecha</th>
+          <th style="text-align:right;padding:4px 5px;white-space:nowrap;">Saldo</th>${_rv.n>0?'<th style="text-align:right;padding:4px 5px;white-space:nowrap;">Días atraso</th><th style="text-align:right;padding:4px 5px;white-space:nowrap;">Vencido</th>':''}${_rv.hayMora?'<th style="text-align:right;padding:4px 5px;white-space:nowrap;">Mora</th>':''}${_rv.hayUltimo?'<th style="text-align:left;padding:4px 5px;white-space:nowrap;">Último pago</th>':''}<th style="text-align:left;padding:4px 5px;white-space:nowrap;">Próx. fecha</th>
         </tr></thead>
-        <tbody>${filas || `<tr><td colspan="6" style="padding:14px;text-align:center;color:#6B7080;">Sin préstamos registrados.</td></tr>`}</tbody>
+        <tbody>${filas || `<tr><td colspan="10" style="padding:14px;text-align:center;color:#6B7080;">Sin préstamos registrados.</td></tr>`}</tbody>
       </table>
       </div>
       </div>
@@ -4238,9 +4315,12 @@ function viewAjustes(){
   </div>
   <div class="row-card" style="display:block;" id="sec-apariencia">
     <p style="font-weight:600;margin:0 0 4px;">Apariencia</p>
-    <label style="display:flex;align-items:center;gap:8px;margin-bottom:0;cursor:pointer;">
-      <input type="checkbox" style="width:auto;" ${state.config.temaOscuro?"checked":""} onchange="state.config.temaOscuro=this.checked; document.documentElement.setAttribute('data-theme', this.checked?'dark':'light'); save(); render();">
-      <span style="margin:0;font-size:14px;">Modo oscuro</span>
+    <label style="margin-bottom:0;"><span>Modo</span>
+      <select id="f_temaModo" onchange="state.config.temaModo=this.value; if(this.value==='auto'){ sincronizarTemaAuto(); } else { state.config.temaOscuro=(this.value==='oscuro'); } document.documentElement.setAttribute('data-theme', state.config.temaOscuro?'dark':'light'); save(); render();">
+        <option value="claro" ${(state.config.temaModo==="auto"||state.config.temaOscuro)?"":"selected"}>Claro</option>
+        <option value="oscuro" ${(state.config.temaModo!=="auto"&&state.config.temaOscuro)?"selected":""}>Oscuro</option>
+        <option value="auto" ${state.config.temaModo==="auto"?"selected":""}>Automático (según el teléfono)</option>
+      </select>
     </label>
     <p class="hint nota-ayuda" style="margin:6px 0 0;">Los recibos y reportes que imprimes o envías siempre se ven en claro, pensados para papel.</p>
     <label style="margin:14px 0 0;"><span>Color de la app</span>
@@ -4624,11 +4704,24 @@ function viewPrestamos(){
   });
   return html;
 }
-function verDetalle(id){ state._detalleDesde = (state.tab==="prestamos" && state.vista==="cartera") ? "cartera" : null; state.tab="prestamos"; state.seleccionId=id; state.vista="detalle"; state.paginaAmortizacion=null; render(); }
+function verDetalle(id){
+  let desde = (state.tab==="prestamos" && state.vista==="cartera") ? "cartera" : null;
+  // Desde Estadísticas (Antigüedad de la mora): se recuerda dónde estaba la pantalla y qué rangos estaban abiertos.
+  if(state.tab==="inicio" && state.vista==="estadisticas"){
+    desde = "estadisticas"; state._estScroll = window.scrollY || 0;
+    state._estAgOpen = Array.prototype.map.call(document.querySelectorAll(".est-ag"), function(e, i){ return e.classList.contains("on") ? i : -1; }).filter(function(i){ return i >= 0; });
+  }
+  state._detalleDesde = desde; state.tab="prestamos"; state.seleccionId=id; state.vista="detalle"; state.paginaAmortizacion=null; render(); }
 function cambiarPaginaAmortizacion(delta){ state.paginaAmortizacion = Math.max(0, (state.paginaAmortizacion||0) + delta); render(); }
 // Botón ‹ del encabezado en Préstamos: si se llegó desde Inicio (Vencido / Próximos 7 días), regresa a Inicio;
 // si se abrió un préstamo desde esa lista, regresa primero a la lista.
 function volverAtras(){
+  if(state.vista === "detalle" && state._detalleDesde === "estadisticas"){
+    state._detalleDesde = null; state._irSeccion = null; state.tab = "inicio"; state.vista = "estadisticas"; render();
+    const y = state._estScroll || 0;
+    requestAnimationFrame(function(){ window.scrollTo(0, y); }); setTimeout(function(){ window.scrollTo(0, y); }, 80);
+    return;
+  }
   if(state.vista === "detalle" && state._detalleDesde === "cartera"){ state._detalleDesde = null; state._irSeccion = null; state.vista = "cartera"; render(); return; }
   if(state.vista === "cartera" && state._origenInicio){ state._origenInicio = false; state.tab = "inicio"; state.vista = "lista"; render(); return; }
   volverLista();
@@ -5631,7 +5724,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "25.44";
+const JR_VERSION = "26.0";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -5960,8 +6053,8 @@ function datosEstadisticas(rango){
   let capitalCalle = 0, saldoActivo = 0, saldoRiesgo = 0, activos = 0, alDia = 0, vencidos = 0, cerrados = 0;
   let porCobrar7 = 0, nPorCobrar7 = 0;
   const aging = [
-    { t: "1 a 7 días", n: 0, s: 0, c: "b-ambar" }, { t: "8 a 30 días", n: 0, s: 0, c: "b-naranja" },
-    { t: "31 a 60 días", n: 0, s: 0, c: "b-rojo" }, { t: "Más de 60 días", n: 0, s: 0, c: "b-granate" }
+    { t: "1 a 7 días", n: 0, s: 0, c: "b-ambar", l: [] }, { t: "8 a 30 días", n: 0, s: 0, c: "b-naranja", l: [] },
+    { t: "31 a 60 días", n: 0, s: 0, c: "b-rojo", l: [] }, { t: "Más de 60 días", n: 0, s: 0, c: "b-granate", l: [] }
   ];
   const porCliente = {};
   state.prestamos.forEach(function(p){
@@ -5976,6 +6069,9 @@ function datosEstadisticas(rango){
         vencidos++; saldoRiesgo += saldo;
         const b = atraso <= 7 ? aging[0] : atraso <= 30 ? aging[1] : atraso <= 60 ? aging[2] : aging[3];
         b.n++; b.s += saldo;
+        const _cl = state.clientes.find(function(x){ return x.id === p.clienteId; });
+        const _pe = calcularPendiente(p, r);
+        b.l.push({ id: p.id, nombre: _cl ? _cl.nombre : "Cliente eliminado", codigo: p.codigo, atraso: atraso, venc: round2((_pe.monto||0) + (_pe.mora||0)), saldo: saldo });
       } else {
         alDia++;
         const dv = r.proximaFecha ? diasParaVencer(r.proximaFecha) : null;
@@ -6090,8 +6186,12 @@ function viewEstadisticas(){
     return '<div class="est-fila"><div class="est-fila-t"><span><i class="est-pto ' + cls + '"></i>' + t + '</span><b>' + money(v) + ' · ' + pi(v) + '%</b></div></div>';
   };
   const maxAg = Math.max.apply(null, d.aging.map(function(a){ return a.s; }).concat([1]));
-  const agingHtml = d.vencidos ? d.aging.map(function(a){
-    return '<div class="est-fila"><div class="est-fila-t"><span>' + a.t + ' <small>· ' + a.n + (a.n === 1 ? ' préstamo' : ' préstamos') + '</small></span><b>' + money(a.s) + '</b></div><div class="est-barra"><i class="' + a.c + '" style="width:' + (a.s > 0 ? Math.max(4, Math.round(a.s / maxAg * 100)) : 0) + '%"></i></div></div>';
+  const _agAbiertos = state._estAgOpen || []; state._estAgOpen = [];
+  const agingHtml = d.vencidos ? d.aging.map(function(a, ai){
+    const lista = a.l.slice().sort(function(x, y){ return y.atraso - x.atraso; }).map(function(it){
+      return '<div class="est-ag-f" onclick="event.stopPropagation();verDetalle(\'' + it.id + '\')"><div><p class="n">' + jrEscapeHtml(it.nombre) + '</p><p class="s">' + jrEscapeHtml(it.codigo) + ' · ' + it.atraso + ' día' + (it.atraso === 1 ? '' : 's') + '</p></div><p class="m">' + money(it.venc) + '<small>Saldo ' + money(it.saldo) + '</small></p></div>';
+    }).join("");
+    return '<div class="est-ag' + (a.n > 0 ? ' hay' : '') + (a.n > 0 && _agAbiertos.indexOf(ai) >= 0 ? ' on' : '') + '"' + (a.n > 0 ? ' onclick="this.classList.toggle(\'on\')"' : '') + '><div class="est-fila"><div class="est-fila-t"><span>' + a.t + ' <small>· ' + a.n + (a.n === 1 ? ' préstamo' : ' préstamos') + '</small></span><b>' + money(a.s) + '</b></div><div class="est-barra"><i class="' + a.c + '" style="width:' + (a.s > 0 ? Math.max(4, Math.round(a.s / maxAg * 100)) : 0) + '%"></i></div></div>' + (a.n > 0 ? '<div class="est-ag-l">' + lista + '</div>' : '') + '</div>';
   }).join("") : '<div class="est-vacio ok"><b>Sin mora</b><span>Todos tus préstamos activos están al día.</span></div>';
   const maxTop = d.top.length ? d.top[0].saldo : 1;
   const topHtml = d.top.length ? d.top.map(function(c, i){
