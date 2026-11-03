@@ -5724,7 +5724,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "26.0";
+const JR_VERSION = "26.1";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -6246,7 +6246,7 @@ function viewEstadisticas(){
       ${agingHtml}
     </div>
     <div class="est-card est-prox">
-      <div><p class="est-k-l">Pendiente por cobrar</p><p class="est-k-v">${money(d.saldoActivo)}</p><p class="est-sub">Capital + intereses que faltan de los préstamos activos · sin mora</p></div>
+      <div><p class="est-k-l">Pendiente por cobrar</p><p class="est-k-v">${money(d.saldoActivo)}</p><p class="est-sub">Capital + intereses ya generados que faltan por cobrar de los préstamos activos · sin mora</p></div>
     </div>
     <div class="est-card est-prox">
       <div><p class="est-k-l">Por cobrar esta semana (hasta el domingo)</p><p class="est-k-v">${money(d.porCobrar7)}</p></div>
