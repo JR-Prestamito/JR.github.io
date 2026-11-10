@@ -5782,7 +5782,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "26.7";
+const JR_VERSION = "26.8";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -8098,6 +8098,12 @@ async function licVerificar(clave){
   if(data === "inactiva") return { ok:false, motivo:"Esta licencia está desactivada." };
   if(data === "vencida") return { ok:false, motivo:"Esta licencia venció. Contacta al proveedor de la app para renovarla." };
   if(data === "otro_dispositivo") return { ok:false, motivo:"Esta licencia ya está en uso en otro dispositivo." };
+  if(data === "liberada"){
+    // El administrador liberó este dispositivo: se descarta su identificador para que, al escribir la clave otra vez,
+    // se registre como un dispositivo nuevo (y el teléfono anterior ya no pueda reclamarla solo).
+    try{ localStorage.removeItem("jrp_device_id"); }catch(e){}
+    return { ok:false, motivo:"Esta licencia fue liberada. Escribe la clave para activarla de nuevo en este dispositivo." };
+  }
   if(data === "producto_incorrecto") return { ok:false, motivo:"Esa clave no es para esta versión de la app." };
   return { ok:false, red:true, motivo:"No se pudo verificar la licencia. Intenta de nuevo." };
 }
