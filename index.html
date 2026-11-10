@@ -1102,6 +1102,12 @@
   .est-ag-f .m small{display:block;font-size:10.5px;font-weight:500;opacity:.7;text-align:right;color:inherit;}
   [data-theme="dark"] .est-ag-f{background:rgba(255,255,255,.06);}
   [data-theme="dark"] .est-ag-f .m{color:#F0908A;}
+  select.campo-fijo{opacity:1;background:#F3F0E8;color:#1B2A4A;font-weight:600;border:1px solid #E5E1D8;-webkit-text-fill-color:#1B2A4A;}
+  [data-theme="dark"] select.campo-fijo{background:#1B212C;color:#F3F0E8;border-color:rgba(243,240,232,.12);-webkit-text-fill-color:#F3F0E8;}
+  input.campo-bloq,select.campo-bloq{width:100%;opacity:1;background:#F3F0E8;color:#1B2A4A;font-weight:600;border:1px solid #E5E1D8;-webkit-text-fill-color:#1B2A4A;}
+  [data-theme="dark"] input.campo-bloq,[data-theme="dark"] select.campo-bloq{background:#1B212C;color:#F3F0E8;border-color:rgba(243,240,232,.12);-webkit-text-fill-color:#F3F0E8;}
+  #jr-aviso-salir{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9998;background:#1B2A4A;color:#F3F0E8;font-size:13px;font-weight:600;padding:10px 16px;border-radius:99px;white-space:nowrap;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.25);}
+  [data-theme="dark"] #jr-aviso-salir{background:#F3F0E8;color:#12161F;}
 </style>
 </head>
 <body>
@@ -2253,10 +2259,23 @@ function resumen(p, fechaRef){
     // cuota del período siguiente): cuota = total pagado, interés = prorrateado, abono = capital cerrado.
     const filasL = tabla.slice(0, nFilasL);
     const pgLiq = pagos.slice().reverse().find(pg=>pg.liquidacion);
+    let liqCubiertas = 0;
     if(pgLiq && nFilasL > completasL){
       filasL[completasL] = Object.assign({}, filasL[completasL], {
         fecha: pgLiq.fecha, saldoInicial: Number(pgLiq.capital)||0, cuota: Number(pgLiq.monto)||0,
         interes: Number(pgLiq.interes)||0, abono: Number(pgLiq.capital)||0, saldo: 0, liquidacion: true });
+      // Opción elegida al liquidar: mostrar (o no) las cuotas vencidas que cubrió la liquidación. Son los períodos
+      // sin pagar cuya fecha ya había pasado el día de la liquidación; se ven antes de la fila de la liquidación.
+      let m = completasL;
+      while(m < tabla.length && tabla[m].fecha < pgLiq.fecha) m++;
+      liqCubiertas = m - completasL;
+      if(p.liqMostrarVencidas){
+        if(m > completasL){
+          const cubiertas = tabla.slice(completasL, m).map(function(x){ return Object.assign({}, x, { cubierta: true }); });
+          const filaLiq = Object.assign({}, filasL[completasL], { n: tabla[m-1].n + 1 });
+          filasL.splice(completasL, filasL.length - completasL, ...cubiertas, filaLiq);
+        }
+      }
     }
     // "Cuota" de un préstamo cerrado = la última cuota normal realmente cobrada (sin filas con abono extra).
     const _ajL = new Set((p.ajustesCapital||[]).map(x=>x.despuesDeFila));
@@ -2266,7 +2285,7 @@ function resumen(p, fechaRef){
       : (_hechasL.length ? (esIndef ? _hechasL[_hechasL.length-1].interes : _hechasL[0].cuota)
       : (tabla[0] ? (esIndef ? tabla[0].interes : tabla[0].cuota) : 0));
     return { cuota: cuotaRegL, saldoPendiente:0, capitalPendiente:0, estado:"Pagado", proximaFecha:null,
-      tabla: filasL, totalCuotasOriginal: tabla.length, pagosHechos: completasL, cuotaActual:null, abonadoEnCuotaActual:0, faltaEnCuotaActual:0,
+      tabla: filasL, totalCuotasOriginal: tabla.length, pagosHechos: completasL, cuotaActual:null, abonadoEnCuotaActual:0, faltaEnCuotaActual:0, liqCubiertas,
       moraTotal, totalPagado };
   }
   if(p.refinanciado){
@@ -5074,12 +5093,19 @@ function viewCartera(){
   return html;
 }
 
+// Un préstamo con pagos registrados ya no se puede reescribir: capital, tasa, período, método, cuotas,
+// fechas y cliente quedan bloqueados (para cambios reales se usa Refinanciar o Abonar a capital).
+function prestamoTienePagos(p){
+  return !!p && ((p.pagos||[]).length > 0 || (Number(pagosPreviosDe(p))||0) > 0);
+}
 function viewNuevoPrestamo(){
   const f = window._nf;
   const esIndef = f.metodo === METODOS[5];
   const editando = !!f.editId;
+  const bloq = editando && prestamoTienePagos(state.prestamos.find(x=>x.id===f.editId));
+  const dis = bloq ? " disabled class='campo-bloq'" : "";
 
-  let opts = state.clientes.map(c=>`<option value="${c.id}" ${c.id===f.clienteId?"selected":""}>${c.nombre}</option>`).join("");
+  let opts = (f.clienteId ? "" : `<option value="">— Elige un cliente —</option>`) + state.clientes.map(c=>`<option value="${c.id}" ${c.id===f.clienteId?"selected":""}>${c.nombre}</option>`).join("");
   let metodoOpts = METODOS.map(m=>`<option ${m===f.metodo?"selected":""}>${m}</option>`).join("");
   let periodoOpts = PERIODOS.map(pd=>`<option ${pd===f.periodo?"selected":""}>${pd}</option>`).join("");
 
@@ -5101,22 +5127,23 @@ function viewNuevoPrestamo(){
   return `
     ${state.clientes.length===0 ? `<p style="color:#B0392F;font-size:13px;">Agrega un cliente primero en la pestaña Clientes.</p>` : ""}
     <label><span>N° de préstamo</span><input id="nf_codigo" type="text" value="${f.codigo||""}" ${editando?"disabled class='campo-fijo'":""} oninput="window._nf.codigo=this.value.toUpperCase(); render()"></label>
-    <label><span>Cliente</span><select onchange="window._nf.clienteId=this.value; render()">${opts}</select></label>
+    <label><span>Cliente</span><select id="nf_cliente"${dis} onchange="window._nf.clienteId=this.value; render()">${opts}</select></label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <label style="margin:0;"><span>Capital a financiar (${simboloMoneda()})</span><input id="nf_capital" type="text" inputmode="decimal" value="${f.capital}" oninput="window._nf.capital=filtrarDecimal(this.value); render()"></label>
-      <label style="margin:0;"><span>Tasa de interés (%)</span><input id="nf_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._nf.tasa=filtrarDecimal(this.value); render()"></label>
+      <label style="margin:0;"><span>Capital a financiar (${simboloMoneda()})</span><input id="nf_capital"${dis} type="text" inputmode="decimal" value="${f.capital}" oninput="window._nf.capital=filtrarDecimal(this.value); render()"></label>
+      <label style="margin:0;"><span>Tasa de interés (%)</span><input id="nf_tasa"${dis} type="text" inputmode="decimal" value="${f.tasa}" oninput="window._nf.tasa=filtrarDecimal(this.value); render()"></label>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <label style="margin:0;"><span>Período de pago</span><select onchange="window._nf.periodo=this.value; render()">${periodoOpts}</select></label>
-      <label style="margin:0;"><span>Método de amortización</span><select onchange="window._nf.metodo=this.value; render()">${metodoOpts}</select></label>
+      <label style="margin:0;"><span>Período de pago</span><select${dis} onchange="window._nf.periodo=this.value; render()">${periodoOpts}</select></label>
+      <label style="margin:0;"><span>Método de amortización</span><select${dis} onchange="window._nf.metodo=this.value; render()">${metodoOpts}</select></label>
     </div>
-    ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input id="nf_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._nf.cuotas=filtrarEntero(this.value); render()"></label>`}
+    ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input id="nf_cuotas"${dis} type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._nf.cuotas=filtrarEntero(this.value); render()"></label>`}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
-      <label style="margin:0;"><span>Fecha del préstamo</span><input id="nf_fecha" type="date" value="${f.fechaInicio}" oninput="window._nf.fechaInicio=this.value; render()"></label>
-      <label style="margin:0;"><span>Fecha 1ª cuota</span><input id="nf_fecha1ra" type="date" value="${f.fechaPrimeraCuota||""}" oninput="window._nf.fechaPrimeraCuota=this.value; render()"></label>
+      <label style="margin:0;"><span>Fecha del préstamo</span><input id="nf_fecha"${dis} type="date" value="${f.fechaInicio}" oninput="window._nf.fechaInicio=this.value; render()"></label>
+      <label style="margin:0;"><span>Fecha 1ª cuota</span><input id="nf_fecha1ra"${dis} type="date" value="${f.fechaPrimeraCuota||""}" oninput="window._nf.fechaPrimeraCuota=this.value; render()"></label>
     </div>
     <p class="hint nota-ayuda" style="margin:0 0 16px;">"Fecha 1ª cuota" es opcional — déjala vacía para que se calcule sola (un período exacto después de la fecha del préstamo). Ponla solo si quieres que la primera cuota caiga en una fecha específica (por ejemplo, el día de pago fijo del cliente); las cuotas siguientes siguen cayendo cada período después de esa.</p>
     ${previewHtml}
+    ${bloq ? `<p class="hint" style="margin:12px 0 0;">Este préstamo ya tiene pagos; para cambiar esto usa Refinanciar.</p>` : ""}
     <div class="flexrow" style="margin-top:16px;">
       <button class="btn btn-outline" onclick="window._nf=null; state.vista=${editando?"'detalle'":"'lista'"}; render()">Cancelar</button>
       <button class="btn btn-gold" onclick="guardarPrestamo()" ${state.clientes.length===0?"disabled style='opacity:.4'":""}>${editando?"Guardar cambios":"Guardar préstamo"}</button>
@@ -5143,7 +5170,16 @@ function abrirEditarPrestamo(id){
 function guardarPrestamo(){
   const f = window._nf;
   const esIndef = f.metodo === METODOS[5];
-  if(!f.clienteId || !f.capital || !f.tasa || (!esIndef && !f.cuotas)) return;
+  if(f.editId){
+    // Respaldo: aunque los campos estén bloqueados, con pagos registrados se conservan los valores originales.
+    const _p = state.prestamos.find(x=>x.id===f.editId);
+    if(prestamoTienePagos(_p)){
+      Object.assign(f, { clienteId:_p.clienteId, capital:_p.capital, tasa:_p.tasa, periodo:_p.periodo, metodo:_p.metodo,
+        cuotas:_p.cuotas, fechaInicio:_p.fechaInicio, fechaPrimeraCuota:_p.fechaPrimeraCuota||"" });
+    }
+  }
+  const falta = faltantesPrestamo(f, true);
+  if(falta.length){ avisarFaltantes(falta); return; }
   const codigoDeseado = (f.codigo||"").trim();
   if(!codigoDeseado){ mostrarAlerta("Ponle un número de préstamo."); return; }
   const duplicado = state.prestamos.find(x=>x.codigo===codigoDeseado && x.id!==f.editId);
@@ -5165,6 +5201,25 @@ function guardarPrestamo(){
   save(); render();
 }
 
+// Datos obligatorios de un préstamo: devuelve la lista de lo que falta (para avisar con claridad en vez de no hacer nada).
+function faltantesPrestamo(f, incluirCliente){
+  const esIndef = f.metodo === METODOS[5];
+  const falta = [];
+  if(incluirCliente && !f.clienteId) falta.push({ txt: "Cliente", id: "nf_cliente" });
+  if(!f.capital || !(Number(f.capital) > 0)) falta.push({ txt: "Capital a financiar", id: "nf_capital" });
+  if(f.tasa === "" || f.tasa === undefined || f.tasa === null) falta.push({ txt: "Tasa de interés", id: "nf_tasa" });
+  if(!esIndef && !(Number(f.cuotas) > 0)) falta.push({ txt: "Cantidad de cuotas", id: "nf_cuotas" });
+  if(!f.fechaInicio) falta.push({ txt: "Fecha del préstamo", id: "nf_fecha" });
+  return falta;
+}
+function avisarFaltantes(falta, prefijoId){
+  const txt = falta.map(function(x){ return x.txt; });
+  const lista = txt.length > 1 ? txt.slice(0, -1).join(", ") + " y " + txt[txt.length - 1] : txt[0];
+  mostrarAlerta((txt.length === 1 ? "Falta completar: " : "Faltan por completar: ") + lista + ".", function(){
+    const el = document.getElementById(falta[0].id.replace("nf_", prefijoId || "nf_"));
+    if(el){ try{ el.scrollIntoView({ block: "center" }); el.focus(); }catch(e){} }
+  });
+}
 // --- Calculadora de préstamos --------------------------------------------------------
 // Es una simulación: nunca guarda un préstamo por sí sola. Vive en su propia variable
 // (window._calc, fuera de "state") igual que los formularios de nuevo préstamo/refinanciar,
@@ -5252,7 +5307,6 @@ function viewCalculadora(){
     }
   }
 
-  const puedeCrear = !!f.clienteId && f.capital && f.tasa && (esIndef || f.cuotas);
 
   return `
     <p class="hint nota-ayuda" style="margin:0 0 14px;">Simula un préstamo sin guardar nada todavía. Puedes elegir un cliente ya registrado, o simplemente escribir un nombre para probar números — eso no crea ningún cliente ni préstamo real.</p>
@@ -5269,12 +5323,14 @@ function viewCalculadora(){
     ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input id="calc_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._calc.cuotas=filtrarEntero(this.value); render()"></label>`}
     <label><span>Fecha del préstamo</span><input id="calc_fecha" type="date" value="${f.fechaInicio}" oninput="window._calc.fechaInicio=this.value; render()"></label>
     ${previewHtml}
-    <button class="btn btn-gold" style="width:100%;margin-top:16px;" onclick="crearPrestamoDesdeCalculadora()" ${puedeCrear?"":"disabled style='opacity:.4'"}>Crear este préstamo</button>
-    ${!f.clienteId ? `<p class="hint" style="margin-top:8px;text-align:center;">Para crear el préstamo de verdad hace falta elegir un cliente ya registrado (el nombre temporal es solo para probar números).</p>` : ""}`;
+    <button class="btn btn-gold" style="width:100%;margin-top:16px;" onclick="crearPrestamoDesdeCalculadora()">Crear este préstamo</button>
+    ${!f.clienteId ? `<p class="hint" style="margin-top:8px;text-align:center;">Al crearlo podrás elegir el cliente de tu lista (el nombre temporal es solo para probar números).</p>` : ""}`;
 }
 function crearPrestamoDesdeCalculadora(){
   const f = window._calc;
-  if(!f.clienteId) return;
+  const falta = faltantesPrestamo(f, false);
+  if(falta.length){ avisarFaltantes(falta, "calc_"); return; }
+  if(state.clientes.length === 0){ mostrarAlerta("Primero registra un cliente en la pestaña Clientes para poder crear el préstamo."); return; }
   window._nf = {
     codigo: nextCode("P", state.prestamos),
     clienteId: f.clienteId, capital: f.capital, tasa: f.tasa, cuotas: f.cuotas,
@@ -5535,7 +5591,8 @@ function viewDetallePrestamo(){
     let estadoCelda;
     if(p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) estadoCelda = '<span style="color:#6B7080">Sin cuota</span>';
     else if(i < r.pagosHechos) estadoCelda = '<span style="color:#00796A">✓ Pagada</span>';
-    else if(p.liquidadoAnticipado && i === r.pagosHechos) estadoCelda = '<span style="color:#00796A">✓ Liquidación</span>';
+    else if(f.cubierta) estadoCelda = '<span style="color:#00796A">✓ Incluida en liquidación</span>';
+    else if(p.liquidadoAnticipado && (f.liquidacion || i === r.pagosHechos)) estadoCelda = '<span style="color:#00796A">✓ Liquidación</span>';
     else {
       // "Pendiente" antes se usaba para cualquier cuota sin pagar, ya fuera futura o ya
       // vencida — ahora se distingue de verdad comparando la fecha de la fila contra hoy.
@@ -5550,7 +5607,7 @@ function viewDetallePrestamo(){
     }
     const tieneAjuste = filasConAjuste.has(f.n);
     return `<tr class="fila-amort${tieneAjuste?' fila-ajuste':''}">
-      <td style="padding:3px 5px;white-space:nowrap;">${f.n}${tieneAjuste?' <span title="Incluye abono a capital" style="color:#00796A;font-weight:700;">*</span>':''}</td>
+      <td style="padding:3px 5px;white-space:nowrap;">${f.liquidacion?"Liq.":f.n}${tieneAjuste?' <span title="Incluye abono a capital" style="color:#00796A;font-weight:700;">*</span>':''}</td>
       <td style="padding:3px 5px;white-space:nowrap;">${fmtDateCompacto(f.fecha)}</td>
       <td style="padding:3px 5px;text-align:right;white-space:nowrap;">${money(f.saldoInicial)}</td>
       <td style="padding:3px 5px;text-align:right;white-space:nowrap;font-weight:700;">${money(f.cuota)}</td>
@@ -5561,9 +5618,9 @@ function viewDetallePrestamo(){
     </tr>`;
   }).join("");
   // Los totales siempre suman TODAS las cuotas (no solo la página que se ve ahora mismo).
-  const totalCuota = filasParaTabla.reduce((s,f)=>s+(Number(f.cuota)||0),0);
-  const totalInteres = filasParaTabla.reduce((s,f)=>s+(Number(f.interes)||0),0);
-  const totalAbono = filasParaTabla.reduce((s,f)=>s+(Number(f.abono)||0),0);
+  const totalCuota = filasParaTabla.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.cuota)||0),0);
+  const totalInteres = filasParaTabla.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.interes)||0),0);
+  const totalAbono = filasParaTabla.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.abono)||0),0);
   const filaTotales = `<tr class="fila-total-amort" style="font-weight:700;">
     <td colspan="3" style="padding:4px 5px;white-space:nowrap;">Total</td>
     <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(totalCuota)}</td>
@@ -5676,6 +5733,7 @@ function viewDetallePrestamo(){
       <p style="font-size:12px;color:#6B7080;margin:0;">Capital: <b class="monto-navy">${money(p.capital)}</b></p>
     </div>
     ${esIndefDetalle ? `<p class="hint nota-ayuda" style="margin:4px 0 10px;">Este préstamo es de plazo indefinido: cada período se cobra solo interés sobre el capital, sin fecha de finalización fija. La siguiente cuota aparece sola en la tabla un día después de la fecha de la anterior, se haya pagado o no — así siempre hay una cuota pendiente esperando, sin importar cuánto tiempo lleve el cliente sin pagar.</p>` : ""}
+    ${(p.liquidadoAnticipado && r.liqCubiertas>0) ? `<label style="display:flex;align-items:center;gap:8px;margin:6px 0 10px;cursor:pointer;"><input type="checkbox" style="width:auto;" ${p.liqMostrarVencidas?"checked":""} onchange="mostrarVencidasLiquidacion('${p.id}', this.checked)"><span style="margin:0;font-size:13.5px;">Mostrar las cuotas vencidas que cubrió la liquidación</span></label>` : ""}
     ${filasConAjuste.size>0 ? `<p class="hint nota-ayuda" style="margin:4px 0 10px;"><span style="color:#00796A;font-weight:700;">*</span> Las filas resaltadas en verde tuvieron un abono a capital extra además de su cuota normal.</p>` : ""}
     <div id="tabla-imprimible" style="margin:0 -12px 16px;padding:16px 6px;">
       <h2 class="solo-imprimir">${nombreApp().toUpperCase()}</h2>
@@ -5724,7 +5782,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "26.1";
+const JR_VERSION = "26.7";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -6318,12 +6376,12 @@ function generarAmortizacionPDF(p, cli, r, mostrarTotales){
   const filasConAjustePDF = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
   const filas = filasBase.map((f,i)=>{
     const tieneAjuste = filasConAjustePDF.has(f.n);
-    const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (p.liquidadoAnticipado && i===r.pagosHechos ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente")));
-    return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
+    const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (f.cubierta ? "Incluida en liquidación" : (p.liquidadoAnticipado && (f.liquidacion || i===r.pagosHechos) ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"))));
+    return [f.liquidacion ? "Liq." : f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
   });
-  const totalCuota = filasBase.reduce((s,f)=>s+(Number(f.cuota)||0),0);
-  const totalInteres = filasBase.reduce((s,f)=>s+(Number(f.interes)||0),0);
-  const totalAbono = filasBase.reduce((s,f)=>s+(Number(f.abono)||0),0);
+  const totalCuota = filasBase.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.cuota)||0),0);
+  const totalInteres = filasBase.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.interes)||0),0);
+  const totalAbono = filasBase.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.abono)||0),0);
   doc.autoTable({
     startY,
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
@@ -6476,16 +6534,16 @@ function generarEstadoCuentaPDF(p, cli, r){
       })()
     : r.tabla;
   const filasConAjusteEC = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
-  const totalCuotaEC = filasEC.reduce((s,f)=>s+(Number(f.cuota)||0),0);
-  const totalInteresEC = filasEC.reduce((s,f)=>s+(Number(f.interes)||0),0);
-  const totalAbonoEC = filasEC.reduce((s,f)=>s+(Number(f.abono)||0),0);
+  const totalCuotaEC = filasEC.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.cuota)||0),0);
+  const totalInteresEC = filasEC.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.interes)||0),0);
+  const totalAbonoEC = filasEC.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.abono)||0),0);
   doc.autoTable({
     startY: y,
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
     body: filasEC.map((f,i)=>{
       const tieneAjuste = filasConAjusteEC.has(f.n);
-      const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (p.liquidadoAnticipado && i===r.pagosHechos ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente")));
-      return [f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
+      const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (f.cubierta ? "Incluida en liquidación" : (p.liquidadoAnticipado && (f.liquidacion || i===r.pagosHechos) ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"))));
+      return [f.liquidacion ? "Liq." : f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
     }),
     foot: [["Total","","",money(totalCuotaEC),money(totalInteresEC),money(totalAbonoEC),"",""]],
     styles: { fontSize: 8, cellPadding: 1 },
@@ -7437,6 +7495,12 @@ function abrirLiquidacion(){
   c.style.display = "block";
   c.scrollIntoView({ behavior:"smooth", block:"center" });
 }
+function mostrarVencidasLiquidacion(id, valor){
+  const p = state.prestamos.find(x=>x.id===id);
+  if(!p) return;
+  p.liqMostrarVencidas = !!valor;
+  save(); render();
+}
 function liquidarAnticipado(id){
   const p = state.prestamos.find(x=>x.id===id);
   const r = resumen(p);
@@ -7840,6 +7904,84 @@ window.addEventListener("beforeunload", function(e){
   e.preventDefault();
   e.returnValue = "";
   return "";
+});
+
+// --- Botón/gesto "atrás" del teléfono: ya no saca de la app. Retrocede dentro de ella (igual que
+// la flecha ‹ del encabezado) y, estando en Inicio, pregunta "¿Salir de la app?".
+// Se deja una entrada de historial "guardia" para poder atrapar el botón atrás; al recargar no se duplica.
+let _salidaConfirmada = false;
+// Se dejan varias entradas "guardia" (no una sola) para que dos o tres atrás seguidos, rápidos, no saquen
+// de la app antes de que la pantalla alcance a reponerse.
+const JR_GUARDIAS = 8;
+function jrGuardiaAtras(){ try{ history.pushState({ jr: "guardia", n: 1 }, ""); }catch(e){} }
+function jrReponerGuardias(){
+  try{
+    const st = history.state;
+    if(!st || _ignorarPop) return;
+    const k = st.jr === "guardia" ? (st.n || 1) : (st.jr === "base" ? 0 : -1);
+    if(k < 0) return;
+    for(let i = k + 1; i <= JR_GUARDIAS; i++) history.pushState({ jr: "guardia", n: i }, "");
+  }catch(e){}
+}
+// La entrada "guardia" se crea con el primer toque del usuario, no al abrir: Chrome ignora (y se salta al
+// tocar atrás) las entradas que una página agrega sin que el usuario haya interactuado, y entonces atrás
+// sacaba de la app mostrando el aviso nativo "¿Deseas abandonar el sitio?".
+try{
+  if(!(history.state && history.state.jr === "guardia")){ history.replaceState({ jr: "base" }, ""); }
+}catch(e){}
+let _esperandoSalida = false;
+function jrQuitarAvisoSalir(){ const x = document.getElementById("jr-aviso-salir"); if(x) x.remove(); }
+function jrArmarGuardia(ev){
+  if(ev && ev.isTrusted === false) return;      // los clics que hace la propia app no cuentan como toque del usuario
+  // Si estaba esperando el segundo "atrás" y el usuario toca la pantalla, se queda: vuelve la protección.
+  if(_esperandoSalida){ _esperandoSalida = false; _saliendoAAppExterna = false; jrQuitarAvisoSalir(); }
+  jrReponerGuardias();
+}
+["pointerup","touchend","click","keydown"].forEach(function(ev){
+  document.addEventListener(ev, jrArmarGuardia, { capture: true, passive: true });
+});
+function jrAtrasEnApp(){
+  if(document.getElementById("lic-overlay")) return;                      // pantalla de bloqueo: no hace nada
+  const sel = document.getElementById("jr-sel-bg"); if(sel){ sel.click(); return; }
+  const root = document.getElementById("jr-modal-root");
+  if(root && root.querySelector(".jr-modal-overlay")){
+    if(root.querySelectorAll("button").length > 1) jrModalCancel(); else jrModalOk();
+    return;
+  }
+  const rc = document.querySelector(".rc-over");
+  if(rc){ const b = Array.prototype.find.call(rc.querySelectorAll("button"), function(x){ return /cerrar|volver|listo/i.test(x.textContent); }); if(b) b.click(); return; }
+  // Ojo: el ícono de recargar también usa la clase "backbtn"; la flecha de volver es la que dice ‹.
+  const bk = Array.prototype.find.call(document.querySelectorAll(".backbtn"), function(x){ return x.textContent.trim() === "‹"; });
+  if(bk){ bk.click(); return; }
+  if(state.tab !== "inicio"){ irA("inicio"); return; }
+  return "raiz";                                                          // en Inicio: el primer atrás solo avisa
+}
+// Al tocar atrás se vuelve a la entrada "base"; para quedarse en la app se avanza de nuevo a la entrada
+// "guardia" que ya existe (no se crea una nueva: Chrome se salta las entradas creadas sin que el usuario
+// toque la pantalla, y por eso la segunda vez que se tocaba atrás la app se cerraba).
+let _ignorarPop = false;
+window.addEventListener("popstate", function(e){
+  if(_ignorarPop){ _ignorarPop = false; return; }
+  if(_esperandoSalida) return;
+  const st = e.state;
+  const k = (st && st.jr === "guardia") ? (st.n || 1) : 0;      // pasos que faltan para llegar a la entrada "base"
+  if(jrAtrasEnApp() === "raiz"){
+    // En Inicio: no hay cuadro. El primer atrás solo muestra el aviso y deja libre el siguiente atrás (sale de la app).
+    // La protección vuelve cuando el usuario toca la pantalla.
+    _esperandoSalida = true; _saliendoAAppExterna = true;
+    if(k > 0){ _ignorarPop = true; history.go(-k); setTimeout(function(){ _ignorarPop = false; }, 600); }
+    let av = document.getElementById("jr-aviso-salir");
+    if(!av){ av = document.createElement("div"); av.id = "jr-aviso-salir"; document.body.appendChild(av); }
+    av.textContent = "Toca atrás otra vez para salir";
+    setTimeout(function(){ jrQuitarAvisoSalir(); }, 4000);      // el aviso se oculta solo; la espera sigue hasta que se toque la pantalla
+    return;
+  }
+  if(k === 0){
+    // Se agotaron las guardias: se avanza de nuevo a la primera que sigue existiendo por delante.
+    _ignorarPop = true;
+    history.forward();
+    setTimeout(function(){ if(_ignorarPop){ _ignorarPop = false; jrGuardiaAtras(); } }, 400);
+  }
 });
 
 // --- Banner "Actualizando…" compartido, usado tanto por el ícono de recargar como por el
