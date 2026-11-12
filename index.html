@@ -5782,7 +5782,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "26.8";
+const JR_VERSION = "26.9";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -6485,7 +6485,11 @@ function generarEstadoCuentaPDF(p, cli, r){
     doc.setFont("helvetica","normal"); y += 3;
     if(origenRef){
       doc.setFontSize(8.5); doc.setTextColor(90);
-      doc.text(`Este préstamo nació de un refinanciamiento del préstamo ${origenRef.codigo}, con fecha ${fmtDate(p.fechaInicio)}.`, 14, y+3);
+      // La fecha del refinanciamiento NO es p.fechaInicio: si este préstamo se modificó después
+      // (refinanciamiento no sustancial) esa fecha se sobreescribe con la más reciente.
+      const _m0e = (p.modificaciones && p.modificaciones.length) ? p.modificaciones[0] : null;
+      const fechaNacio = origenRef.fechaRefinanciado || (_m0e ? (_m0e.fechaInicioAnterior || _m0e.fecha) : null) || p.fechaInicio;
+      doc.text(`Este préstamo nació de un refinanciamiento del préstamo ${origenRef.codigo}, con fecha ${fmtDate(fechaNacio)}.`, 14, y+3);
       doc.setTextColor(20);
       y += 8;
     }
@@ -7157,7 +7161,19 @@ function datosContrato(p, cli, r){
   const fd = new Date(p.fechaInicio+"T00:00:00");
   const diaPrimerPago = new Date(fechaPrimerPago+"T00:00:00").getDate();
   const nCuotas = Number(p.cuotas) || (r.tabla ? r.tabla.length : 0);
+  // Datos reales del plan de pagos según el método (el texto del contrato cambia con ellos).
+  const filasC = (r.tabla||[]).filter(f=>!f.cubierta && !f.liquidacion);
+  const ultimaFila = filasC.length ? filasC[filasC.length-1] : null;
+  const UNIDADES_PERIODO = { Semanal:"semana", Quincenal:"quincena", Mensual:"mes", Semestral:"semestre", Anual:"año" };
+  const fl = iso => { const dt = new Date(iso+"T00:00:00"); return `${dt.getDate()} de ${MESES_LARGOS[dt.getMonth()].toLowerCase()} de ${dt.getFullYear()}`; };
   return {
+    metodoIdx: METODOS.indexOf(p.metodo),
+    periodoNombre: p.periodo || "Mensual",
+    unidadPeriodo: UNIDADES_PERIODO[p.periodo || "Mensual"] || "mes",
+    tasaTxt: String(Number(p.tasa)||0),
+    ultimaCuota: ultimaFila ? ultimaFila.cuota : montoCuota,
+    fechaUltimoPagoLarga: fl(ultimaFila ? ultimaFila.fecha : fechaPrimerPago),
+    fechaPrimerPagoLarga: fl(fechaPrimerPago),
     cliente: cli ? cli.nombre : "—",
     fechaDesembolso: p.fechaInicio,
     fechaPrimerPago,
@@ -7192,6 +7208,51 @@ function camposContrato(d){
     ["Monto Prestado", `${moneyContrato(d.capital)} (${numeroALetras(d.capital)})`]
   ];
 }
+// Párrafo del plan de pagos: usa el período real (semanal, quincenal, mensual...) y describe
+// las cuotas según el método del préstamo, en vez de un texto único para todos.
+function parrafoPagosContrato(d){
+  const PER = d.periodo;                       // MENSUAL
+  const PERS = PER + "ES";                     // MENSUALES
+  const venc = d.periodoNombre==="Mensual"
+    ? `con vencimiento el ${d.diaPrimerPago} de cada mes`
+    : `con primer vencimiento el ${d.fechaPrimerPagoLarga} y luego cada ${d.unidadPeriodo}`;
+  const m = (v)=>({t:`${moneyContrato(v)} (${numeroALetras(Math.trunc(v))})`, b:true});
+  const n = d.nCuotas;
+  const nTxt = {t:`${numeroALetras(n)} (${n}) CUOTA${n===1?"":"S"} ${n===1?PER:PERS}`, b:true};
+  if(d.metodoIdx===5){ // Indefinido (solo interés)
+    return [
+      {t:"El préstamo no tiene plazo fijo. Se pagarán intereses "}, {t:PERS, b:true}, {t:" de "}, m(d.montoCuota),
+      {t:` (${d.tasaTxt}% ${PER.toLowerCase()} sobre el capital pendiente), ${venc}. El capital se mantiene vigente y podrá cancelarse en cualquier momento, total o parcialmente, hasta la cancelación total de la deuda.-`}
+    ];
+  }
+  if(d.metodoIdx===1){ // Alemán (cuota decreciente)
+    return [
+      {t:"El pago se realizará en "}, nTxt, {t:" decrecientes (abono fijo a capital más interés sobre el saldo), la primera de "}, m(d.montoCuota),
+      {t:" y la última de "}, m(d.ultimaCuota), {t:`, ${venc}, hasta la cancelación total de la deuda.-`}
+    ];
+  }
+  if(d.metodoIdx===3){ // Capital al final (bullet)
+    if(n<=1){
+      return [{t:"El pago se realizará en un solo pago de "}, m(d.ultimaCuota), {t:`, que incluye el capital y el interés, con vencimiento el ${d.fechaUltimoPagoLarga}.-`}];
+    }
+    return [
+      {t:"El pago se realizará en "}, nTxt, {t:": las primeras "}, {t:`${numeroALetras(n-1)} (${n-1})`, b:true},
+      {t:" de solo interés, de "}, m(d.montoCuota), {t:" cada una, y una última cuota de "}, m(d.ultimaCuota),
+      {t:`, que incluye la totalidad del capital, ${venc}, hasta la cancelación total de la deuda.-`}
+    ];
+  }
+  if(d.metodoIdx===4){ // Sistema Americano (puro)
+    return [
+      {t:"El pago se realizará en un solo pago de "}, m(d.ultimaCuota),
+      {t:`, que incluye el capital y el interés de ${numeroALetras(n)} (${n}) ${n===1?"período":"períodos"} ${n===1?PER.toLowerCase():PERS.toLowerCase()}, con vencimiento el ${d.fechaUltimoPagoLarga}.-`}
+    ];
+  }
+  // Francés (cuota fija) y Tasa plana: cuota igual en cada período
+  return [
+    {t:"El pago se realizará en "}, nTxt, {t:" de "}, m(d.montoCuota),
+    {t:` cada una, ${venc}, hasta la cancelación total de la deuda.-`}
+  ];
+}
 function parrafosContrato(d){
   return [
     [
@@ -7204,13 +7265,7 @@ function parrafosContrato(d){
       {t:`${d.anioDesembolsoTexto} (${d.anioDesembolso})`, b:true},
       {t:".-"}
     ],
-    [
-      {t:"El pago se realizará en "},
-      {t:`${numeroALetras(d.nCuotas)} (${d.nCuotas}) CUOTA${d.nCuotas===1?"":"S"} ${d.periodo}`, b:true},
-      {t:" de "},
-      {t:`${moneyContrato(d.montoCuota)} (${numeroALetras(Math.trunc(d.montoCuota))})`, b:true},
-      {t:` cada una, con vencimiento el ${d.diaPrimerPago} de cada mes, hasta la cancelación total de la deuda.-`}
-    ],
+    parrafoPagosContrato(d),
     [
       {t:"En caso de incumplimiento en el pago de alguna cuota, se aplicará un interés del "},
       {t:`${d.tasaMora.toFixed(2)}`, b:true},
