@@ -5782,7 +5782,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "26.9";
+const JR_VERSION = "27.0";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -7253,6 +7253,20 @@ function parrafoPagosContrato(d){
     {t:` cada una, ${venc}, hasta la cancelación total de la deuda.-`}
   ];
 }
+// Cláusula de abonos a capital y liquidación anticipada. Solo vive en el contrato: la app
+// NO bloquea abonos ni liquidaciones antes de las 2 cuotas. La condición de "dos cuotas" se
+// omite cuando no aplica (Sistema Americano, que es un solo pago, o planes de 2 cuotas o menos).
+function parrafoAbonosContrato(d){
+  const sinCondicion = d.metodoIdx===4 || (d.metodoIdx!==5 && d.nCuotas<=2);
+  const ini = sinCondicion
+    ? "El deudor podrá realizar abonos a capital o liquidar anticipadamente la deuda en cualquier momento"
+    : "Pasado el pago de dos (2) cuotas, el deudor podrá realizar abonos a capital o liquidar anticipadamente la deuda en cualquier momento";
+  return [
+    {t:ini+", pagando el capital pendiente más los intereses causados hasta la fecha del pago. El detalle de cada cuota (fecha, capital, interés y saldo) se muestra en la "},
+    {t:"tabla de amortización", b:true},
+    {t:", que forma parte de este contrato.-"}
+  ];
+}
 function parrafosContrato(d){
   return [
     [
@@ -7266,6 +7280,7 @@ function parrafosContrato(d){
       {t:".-"}
     ],
     parrafoPagosContrato(d),
+    parrafoAbonosContrato(d),
     [
       {t:"En caso de incumplimiento en el pago de alguna cuota, se aplicará un interés del "},
       {t:`${d.tasaMora.toFixed(2)}`, b:true},
