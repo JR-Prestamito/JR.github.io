@@ -5782,7 +5782,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "27.0";
+const JR_VERSION = "27.1";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -6036,6 +6036,12 @@ const MESES_ABR = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","
 const MESES_LARGO = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
 function irEstadisticas(){ state.tab = "inicio"; state.vista = "estadisticas"; render(); window.scrollTo(0, 0); }
 function setEstRango(n){ state._estRango = n; state._estMes = null; render(); }
+// Enero a diciembre del año indicado (12 claves "AAAA-MM"), para la gráfica de 12 meses.
+function mesesDelAnioClaves(anio){
+  const out = [];
+  for(let m = 1; m <= 12; m++) out.push(anio + "-" + String(m).padStart(2, "0"));
+  return out;
+}
 function mesesAtrasClaves(n){
   const h = new Date(hoyISO() + "T00:00:00"), out = [];
   for(let i = n - 1; i >= 0; i--){
@@ -6090,17 +6096,23 @@ function composicionTodo(){
 function datosEstadisticas(rango){
   const pagos = todosLosEventosPago(), desem = listaDesembolsos();
   const nBarras = rango === 0 ? 12 : rango;
-  const claves = mesesAtrasClaves(nBarras);
+  // "12 meses" y "Todo" muestran el año calendario (enero a diciembre); 3 y 6 meses siguen
+  // siendo los últimos meses hasta hoy.
+  const anioCal = (rango === 12 || rango === 0);
+  const hoyS = hoyISO(), anioHoy = Number(hoyS.slice(0, 4));
+  const claves = anioCal ? mesesDelAnioClaves(anioHoy) : mesesAtrasClaves(nBarras);
   const cobM = {}, preM = {};
   claves.forEach(function(k){ cobM[k] = 0; preM[k] = 0; });
-  const desde = rango === 0 ? "" : claves[0] + "-01";
-  const desdeAnt = rango === 0 ? "" : mesesAtrasClaves(nBarras * 2)[0] + "-01";
+  const desde = rango === 0 ? "" : (rango === 12 ? anioHoy + "-01-01" : claves[0] + "-01");
+  const desdeAnt = rango === 0 ? "" : (rango === 12 ? (anioHoy - 1) + "-01-01" : mesesAtrasClaves(nBarras * 2)[0] + "-01");
+  // Con el año calendario se compara contra el mismo tramo del año anterior (hasta el mismo día).
+  const hastaAnt = rango === 12 ? (anioHoy - 1) + hoyS.slice(4) : "";
   let cobrado = 0, mora = 0, prestado = 0, nPagos = 0, nDesem = 0, cobradoAnt = 0;
   pagos.forEach(function(e){
     const tot = (Number(e.monto) || 0) + (Number(e.mora) || 0), k = (e.fecha || "").slice(0, 7), f = e.fecha || "";
     if(k in cobM) cobM[k] += tot;
     if(!desde || f >= desde){ cobrado += tot; mora += Number(e.mora) || 0; nPagos++; }
-    else if(desdeAnt && f >= desdeAnt) cobradoAnt += tot;
+    else if(desdeAnt && f >= desdeAnt && (!hastaAnt || f <= hastaAnt)) cobradoAnt += tot;
   });
   desem.forEach(function(e){
     const m = Number(e.monto) || 0, k = (e.fecha || "").slice(0, 7), f = e.fecha || "";
@@ -6145,7 +6157,7 @@ function datosEstadisticas(rango){
   const topTotal = top.reduce(function(s, x){ return s + x.saldo; }, 0);
   const top5 = top.slice(0, 5), top5Suma = top5.reduce(function(s, x){ return s + x.saldo; }, 0);
   const T = composicionTodo(), compM = composicionMensual(claves);
-  return { claves: claves, compM: compM, estimado: compM.__estimado === true, cobM: cobM, preM: preM, cobrado: cobrado, mora: mora, prestado: prestado, nPagos: nPagos, nDesem: nDesem,
+  return { anio: anioHoy, hoyMes: hoyS.slice(0, 7), claves: claves, compM: compM, estimado: compM.__estimado === true, cobM: cobM, preM: preM, cobrado: cobrado, mora: mora, prestado: prestado, nPagos: nPagos, nDesem: nDesem,
     cobradoAnt: cobradoAnt, capitalCalle: capitalCalle, saldoActivo: saldoActivo, saldoRiesgo: saldoRiesgo,
     activos: activos, alDia: alDia, vencidos: vencidos, cerrados: cerrados, aging: aging,
     porCobrar7: porCobrar7, nPorCobrar7: nPorCobrar7, top: top5, nClientesSaldo: top.length,
@@ -6153,7 +6165,7 @@ function datosEstadisticas(rango){
 }
 // Línea suave con área (mini gráfica del resumen principal)
 function svgTendencia(d){
-  const W = 320, H = 42, p = 4, vals = d.claves.map(function(k){ return d.cobM[k]; });
+  const W = 320, H = 42, p = 4, vals = d.claves.filter(function(k){ return k <= d.hoyMes; }).map(function(k){ return d.cobM[k]; });
   const n = vals.length, max = Math.max.apply(null, vals.concat([1]));
   const px = function(i){ return n === 1 ? W / 2 : p + (W - 2 * p) * i / (n - 1); };
   const py = function(v){ return H - p - (H - 2 * p - 4) * v / max; };
@@ -6222,16 +6234,16 @@ function svgDona(partes, centroGrande, centroChico){
     '<text x="60" y="58" text-anchor="middle" class="est-dona-n">' + centroGrande + '</text><text x="60" y="73" text-anchor="middle" class="est-dona-s">' + centroChico + '</text></svg>';
 }
 function viewEstadisticas(){
-  const rango = (state._estRango === undefined) ? 6 : state._estRango;
+  const rango = (state._estRango === undefined) ? 12 : state._estRango;
   const d = datosEstadisticas(rango);
   window._estD = d;
-  const sel = (state._estMes && state._estMes in d.cobM) ? state._estMes : d.claves[d.claves.length - 1];
-  const rotulo = rango === 0 ? "últimos 12 meses en la gráfica" : "últimos " + rango + " meses";
+  const sel = (state._estMes && state._estMes in d.cobM) ? state._estMes : (d.claves.indexOf(d.hoyMes) >= 0 ? d.hoyMes : d.claves[d.claves.length - 1]);
+  const rotulo = rango === 0 ? "todo el historial" : rango === 12 ? "año " + d.anio : "últimos " + rango + " meses";
   const chip = function(n, t){ return '<button class="est-chip' + (rango === n ? ' on' : '') + '" onclick="setEstRango(' + n + ')">' + t + '</button>'; };
   let delta = "";
   if(rango !== 0 && d.cobradoAnt > 0){
     const pct = Math.round((d.cobrado - d.cobradoAnt) / d.cobradoAnt * 100);
-    delta = '<span class="est-delta ' + (pct >= 0 ? "sube" : "baja") + '">' + (pct >= 0 ? "▲ " : "▼ ") + Math.abs(pct) + '% vs. período anterior</span>';
+    delta = '<span class="est-delta ' + (pct >= 0 ? "sube" : "baja") + '">' + (pct >= 0 ? "▲ " : "▼ ") + Math.abs(pct) + '% vs. ' + (rango === 12 ? 'mismo período de ' + (d.anio - 1) : 'período anterior') + '</span>';
   }
   const flujo = d.cobrado - d.prestado;
   const hayMora = d.claves.some(function(k){ return d.compM[k].mora > 0.005; });
