@@ -2105,11 +2105,21 @@ function generarTabla(p){
 // refinanciamiento, que se eligió sumar a la próxima cuota), se suma a la primera cuota
 // (a la única cuota final en el Sistema Americano). Todo lo demás (saldos, vencido, pagos)
 // sigue funcionando igual porque se compara contra la cuota ya con ese monto.
+// Si al refinanciar se mantuvo la fecha de cobro (prorratearPrimera), la primera cuota llega antes de
+// un período completo: se cobra solo el interés de esos días, no el período entero.
+function prorrateoPrimeraCuota(p, interes1){
+  if(!p.prorratearPrimera || !p.fechaPrimeraCuota || p.metodo === METODOS[4]) return 0;
+  const D = DIAS_PERIODO[p.periodo] || 30;
+  const dias = Math.round((new Date(p.fechaPrimeraCuota+"T00:00:00") - new Date(p.fechaInicio+"T00:00:00"))/86400000);
+  if(dias <= 0 || dias >= D) return 0;
+  return -round2((Number(interes1)||0) * (D - dias) / D);
+}
 function generarTablaDinamica(p){
   const t = generarTablaDinamicaBase(p);
-  const extra = round2(Number(p.interesAnexado)||0);
-  if(extra > 0.004 && t.length){
-    const i = (p.metodo === METODOS[4]) ? t.length - 1 : 0;
+  if(!t.length) return t;
+  const i = (p.metodo === METODOS[4]) ? t.length - 1 : 0;
+  const extra = round2((Number(p.interesAnexado)||0) + prorrateoPrimeraCuota(p, t[0].interes||0));
+  if(Math.abs(extra) > 0.004){
     t[i] = Object.assign({}, t[i], { cuota: round2(t[i].cuota + extra), interes: round2((t[i].interes||0) + extra), anexo: extra });
   }
   return t;
@@ -2578,7 +2588,7 @@ function renderBloqueo(){
         ${tieneHuella ? `<button class="btn btn-outline" style="width:100%;margin-bottom:16px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);color:#fff;" onclick="usarHuella()">👆 Usar huella / Face ID</button>
         <div style="height:1px;background:rgba(255,255,255,.15);margin:0 0 16px;"></div>` : ""}
         <p style="text-align:center;margin:0 0 12px;color:${GOLD};font-size:15px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">Ingrese clave</p>
-        <input id="claveInicio" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;">
+        <input autocomplete="off" id="claveInicio" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;">
         ${error ? `<p style="color:#FFC2C2;font-size:13px;margin:10px 0 0;text-align:center;">Clave incorrecta.</p>` : ""}
         <button type="button" onclick="olvideMiClave()" style="display:block;width:100%;background:none;border:none;color:rgba(255,255,255,.7);text-decoration:underline;font-size:12.5px;margin-top:18px;cursor:pointer;">¿Olvidaste tu clave?</button>
       </div>
@@ -3391,11 +3401,10 @@ function generarEstadoResultadosPDF(){
     head: [["Ingresos","Monto"]],
     body: [
       ["Intereses cobrados", money(T.intereses)],
-      ["Capital cobrado", money(T.capital)],
+      ["Capital cobrado", money(T.capital + T.enganches)],
       ["      De cuotas", money(T.capitalCuotas)],
-      ["      Por abonos a capital", money(T.abonos)],
-      ["Mora cobrada", money(T.mora)],
-      ["Enganches al refinanciar", money(T.enganches)]
+      ["      Por abonos a capital", money(T.abonos + T.enganches)],
+      ["Mora cobrada", money(T.mora)]
     ],
     foot: [["Total ingresos", money(ingresos)]],
     columnStyles: { 1: { halign: "right" } },
@@ -3499,11 +3508,10 @@ function viewEstadoResultados(){
       <div class="tabla-card">
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
         ${fila("Intereses cobrados", T.intereses)}
-        ${fila("Capital cobrado", T.capital)}
+        ${fila("Capital cobrado", T.capital + T.enganches)}
         ${filaSub("De cuotas", T.capitalCuotas)}
-        ${filaSub("Por abonos a capital", T.abonos)}
+        ${filaSub("Por abonos a capital", T.abonos + T.enganches)}
         ${fila("Mora cobrada", T.mora)}
-        ${fila("Enganches al refinanciar", T.enganches)}
         ${fila("Total ingresos", ingresos, true)}
       </table>
       </div>
@@ -4308,7 +4316,7 @@ function viewAjustesClave(){
       ${tieneHuella ? `<button type="button" class="btn btn-outline" style="width:100%;margin-bottom:16px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);color:#fff;" onclick="usarHuellaAjustes()">👆 Usar huella / Face ID</button>
       <div style="height:1px;background:rgba(255,255,255,.15);margin:0 0 16px;"></div>` : ""}
       <p style="text-align:center;margin:0 0 12px;color:${GOLD};font-size:15px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">Ingrese clave</p>
-      <input id="claveAjustes" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;" onkeydown="if(event.key==='Enter') verificarClaveAjustes();" oninput="const l=String(state.config.pin||'').length; if(l>0 && this.value.length===l) verificarClaveAjustes();">
+      <input autocomplete="off" id="claveAjustes" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;" onkeydown="if(event.key==='Enter') verificarClaveAjustes();" oninput="const l=String(state.config.pin||'').length; if(l>0 && this.value.length===l) verificarClaveAjustes();">
       ${state._errorClaveAjustes ? `<p style="color:#FFC2C2;font-size:13px;margin:10px 0 0;text-align:center;">Clave incorrecta.</p>` : ""}
       <button type="button" onclick="olvideMiClave()" style="display:block;width:100%;background:none;border:none;color:rgba(255,255,255,.7);text-decoration:underline;font-size:12.5px;margin-top:18px;cursor:pointer;">¿Olvidaste tu clave?</button>
     </div>
@@ -4441,7 +4449,7 @@ function viewAjustes(){
     <p style="font-weight:600;margin:0 0 4px;">Clave de acceso</p>
     <p class="hint nota-ayuda" style="margin:0 0 12px;">Esta misma clave protege la app al abrirla y también te la vuelve a pedir al entrar a Ajustes, por seguridad extra.</p>
     <label style="margin-bottom:12px;"><span>Nueva clave</span>
-      <input id="f_claveAcceso" type="text" inputmode="numeric" placeholder="Ej. 1234" value="">
+      <input autocomplete="off" id="f_claveAcceso" type="text" inputmode="numeric" placeholder="Ej. 1234" value="">
     </label>
     <label style="margin-bottom:6px;"><span>Código de recuperación (algo que solo tú sepas, por si olvidas la clave)</span>
       <input id="f_codigoRecuperacion" type="text" placeholder="Ej. una palabra o frase que recuerdes" value="">
@@ -4535,7 +4543,7 @@ function viewAjustes(){
         <option value="saldo" ${state.config.moraBase==="saldo"?"selected":""}>Saldo pendiente</option>
       </select>
     </label>
-    <label style="margin-bottom:6px;"><span>${state.config.moraModo==="cuota" ? "Tasa de mora por cuota vencida (%)" : "Tasa de mora por día (%)"}</span><input type="text" inputmode="decimal" step="0.01" min="0" value="${state.config.tasaMoraDiaria}" oninput="state.config.tasaMoraDiaria=filtrarDecimal(this.value); save(); actualizarEjemploMora();"></label>
+    <label style="margin-bottom:6px;"><span>${state.config.moraModo==="cuota" ? "Tasa de mora por cuota vencida (%)" : "Tasa de mora por día (%)"}</span><input autocomplete="off" type="text" inputmode="decimal" step="0.01" min="0" value="${state.config.tasaMoraDiaria}" oninput="state.config.tasaMoraDiaria=filtrarDecimal(this.value); save(); actualizarEjemploMora();"></label>
     <p class="hint" id="mora_ejemplo" style="margin:0;">${textoEjemploMora()}</p>
   </div>
   <div class="row-card" style="display:block;" id="sec-zona">
@@ -4575,7 +4583,7 @@ function viewAjustes(){
   <div class="row-card" style="display:block;" id="sec-umbral">
     <p style="font-weight:600;margin:0 0 4px;">Umbral de modificación sustancial (NIF)</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Al refinanciar, se compara el valor presente del préstamo nuevo contra el del préstamo original. Si la diferencia es igual o mayor a este porcentaje, se clasifica como modificación sustancial (préstamo nuevo); si es menor, se registra como no sustancial (con su ganancia o pérdida por modificación). 10% es el criterio más usado.</p>
-    <label style="margin-bottom:10px;"><span>Umbral (%)</span><input type="text" inputmode="decimal" step="0.1" min="0" value="${state.config.umbralModificacionSustancial!==undefined?state.config.umbralModificacionSustancial:10}" oninput="state.config.umbralModificacionSustancial=filtrarDecimal(this.value); save();"></label>
+    <label style="margin-bottom:10px;"><span>Umbral (%)</span><input autocomplete="off" type="text" inputmode="decimal" step="0.1" min="0" value="${state.config.umbralModificacionSustancial!==undefined?state.config.umbralModificacionSustancial:10}" oninput="state.config.umbralModificacionSustancial=filtrarDecimal(this.value); save();"></label>
     <label style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer;">
       <input type="checkbox" style="width:auto;" ${state.config.mostrarGananciaModificaciones===true?"checked":""} onchange="state.config.mostrarGananciaModificaciones=this.checked; save();">
       <span style="font-size:13px;">Mostrar la ganancia/(pérdida) por modificación en el Estado de resultados</span>
@@ -5152,14 +5160,14 @@ function viewNuevoPrestamo(){
     <label><span>N° de préstamo</span><input id="nf_codigo" type="text" value="${f.codigo||""}" ${editando?"disabled class='campo-fijo'":""} oninput="window._nf.codigo=this.value.toUpperCase(); render()"></label>
     <label><span>Cliente</span><select id="nf_cliente"${dis} onchange="window._nf.clienteId=this.value; render()">${opts}</select></label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <label style="margin:0;"><span>Capital a financiar (${simboloMoneda()})</span><input id="nf_capital"${dis} type="text" inputmode="decimal" value="${f.capital}" oninput="window._nf.capital=filtrarDecimal(this.value); render()"></label>
-      <label style="margin:0;"><span>Tasa de interés (%)</span><input id="nf_tasa"${dis} type="text" inputmode="decimal" value="${f.tasa}" oninput="window._nf.tasa=filtrarDecimal(this.value); render()"></label>
+      <label style="margin:0;"><span>Capital a financiar (${simboloMoneda()})</span><input autocomplete="off" id="nf_capital"${dis} type="text" inputmode="decimal" value="${f.capital}" oninput="window._nf.capital=filtrarDecimal(this.value); render()"></label>
+      <label style="margin:0;"><span>Tasa de interés (%)</span><input autocomplete="off" id="nf_tasa"${dis} type="text" inputmode="decimal" value="${f.tasa}" oninput="window._nf.tasa=filtrarDecimal(this.value); render()"></label>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <label style="margin:0;"><span>Período de pago</span><select${dis} onchange="window._nf.periodo=this.value; render()">${periodoOpts}</select></label>
       <label style="margin:0;"><span>Método de amortización</span><select${dis} onchange="window._nf.metodo=this.value; render()">${metodoOpts}</select></label>
     </div>
-    ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input id="nf_cuotas"${dis} type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._nf.cuotas=filtrarEntero(this.value); render()"></label>`}
+    ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input autocomplete="off" id="nf_cuotas"${dis} type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._nf.cuotas=filtrarEntero(this.value); render()"></label>`}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
       <label style="margin:0;"><span>Fecha del préstamo</span><input id="nf_fecha"${dis} type="date" value="${f.fechaInicio}" oninput="window._nf.fechaInicio=this.value; render()"></label>
       <label style="margin:0;"><span>Fecha 1ª cuota</span><input id="nf_fecha1ra"${dis} type="date" value="${f.fechaPrimeraCuota||""}" oninput="window._nf.fechaPrimeraCuota=this.value; render()"></label>
@@ -5336,14 +5344,14 @@ function viewCalculadora(){
     <label><span>Cliente (opcional)</span><select id="calc_cliente" onchange="window._calc.clienteId=this.value; render()">${opts}</select></label>
     ${!f.clienteId ? `<label><span>O escribe un nombre temporal (opcional, solo para esta simulación)</span><input id="calc_nombreTemporal" type="text" value="${f.nombreTemporal||""}" placeholder="Ej. cliente nuevo, sin registrar todavía" oninput="window._calc.nombreTemporal=this.value; render()"></label>` : ""}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <label style="margin:0;"><span>Capital a financiar (${simboloMoneda()})</span><input id="calc_capital" type="text" inputmode="decimal" value="${f.capital}" oninput="window._calc.capital=filtrarDecimal(this.value); render()"></label>
-      <label style="margin:0;"><span>Tasa de interés (%)</span><input id="calc_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._calc.tasa=filtrarDecimal(this.value); render()"></label>
+      <label style="margin:0;"><span>Capital a financiar (${simboloMoneda()})</span><input autocomplete="off" id="calc_capital" type="text" inputmode="decimal" value="${f.capital}" oninput="window._calc.capital=filtrarDecimal(this.value); render()"></label>
+      <label style="margin:0;"><span>Tasa de interés (%)</span><input autocomplete="off" id="calc_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._calc.tasa=filtrarDecimal(this.value); render()"></label>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <label style="margin:0;"><span>Período de pago</span><select id="calc_periodo" onchange="window._calc.periodo=this.value; render()">${periodoOpts}</select></label>
       <label style="margin:0;"><span>Método de amortización</span><select id="calc_metodo" onchange="window._calc.metodo=this.value; render()">${metodoOpts}</select></label>
     </div>
-    ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input id="calc_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._calc.cuotas=filtrarEntero(this.value); render()"></label>`}
+    ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input autocomplete="off" id="calc_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._calc.cuotas=filtrarEntero(this.value); render()"></label>`}
     <label><span>Fecha del préstamo</span><input id="calc_fecha" type="date" value="${f.fechaInicio}" oninput="window._calc.fechaInicio=this.value; render()"></label>
     ${previewHtml}
     <button class="btn btn-gold" style="width:100%;margin-top:16px;" onclick="crearPrestamoDesdeCalculadora()">Crear este préstamo</button>
@@ -5372,6 +5380,21 @@ function capitalAntesModificacion(m){
     return Math.max(0, round2((Number(m.capitalNuevo)||0) + (Number(m.enganche)||0) - (Number(m.adicional)||0)));
   const aj = (m.ajustesPrevios || []).reduce(function(s, x){ return s + (Number(x.monto)||0); }, 0);
   return Math.max(0, round2((Number(m.capitalAnterior)||0) - aj));
+}
+// Fecha de la primera cuota al refinanciar: se puede mantener la fecha de cobro actual del préstamo
+// (si cae antes de un período completo desde hoy) o empezar un período completo después de hoy.
+function planFechaRefinanciar(origen, f, tabla, r, interesAcc, opcionInt){
+  const out = { puede:false, mantener:false, proxima:r.proximaFecha||null, fechaAuto:null, dias:0, primera:null };
+  if(!tabla || !tabla.length || f.metodo === METODOS[4]) return out;
+  out.fechaAuto = tabla[0].fecha;
+  out.puede = !!(out.proxima && out.proxima > f.fechaInicio && out.proxima < out.fechaAuto);
+  out.mantener = out.puede && (f.fechaOpcion || "mantener") === "mantener";
+  if(out.mantener){
+    out.dias = Math.round((new Date(out.proxima+"T00:00:00") - new Date(f.fechaInicio+"T00:00:00"))/86400000);
+    const tmp = { fechaInicio:f.fechaInicio, fechaPrimeraCuota:out.proxima, prorratearPrimera:true, periodo:f.periodo, metodo:f.metodo };
+    out.primera = round2(tabla[0].cuota + prorrateoPrimeraCuota(tmp, tabla[0].interes||0) + (opcionInt==="anexar" ? interesAcc : 0));
+  }
+  return out;
 }
 // Interés devengado desde el último pago hasta la fecha del refinanciamiento. Usa el mismo
 // criterio que "Liquidar anticipado": interés por día sobre el saldo de cada día.
@@ -5418,8 +5441,8 @@ function viewRefinanciar(){
   const nuevoCapital = Math.max(0, capitalPendiente - enganche + adicional);
   const acc = interesAcumuladoRefinanciar(origen, f.fechaInicio);
   const interesAcc = acc.interes > 0.004 ? acc.interes : 0;
-  const opcionInt = f.interesOpcion || (adicional>0 ? "descontar" : "cobrar");
-  let cuota1 = null;
+  const opcionInt = f.interesOpcion || "anexar";
+  let cuota1 = null, tablaRf = null;
 
   let metodoOpts = METODOS.map(m=>`<option ${m===f.metodo?"selected":""}>${m}</option>`).join("");
   let periodoOpts = PERIODOS.map(pd=>`<option ${pd===f.periodo?"selected":""}>${pd}</option>`).join("");
@@ -5433,6 +5456,7 @@ function viewRefinanciar(){
     const esAmericano = f.metodo === METODOS[4];
     if(tabla.length){
       cuota1 = esAmericano ? tabla[tabla.length-1].cuota : tabla[0].cuota;
+      tablaRf = tabla;
       evalNIF = evaluarModificacionNIF(origen, nuevoCapital, tabla.map(x=>x.cuota), {esIndefinidoNuevo: esIndef});
       previewHtml = `<div class="card preview-cuota" style="margin-bottom:16px;">
         <p style="font-size:13px;margin:0 0 4px;">Nuevo capital financiado: <b>${money(nuevoCapital)}</b></p>
@@ -5450,6 +5474,19 @@ function viewRefinanciar(){
     }
   }
 
+  const planF = tablaRf ? planFechaRefinanciar(origen, f, tablaRf, r, interesAcc, opcionInt) : null;
+  let fechaHtml = "";
+  if(planF && planF.puede){
+    const optsF = [["mantener","Mantener la fecha de cobro actual (" + fmtDate(planF.proxima) + ")"],["auto","Un período después de hoy (" + fmtDate(planF.fechaAuto) + ")"]]
+      .map(function(o){ return '<option value="' + o[0] + '"' + ((planF.mantener ? "mantener" : "auto")===o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join("");
+    const explF = planF.mantener
+      ? `La primera cuota vence el ${fmtDate(planF.proxima)} y cobra solo los ${planF.dias} día${planF.dias===1?"":"s"} desde el ${fmtDate(f.fechaInicio)}: <b>${money(planF.primera)}</b>${opcionInt==="anexar" ? " (incluye el interés acumulado)" : ""}. Las siguientes siguen el mismo ciclo de cobro.`
+      : `La primera cuota vence el ${fmtDate(planF.fechaAuto)}, un período completo después del nuevo préstamo.`;
+    fechaHtml = `<div class="card" style="margin-bottom:16px;">
+      <label style="margin-bottom:6px;"><span>Fecha de la primera cuota</span><select onchange="window._rf.fechaOpcion=this.value; render()">${optsF}</select></label>
+      <p class="hint" style="margin:0;">${explF}</p>
+    </div>`;
+  }
   let interesHtml = "";
   if(interesAcc > 0){
     const opts = [["descontar","Descontar del desembolso"],["cobrar","Cobrar aparte"],["anexar","Anexar a la próxima cuota"],["perdonar","Perdonar"]]
@@ -5461,7 +5498,7 @@ function viewRefinanciar(){
                            : `El monto adicional no alcanza: el cliente paga la diferencia de ${money(-efectivo)}. Se registra un pago de interés de ${money(interesAcc)} en el préstamo actual.`)
           : `No hay monto adicional del cual descontar: el cliente paga ${money(interesAcc)}. Se registra como pago de interés en el préstamo actual.`)
       : opcionInt==="cobrar" ? `El cliente paga ${money(interesAcc)} aparte. Se registra como pago de interés en el préstamo actual.`
-      : opcionInt==="anexar" ? `No se cobra hoy: se suma a la primera cuota del préstamo nuevo${cuota1!==null ? ` (queda en ${money(cuota1 + interesAcc)})` : ""}.`
+      : opcionInt==="anexar" ? `No se cobra hoy: se suma a la primera cuota del préstamo nuevo${cuota1!==null ? ` (queda en ${money(planF && planF.mantener ? planF.primera : cuota1 + interesAcc)})` : ""}.`
       : `No se cobra: el cliente no paga esos días.`;
     interesHtml = `<div class="card" style="margin-bottom:16px;">
       <p style="font-size:13px;font-weight:700;margin:0 0 4px;">Interés acumulado desde el último pago</p>
@@ -5478,14 +5515,14 @@ function viewRefinanciar(){
       <p style="color:#F3F0E8;font-size:12px;margin:2px 0 0;">capital pendiente a refinanciar</p>
     </div>
     ${clasificacionHtml || `<p class="hint nota-ayuda" style="margin-bottom:12px;">Completa la tasa, cuotas y método abajo para ver aquí la clasificación NIIF PYMES (sustancial o no) de este refinanciamiento.</p>`}
-    <label><span>Enganche / abono que reduce el préstamo (L, opcional)</span><input id="rf_enganche" type="text" inputmode="decimal" value="${f.enganche}" oninput="window._rf.enganche=filtrarDecimal(this.value); render()"></label>
-    <label><span>Monto adicional a desembolsar (L, opcional)</span><input id="rf_adicional" type="text" inputmode="decimal" value="${f.adicional}" oninput="window._rf.adicional=filtrarDecimal(this.value); render()"></label>
-    <label><span>Tasa de interés por período (%)</span><input id="rf_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._rf.tasa=filtrarDecimal(this.value); render()"></label>
+    <label><span>Monto adicional a desembolsar (L, opcional)</span><input autocomplete="off" id="rf_adicional" type="text" inputmode="decimal" value="${f.adicional}" oninput="window._rf.adicional=filtrarDecimal(this.value); render()"></label>
+    <label><span>Tasa de interés por período (%)</span><input autocomplete="off" id="rf_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._rf.tasa=filtrarDecimal(this.value); render()"></label>
     <label><span>Período de pago</span><select onchange="window._rf.periodo=this.value; render()">${periodoOpts}</select></label>
     <label><span>Método de amortización</span><select onchange="window._rf.metodo=this.value; render()">${metodoOpts}</select></label>
-    ${esIndef?"":`<label><span>Cantidad de cuotas</span><input id="rf_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._rf.cuotas=filtrarEntero(this.value); render()"></label>`}
+    ${esIndef?"":`<label><span>Cantidad de cuotas</span><input autocomplete="off" id="rf_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._rf.cuotas=filtrarEntero(this.value); render()"></label>`}
     <label><span>Fecha del nuevo préstamo</span><input id="rf_fecha" type="date" value="${f.fechaInicio}" oninput="window._rf.fechaInicio=this.value; render()"></label>
     ${interesHtml}
+    ${fechaHtml}
     ${previewHtml}
     <div class="flexrow">
       <button class="btn btn-outline" onclick="window._rf=null; state.vista='detalle'; render()">Cancelar</button>
@@ -5506,10 +5543,11 @@ function guardarRefinanciamiento(){
   if(nuevoCapital<=0) return;
   const acc = interesAcumuladoRefinanciar(origen, f.fechaInicio);
   const interesAcc = acc.interes > 0.004 ? acc.interes : 0;
-  const opcionInt = f.interesOpcion || (adicional>0 ? "descontar" : "cobrar");
+  const opcionInt = f.interesOpcion || "anexar";
 
   const tablaNueva = generarTabla({capital:nuevoCapital, tasa:f.tasa, cuotas: esIndef?1:f.cuotas, periodo:f.periodo, metodo:f.metodo, fechaInicio:f.fechaInicio});
   const evalNIF = evaluarModificacionNIF(origen, nuevoCapital, tablaNueva.map(x=>x.cuota), {esIndefinidoNuevo: esIndef});
+  const planF = planFechaRefinanciar(origen, f, tablaNueva, r, interesAcc, opcionInt);
 
   const notaNIF = evalNIF.diffPct===null
     ? ""
@@ -5522,7 +5560,7 @@ function guardarRefinanciamiento(){
         : opcionInt==="anexar" ? "se suma a la próxima cuota"
         : "perdonado")
     : "";
-  mostrarConfirmacion(`Vas a refinanciar ${origen.codigo}:\nCapital pendiente: ${money(capitalPendiente)}\nEnganche/abono: ${money(enganche)}\nMonto adicional entregado: ${money(adicional)}${msgInteres}\nNuevo capital: ${money(nuevoCapital)}${notaNIF}\n\n¿Confirmas?`, function(ok){
+  mostrarConfirmacion(`Vas a refinanciar ${origen.codigo}:\nCapital pendiente: ${money(capitalPendiente)}${enganche>0.004 ? `\nEnganche/abono: ${money(enganche)}` : ""}\nMonto adicional entregado: ${money(adicional)}${msgInteres}${planF.mantener ? `\nPrimera cuota: ${fmtDate(planF.proxima)} (se mantiene la fecha de cobro) por ${money(planF.primera)}` : ""}\nNuevo capital: ${money(nuevoCapital)}${notaNIF}\n\n¿Confirmas?`, function(ok){
     if(!ok) return;
 
     // Interés devengado desde el último pago: si se cobra (o se descuenta del desembolso) se
@@ -5557,6 +5595,7 @@ function guardarRefinanciamiento(){
         gananciaPerdidaModificacionNIF: 0
       };
       if(interesAcc > 0 && opcionInt==="anexar") nuevo.interesAnexado = interesAcc;
+      if(planF.mantener){ nuevo.fechaPrimeraCuota = planF.proxima; nuevo.prorratearPrimera = true; }
       // Se enlaza el pago de interés con el préstamo nuevo: si ese préstamo se elimina, el pago también se quita.
       const _piRef = idPagoInt ? (origen.pagos||[]).find(function(x){ return x.id === idPagoInt; }) : null;
       if(_piRef) _piRef.refiParaId = nuevo.id;
@@ -5588,7 +5627,8 @@ function guardarRefinanciamiento(){
         // que causaba que un pago viejo apareciera como "abono a la primera cuota" nueva).
         pagosPrevios: origen.pagos || [], ajustesPrevios: origen.ajustesCapital || [],
         interesAnexadoAnterior: origen.interesAnexado || 0,
-        pagoInteresId: idPagoInt
+        pagoInteresId: idPagoInt,
+        fechaPrimeraCuotaAnterior: origen.fechaPrimeraCuota || "", prorratearPrimeraAnterior: !!origen.prorratearPrimera
       });
       origen.capital = nuevoCapital;
       origen.tasa = f.tasa;
@@ -5599,6 +5639,9 @@ function guardarRefinanciamiento(){
       origen.pagos = [];
       origen.ajustesCapital = [];
       origen.interesAnexado = (interesAcc > 0 && opcionInt==="anexar") ? interesAcc : 0;
+      // La fecha de 1ª cuota anterior era del plan viejo: solo se conserva si se eligió mantener la fecha de cobro.
+      if(planF.mantener){ origen.fechaPrimeraCuota = planF.proxima; origen.prorratearPrimera = true; }
+      else { delete origen.fechaPrimeraCuota; delete origen.prorratearPrimera; }
       // Mismo criterio que en la rama "sustancial" de arriba: el enganche se registra como
       // un pago real para que se vea en "Pagos"/"Total cobrado", y resumen() lo excluye del
       // avance del cronograma (ya está descontado en nuevoCapital) para no contarlo dos veces.
@@ -5803,7 +5846,7 @@ function viewDetallePrestamo(){
       <p class="hint nota-ayuda" style="margin:0 0 10px;">Cómo se calculó: ${pendiente.detalleMora.map(d=>`${textoMora(d)}`).join(" + ")}${pendiente.detalleMora.length>1?` → total ${money(moraCalc)}.${(state.config.moraModo!=="cuota" && (!state.config.moraBase||state.config.moraBase==="cuota")) ? ` La mora se calcula por separado para cada cuota vencida, cada una según sus propios días de atraso — por eso el ${nVenc}° vencimiento no acumula los mismos ${pendiente.diasAtr} días que la primera cuota vencida.` : ""}`:"."}</p>
       <label style="display:flex;align-items:center;gap:6px;margin-bottom:12px;"><input type="checkbox" id="incluirMora" ${(window._moraOff||{})[p.id]?"":"checked"} style="width:auto;" onchange="(window._moraOff=window._moraOff||{})['${p.id}']=!this.checked; render();"><span style="margin:0;font-size:13px;color:#6B7080;">Cobrar la mora junto con este pago</span></label>` : ""}
       <div class="flexrow">
-        <input type="text" inputmode="decimal" id="montoPago" value="${(moraCalc>0 && !(window._moraOff||{})[p.id]) ? round2(sugerido+moraCalc).toFixed(2) : ""}" placeholder="${sugerido.toFixed(2)}">
+        <input autocomplete="off" type="text" inputmode="decimal" id="montoPago" value="${(moraCalc>0 && !(window._moraOff||{})[p.id]) ? round2(sugerido+moraCalc).toFixed(2) : ""}" placeholder="${sugerido.toFixed(2)}">
         <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarPago('${p.id}')">Pagar</button>
       </div>
       <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#6B7080;">Fecha del pago</span><input type="date" id="fechaPago" value="${hoyISO()}" max="${hoyISO()}"></label>
@@ -5818,7 +5861,7 @@ function viewDetallePrestamo(){
       <p style="font-weight:600;margin:0 0 6px;">Solo abono a capital</p>
       <p class="hint nota-ayuda" style="margin:0 0 10px;">Baja el capital sin pagar la cuota. El interés de la cuota en curso se sigue calculando sobre el capital anterior; el nuevo capital cuenta desde la cuota siguiente.</p>
       <div class="flexrow">
-        <input type="text" inputmode="decimal" id="montoAbonoCapital" placeholder="Monto a capital">
+        <input autocomplete="off" type="text" inputmode="decimal" id="montoAbonoCapital" placeholder="Monto a capital">
         <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarAbonoCapital('${p.id}')">Abonar</button>
       </div>
       <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#6B7080;">Fecha del abono</span><input type="date" id="fechaAbonoCapital" value="${hoyISO()}" max="${hoyISO()}"></label>
@@ -5891,7 +5934,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "27.4";
+const JR_VERSION = "28.2";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -6122,7 +6165,7 @@ function cuentasCardHtml(){
       <summary><span class="cta-t">${jrEscapeHtml(String(c.banco||"").trim() || "Banco sin nombre")}<small class="cta-s">${resumenCuenta(c)}</small></span></summary>
       <div class="cuenta-fila">
         <input placeholder="Banco (ej. Atlántida)" value="${jrEscapeHtml(c.banco||"")}" oninput="editarCuenta(${i},'banco',this.value)">
-        <input placeholder="Número de cuenta" inputmode="numeric" value="${jrEscapeHtml(c.cuenta||"")}" oninput="editarCuenta(${i},'cuenta',this.value)">
+        <input autocomplete="off" placeholder="Número de cuenta" inputmode="numeric" value="${jrEscapeHtml(c.cuenta||"")}" oninput="editarCuenta(${i},'cuenta',this.value)">
         <input placeholder="A nombre de (opcional)" value="${jrEscapeHtml(c.titular||"")}" oninput="editarCuenta(${i},'titular',this.value)">
         <button class="btn btn-outline" onclick="quitarCuenta(${i})">Quitar esta cuenta</button>
       </div>
@@ -6405,7 +6448,7 @@ function viewEstadisticas(){
     </div>
     <div class="est-card">
       <p class="est-t">De dónde viene lo cobrado</p>
-      <p class="hint" style="margin:0 0 10px;">Acumulado de todos los préstamos.${d.T.enganche > 0.005 ? ' El capital incluye ' + money(d.T.enganche) + ' de enganches.' : ''}</p>
+      <p class="hint" style="margin:0 0 10px;">Acumulado de todos los préstamos.</p>
       ${ing > 0 ? '<div class="est-apilada"><i class="b-oro" style="width:' + (d.T.interes / ing * 100) + '%"></i><i class="b-azul" style="width:' + (d.T.capital / ing * 100) + '%"></i><i class="b-rojo" style="width:' + (d.T.mora / ing * 100) + '%"></i></div><div style="height:12px"></div>' + filaOrigen("Intereses", d.T.interes, "b-oro") + filaOrigen("Capital", d.T.capital, "b-azul") + filaOrigen("Mora", d.T.mora, "b-rojo") : '<p class="hint" style="margin:0;">Todavía no hay cobros.</p>'}
     </div>
     <div class="est-card">
@@ -6579,21 +6622,54 @@ function generarEstadoCuentaPDF(p, cli, r){
 
   // Resumen financiero
   const atraso = r.proximaFecha ? diasAtraso(r.proximaFecha) : 0;
-  const estadoTxt = atraso>0 ? `Vencido (${atraso} día${atraso===1?"":"s"} de atraso)` : r.estado;
+  const estadoTxt = atraso>0 ? `Vencido (${atraso} día${atraso===1?"":"s"})` : r.estado;
   const totalCobradoLoan = (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0), 0)
     + (p.modificaciones||[]).reduce((s,m)=>s+(m.pagosPrevios||[]).reduce((s2,pg)=>s2+(Number(pg.monto)||0)+(Number(pg.mora)||0),0), 0);
-  doc.autoTable({
-    startY: y,
-    body: [
-      ["Capital prestado", money(p.capital)],
+  const filasRes = (function(){
+    // Con aumentos de capital (refinanciamientos/modificaciones) se muestra de dónde sale el
+    // total prestado y cómo se llega al capital actual.
+    const aum = (p.modificaciones||[]).reduce((s2,m)=>s2+(Number(m.adicional)||0),0);
+    let f1;
+    if(aum > 0.005){
+      const ini = capitalOriginalDesembolsado(p);
+      const abonos = round2(ini + aum - (Number(p.capital)||0));
+      f1 = [["Prestado inicial", money(ini)], ["Aumentos de capital", money(aum)], ["Total prestado (neto)", money(ini + aum)]];
+      if(abonos > 0.005) f1.push(["Abonos a capital", money(abonos)]);
+      f1.push(["Capital actual", money(p.capital)]);
+    } else {
+      f1 = [[(p.modificaciones&&p.modificaciones.length) ? "Capital actual" : "Capital prestado", money(p.capital)]];
+    }
+    return f1.concat([
       ["Capital pendiente hoy", money(r.capitalPendiente||0)],
       ["Total cobrado a la fecha", money(totalCobradoLoan)],
       ["Estado", estadoTxt],
       ["Próxima fecha de pago", r.proximaFecha ? fmtDate(r.proximaFecha) : "—"]
-    ],
+    ]);
+  })();
+  const mitadRes = Math.ceil(filasRes.length/2);
+  const bodyRes = [];
+  for(let k=0;k<mitadRes;k++){
+    const a = filasRes[k], b = filasRes[k+mitadRes] || ["",""];
+    bodyRes.push([a[0], a[1], b[0], b[1]]);
+  }
+  const filaAbonosRes = filasRes.findIndex(function(x){ return x[0] === "Abonos a capital"; });
+  doc.autoTable({
+    startY: y,
+    // Alineado con las dos columnas del encabezado (Cliente a x=14, Préstamo a x=110):
+    // el margen y el relleno de 1 mm hacen que el texto empiece exactamente en esas posiciones.
+    margin: { left: 13 },
+    body: bodyRes,
     theme: "plain",
     styles: { fontSize: 9.5, cellPadding: 1 },
-    columnStyles: { 0: { fontStyle: "bold", cellWidth: 55 } }
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 42 }, 1: { cellWidth: 54 }, 2: { fontStyle: "bold", cellWidth: 44 }, 3: { cellWidth: 40 } },
+    // El signo menos de "Abonos a capital" se dibuja fuera de la columna, para que la "L" quede
+    // alineada con los demás montos.
+    didDrawCell: function(data){
+      if(filaAbonosRes >= 0 && filaAbonosRes < mitadRes && data.section === "body" && data.row.index === filaAbonosRes && data.column.index === 1){
+        doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
+        doc.text("-", data.cell.x - 1.2, data.cell.y + data.cell.height/2 + 1.2, { align:"right" });
+      }
+    }
   });
   y = doc.lastAutoTable.finalY + 8;
 
@@ -7150,7 +7226,7 @@ function esPagoInteresRefi(pg){ return !!pg && (pg.refiInteres === true || pg.no
 function conceptoPago(pg){
   if(esPagoInteresRefi(pg)) return "Interés acumulado al refinanciar";
   if(pg.liquidacion) return "Liquidación anticipada";
-  if(pg.tipo === "abono_capital") return "Abono a capital";
+  if(pg.tipo === "abono_capital" || pg.tipo === "enganche") return "Abono a capital";
   if(pg.mora>0) return "Cuota + mora por atraso";
   return "Cuota";
 }
@@ -7291,7 +7367,27 @@ function datosContrato(p, cli, r){
   const ultimaFila = filasC.length ? filasC[filasC.length-1] : null;
   const UNIDADES_PERIODO = { Semanal:"semana", Quincenal:"quincena", Mensual:"mes", Semestral:"semestre", Anual:"año" };
   const fl = iso => { const dt = new Date(iso+"T00:00:00"); return `${dt.getDate()} de ${MESES_LARGOS[dt.getMonth()].toLowerCase()} de ${dt.getFullYear()}`; };
+  // Si el préstamo viene de un refinanciamiento (o se modificó), el contrato no puede decir que se
+  // "recibió" todo el capital ese día: parte era saldo pendiente y solo lo adicional es dinero nuevo.
+  let refi = null;
+  const _mods = p.modificaciones || [];
+  if(_mods.length){
+    const m = _mods[_mods.length-1];
+    refi = { codigo: p.codigo, fechaOrig: _mods[0].fechaInicioAnterior || null, pendiente: capitalAntesModificacion(m),
+             adicional: Number(m.adicional)||0, enganche: Number(m.enganche)||0 };
+  } else if(p.refinanciaDe){
+    const o = state.prestamos.find(x=>x.id===p.refinanciaDe);
+    const adic = Number(p.adicionalAlRefinanciar)||0, eng = Number(p.engancheAlRefinanciar)||0;
+    refi = { codigo: o ? o.codigo : "anterior", fechaOrig: o ? o.fechaInicio : null,
+             pendiente: round2((Number(p.capital)||0) + eng - adic), adicional: adic, enganche: eng };
+  }
   return {
+    refi: refi,
+    fechaOrigLarga: (refi && refi.fechaOrig) ? fl(refi.fechaOrig) : "",
+    fechaDesembolsoLarga: fl(p.fechaInicio),
+    primeraCuotaReal: primeraCuota ? primeraCuota.cuota : 0,
+    prorrateoInicial: !!p.prorratearPrimera,
+    interesAnexadoTxt: Number(p.interesAnexado)||0,
     metodoIdx: METODOS.indexOf(p.metodo),
     periodoNombre: p.periodo || "Mensual",
     unidadPeriodo: UNIDADES_PERIODO[p.periodo || "Mensual"] || "mes",
@@ -7336,6 +7432,20 @@ function camposContrato(d){
 // Párrafo del plan de pagos: usa el período real (semanal, quincenal, mensual...) y describe
 // las cuotas según el método del préstamo, en vez de un texto único para todos.
 function parrafoPagosContrato(d){
+  const base = parrafoPagosContratoBase(d);
+  const m = moneyContrato;
+  let frase = "";
+  if(d.metodoIdx === 4){
+    if(d.interesAnexadoTxt > 0.004) frase = ` El pago final incluye además ${m(d.interesAnexadoTxt)} de interés devengado antes de ${d.fechaDesembolsoLarga}.`;
+  } else if(d.prorrateoInicial || d.interesAnexadoTxt > 0.004){
+    const porDias = d.prorrateoInicial ? `por corresponder a los días transcurridos desde el ${d.fechaDesembolsoLarga}` : "";
+    const porInt = d.interesAnexadoTxt > 0.004 ? `${d.prorrateoInicial ? " e incluir" : "por incluir"} ${m(d.interesAnexadoTxt)} de interés devengado antes de esa fecha` : "";
+    frase = ` La primera cuota, con vencimiento el ${d.fechaPrimerPagoLarga}, será de ${m(d.primeraCuotaReal)}, ${porDias}${porInt}.`;
+  }
+  if(frase) base.push({t:frase});
+  return base;
+}
+function parrafoPagosContratoBase(d){
   const PER = d.periodo;                       // MENSUAL
   const PERS = PER + "ES";                     // MENSUALES
   const venc = d.periodoNombre==="Mensual"
@@ -7392,18 +7502,28 @@ function parrafoAbonosContrato(d){
     {t:", que forma parte de este contrato.-"}
   ];
 }
+// Primer párrafo: préstamo nuevo, o refinanciamiento (saldo pendiente + monto adicional).
+function parrafoIntroContrato(d){
+  const cabeza = [{t:"Yo, "}, {t:d.cliente, b:true}, {t:", me comprometo a pagar la suma de "},
+    {t:`${moneyContrato(d.capital)} (${numeroALetras(d.capital)})`, b:true},
+    {t:" a "}, {t:nombreApp().toUpperCase(), b:true}];
+  const fechaTxt = [{t:`${d.diaDesembolsoTexto} (${d.diaDesembolso})`, b:true},
+    {t:` días del mes de ${d.mesDesembolso} del año `}, {t:`${d.anioDesembolsoTexto} (${d.anioDesembolso})`, b:true}];
+  if(!d.refi){
+    return cabeza.concat([{t:", en concepto de préstamo recibido en fecha "}], fechaTxt, [{t:".-"}]);
+  }
+  const rf = d.refi;
+  const partes = cabeza.concat([{t:", en concepto de refinanciamiento del préstamo "}, {t:rf.codigo, b:true}]);
+  if(d.fechaOrigLarga) partes.push({t:` recibido en fecha ${d.fechaOrigLarga}`});
+  partes.push({t:". Este monto comprende el capital pendiente de "}, {t:moneyContrato(rf.pendiente), b:true});
+  if(rf.enganche > 0.004) partes.push({t:" menos un abono de "}, {t:moneyContrato(rf.enganche), b:true});
+  if(rf.adicional > 0.004) partes.push({t:" más un monto adicional de "}, {t:moneyContrato(rf.adicional), b:true});
+  partes.push({t:", en fecha "}, ...fechaTxt, {t:".-"});
+  return partes;
+}
 function parrafosContrato(d){
   return [
-    [
-      {t:"Yo, "}, {t:d.cliente, b:true}, {t:", me comprometo a pagar la suma de "},
-      {t:`${moneyContrato(d.capital)} (${numeroALetras(d.capital)})`, b:true},
-      {t:" a "}, {t:nombreApp().toUpperCase(), b:true},
-      {t:", en concepto de préstamo recibido en fecha "},
-      {t:`${d.diaDesembolsoTexto} (${d.diaDesembolso})`, b:true},
-      {t:` días del mes de ${d.mesDesembolso} del año `},
-      {t:`${d.anioDesembolsoTexto} (${d.anioDesembolso})`, b:true},
-      {t:".-"}
-    ],
+    parrafoIntroContrato(d),
     parrafoPagosContrato(d),
     parrafoAbonosContrato(d),
     [
@@ -7422,13 +7542,17 @@ function dibujarParrafoRico(doc, segmentos, x, y, maxWidth, lineHeight){
   let cx = x, cy = y;
   segmentos.forEach(seg=>{
     doc.setFont("helvetica", seg.b?"bold":"normal");
-    String(seg.t).split(" ").forEach(palabra=>{
-      if(palabra==="") return;
-      const anchoPalabra = doc.getTextWidth(palabra);
-      const anchoConEspacio = doc.getTextWidth(palabra+" ");
-      if(cx + anchoPalabra > x + maxWidth){ cx = x; cy += lineHeight; }
-      doc.text(palabra, cx, cy);
-      cx += anchoConEspacio;
+    // El espacio solo se agrega donde el texto lo trae: así un punto o coma que sigue a un
+    // segmento en negrita o a una fecha queda pegado a la palabra anterior.
+    const partes = String(seg.t).split(" ");
+    partes.forEach((palabra,i)=>{
+      if(palabra!==""){
+        const anchoPalabra = doc.getTextWidth(palabra);
+        if(cx + anchoPalabra > x + maxWidth){ cx = x; cy += lineHeight; }
+        doc.text(palabra, cx, cy);
+        cx += anchoPalabra;
+      }
+      if(i < partes.length-1 && cx > x) cx += doc.getTextWidth(" ");
     });
   });
   doc.setFont("helvetica","normal");
@@ -7769,6 +7893,8 @@ function deshacerUltimaModificacion(id){
     p.pagos = (m.pagosPrevios || []).filter(function(x){ return !m.pagoInteresId || x.id !== m.pagoInteresId; });
     p.ajustesCapital = m.ajustesPrevios || [];
     p.interesAnexado = m.interesAnexadoAnterior || 0;
+    if(m.fechaPrimeraCuotaAnterior) p.fechaPrimeraCuota = m.fechaPrimeraCuotaAnterior; else delete p.fechaPrimeraCuota;
+    if(m.prorratearPrimeraAnterior) p.prorratearPrimera = true; else delete p.prorratearPrimera;
     p.modificaciones.pop();
     save(); render();
     mostrarAlerta(`Listo, ${p.codigo} volvió a las condiciones que tenía antes de esa modificación.`);
