@@ -1115,6 +1115,10 @@
   [data-theme="dark"] .niif-card.card-aviso p:first-child{color:#E8C171 !important;}
   [data-theme="dark"] .niif-card b{color:#80CBC4 !important;}
   [data-theme="dark"] .niif-card b[style*="B0392F"]{color:#F0908A !important;}
+/* Abonar a capital y Liquidar: tarjeta flotante sobre la pantalla, con el fondo oscurecido */
+.hoja-flotante{position:fixed !important;top:8vh;left:12px;right:12px;max-width:520px;margin:0 auto !important;
+  max-height:84vh;overflow-y:auto;z-index:9000;
+  box-shadow:0 0 0 100vmax rgba(10,14,25,.58), 0 14px 40px rgba(0,0,0,.35);}
 </style>
 </head>
 <body>
@@ -2588,7 +2592,7 @@ function renderBloqueo(){
         ${tieneHuella ? `<button class="btn btn-outline" style="width:100%;margin-bottom:16px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);color:#fff;" onclick="usarHuella()">👆 Usar huella / Face ID</button>
         <div style="height:1px;background:rgba(255,255,255,.15);margin:0 0 16px;"></div>` : ""}
         <p style="text-align:center;margin:0 0 12px;color:${GOLD};font-size:15px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">Ingrese clave</p>
-        <input autocomplete="off" id="claveInicio" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;">
+        <input id="claveInicio" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;">
         ${error ? `<p style="color:#FFC2C2;font-size:13px;margin:10px 0 0;text-align:center;">Clave incorrecta.</p>` : ""}
         <button type="button" onclick="olvideMiClave()" style="display:block;width:100%;background:none;border:none;color:rgba(255,255,255,.7);text-decoration:underline;font-size:12.5px;margin-top:18px;cursor:pointer;">¿Olvidaste tu clave?</button>
       </div>
@@ -2708,6 +2712,13 @@ function medirEncabezado(){
   if(h && h.offsetHeight > 0) document.documentElement.style.setProperty("--header-h", h.offsetHeight + "px");
 }
 window.addEventListener("resize", medirEncabezado);
+document.addEventListener("input", function(e){
+  const t = e.target;
+  if(!t || t.tagName !== "INPUT") return;
+  const it = e.inputType;
+  window._sinRefoco = (it === undefined || it === "" || it === "insertReplacementText");
+  if(window._sinRefoco && t.blur) setTimeout(function(){ try{ t.blur(); }catch(x){} }, 0);
+}, true);
 function render(){
   sincronizarTemaAuto();
   document.documentElement.setAttribute("data-theme", state.config.temaOscuro ? "dark" : "light");
@@ -2723,7 +2734,10 @@ document.documentElement.setAttribute("data-inicio", state.config.estiloInicio =
   // Sin esto, cada tecla presionada destruye y recrea el <input>, lo que en el celular
   // hace que el teclado parpadee o se cierre con cada dígito.
   const activo = document.activeElement;
-  const activoId = activo && activo.id;
+  // Si el valor lo puso una sugerencia del teclado (autocompletar), no se devuelve el foco:
+  // así el teclado se queda cerrado en vez de reabrirse al redibujar la pantalla.
+  const _soltarFoco = window._sinRefoco === true; window._sinRefoco = false;
+  const activoId = (activo && !_soltarFoco) ? activo.id : null;
   const esCampoTexto = activo && (activo.tagName === "INPUT" || activo.tagName === "TEXTAREA");
   let selStart = null, selEnd = null;
   if(esCampoTexto){
@@ -3293,16 +3307,23 @@ function desglosePagado(p){
   // Reparte lo realmente cobrado en un préstamo entre interés y capital,
   // recorriendo la tabla de amortización cuota por cuota (igual proporción que cada fila).
   const r = resumen(p);
-  let restante = r.totalPagado || 0;
-  let interes = 0, capital = 0;
+  // Los abonos a capital ya son capital por sí mismos: se separan antes de repartir. La
+  // "cuota" de una fila con abono incluye ese abono, así que para repartir cuota normal se le
+  // quita; si no, el abono diluía la proporción de interés de la cuota que se paga después.
+  const abonosPagados = (p.pagos||[]).filter(function(pg){ return pg.tipo==="abono_capital"; })
+    .reduce(function(s,pg){ return s+(Number(pg.monto)||0); }, 0);
+  let restante = Math.max(0, (r.totalPagado || 0) - abonosPagados);
+  let interes = 0, capital = abonosPagados;
   for(const fila of r.tabla){
     if(restante<=0.005) break;
-    const aplicado = Math.min(restante, fila.cuota);
-    if(fila.cuota>0){
-      const propInteres = fila.interes/fila.cuota;
-      interes += aplicado*propInteres;
-      capital += aplicado*(1-propInteres);
-    }
+    const extraFila = (p.ajustesCapital||[]).filter(function(a){ return a.despuesDeFila === fila.n; })
+      .reduce(function(s,a){ return s+(Number(a.monto)||0); }, 0);
+    const cuotaNormal = Math.max(0, (Number(fila.cuota)||0) - extraFila);
+    if(cuotaNormal <= 0.005) continue;
+    const aplicado = Math.min(restante, cuotaNormal);
+    const propInteres = Math.min(1, (Number(fila.interes)||0)/cuotaNormal);
+    interes += aplicado*propInteres;
+    capital += aplicado*(1-propInteres);
     restante -= aplicado;
   }
   return { interes, capital };
@@ -4316,7 +4337,7 @@ function viewAjustesClave(){
       ${tieneHuella ? `<button type="button" class="btn btn-outline" style="width:100%;margin-bottom:16px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);color:#fff;" onclick="usarHuellaAjustes()">👆 Usar huella / Face ID</button>
       <div style="height:1px;background:rgba(255,255,255,.15);margin:0 0 16px;"></div>` : ""}
       <p style="text-align:center;margin:0 0 12px;color:${GOLD};font-size:15px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">Ingrese clave</p>
-      <input autocomplete="off" id="claveAjustes" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;" onkeydown="if(event.key==='Enter') verificarClaveAjustes();" oninput="const l=String(state.config.pin||'').length; if(l>0 && this.value.length===l) verificarClaveAjustes();">
+      <input id="claveAjustes" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;" onkeydown="if(event.key==='Enter') verificarClaveAjustes();" oninput="const l=String(state.config.pin||'').length; if(l>0 && this.value.length===l) verificarClaveAjustes();">
       ${state._errorClaveAjustes ? `<p style="color:#FFC2C2;font-size:13px;margin:10px 0 0;text-align:center;">Clave incorrecta.</p>` : ""}
       <button type="button" onclick="olvideMiClave()" style="display:block;width:100%;background:none;border:none;color:rgba(255,255,255,.7);text-decoration:underline;font-size:12.5px;margin-top:18px;cursor:pointer;">¿Olvidaste tu clave?</button>
     </div>
@@ -4449,7 +4470,7 @@ function viewAjustes(){
     <p style="font-weight:600;margin:0 0 4px;">Clave de acceso</p>
     <p class="hint nota-ayuda" style="margin:0 0 12px;">Esta misma clave protege la app al abrirla y también te la vuelve a pedir al entrar a Ajustes, por seguridad extra.</p>
     <label style="margin-bottom:12px;"><span>Nueva clave</span>
-      <input autocomplete="off" id="f_claveAcceso" type="text" inputmode="numeric" placeholder="Ej. 1234" value="">
+      <input id="f_claveAcceso" type="text" inputmode="numeric" placeholder="Ej. 1234" value="">
     </label>
     <label style="margin-bottom:6px;"><span>Código de recuperación (algo que solo tú sepas, por si olvidas la clave)</span>
       <input id="f_codigoRecuperacion" type="text" placeholder="Ej. una palabra o frase que recuerdes" value="">
@@ -4543,7 +4564,7 @@ function viewAjustes(){
         <option value="saldo" ${state.config.moraBase==="saldo"?"selected":""}>Saldo pendiente</option>
       </select>
     </label>
-    <label style="margin-bottom:6px;"><span>${state.config.moraModo==="cuota" ? "Tasa de mora por cuota vencida (%)" : "Tasa de mora por día (%)"}</span><input autocomplete="off" type="text" inputmode="decimal" step="0.01" min="0" value="${state.config.tasaMoraDiaria}" oninput="state.config.tasaMoraDiaria=filtrarDecimal(this.value); save(); actualizarEjemploMora();"></label>
+    <label style="margin-bottom:6px;"><span>${state.config.moraModo==="cuota" ? "Tasa de mora por cuota vencida (%)" : "Tasa de mora por día (%)"}</span><input type="text" inputmode="decimal" step="0.01" min="0" value="${state.config.tasaMoraDiaria}" oninput="state.config.tasaMoraDiaria=filtrarDecimal(this.value); save(); actualizarEjemploMora();"></label>
     <p class="hint" id="mora_ejemplo" style="margin:0;">${textoEjemploMora()}</p>
   </div>
   <div class="row-card" style="display:block;" id="sec-zona">
@@ -4583,7 +4604,7 @@ function viewAjustes(){
   <div class="row-card" style="display:block;" id="sec-umbral">
     <p style="font-weight:600;margin:0 0 4px;">Umbral de modificación sustancial (NIF)</p>
     <p class="hint nota-ayuda" style="margin:0 0 10px;">Al refinanciar, se compara el valor presente del préstamo nuevo contra el del préstamo original. Si la diferencia es igual o mayor a este porcentaje, se clasifica como modificación sustancial (préstamo nuevo); si es menor, se registra como no sustancial (con su ganancia o pérdida por modificación). 10% es el criterio más usado.</p>
-    <label style="margin-bottom:10px;"><span>Umbral (%)</span><input autocomplete="off" type="text" inputmode="decimal" step="0.1" min="0" value="${state.config.umbralModificacionSustancial!==undefined?state.config.umbralModificacionSustancial:10}" oninput="state.config.umbralModificacionSustancial=filtrarDecimal(this.value); save();"></label>
+    <label style="margin-bottom:10px;"><span>Umbral (%)</span><input type="text" inputmode="decimal" step="0.1" min="0" value="${state.config.umbralModificacionSustancial!==undefined?state.config.umbralModificacionSustancial:10}" oninput="state.config.umbralModificacionSustancial=filtrarDecimal(this.value); save();"></label>
     <label style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer;">
       <input type="checkbox" style="width:auto;" ${state.config.mostrarGananciaModificaciones===true?"checked":""} onchange="state.config.mostrarGananciaModificaciones=this.checked; save();">
       <span style="font-size:13px;">Mostrar la ganancia/(pérdida) por modificación en el Estado de resultados</span>
@@ -5160,14 +5181,14 @@ function viewNuevoPrestamo(){
     <label><span>N° de préstamo</span><input id="nf_codigo" type="text" value="${f.codigo||""}" ${editando?"disabled class='campo-fijo'":""} oninput="window._nf.codigo=this.value.toUpperCase(); render()"></label>
     <label><span>Cliente</span><select id="nf_cliente"${dis} onchange="window._nf.clienteId=this.value; render()">${opts}</select></label>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <label style="margin:0;"><span>Capital a financiar (${simboloMoneda()})</span><input autocomplete="off" id="nf_capital"${dis} type="text" inputmode="decimal" value="${f.capital}" oninput="window._nf.capital=filtrarDecimal(this.value); render()"></label>
-      <label style="margin:0;"><span>Tasa de interés (%)</span><input autocomplete="off" id="nf_tasa"${dis} type="text" inputmode="decimal" value="${f.tasa}" oninput="window._nf.tasa=filtrarDecimal(this.value); render()"></label>
+      <label style="margin:0;"><span>Capital a financiar (${simboloMoneda()})</span><input id="nf_capital"${dis} type="text" inputmode="decimal" value="${f.capital}" oninput="window._nf.capital=filtrarDecimal(this.value); render()"></label>
+      <label style="margin:0;"><span>Tasa de interés (%)</span><input id="nf_tasa"${dis} type="text" inputmode="decimal" value="${f.tasa}" oninput="window._nf.tasa=filtrarDecimal(this.value); render()"></label>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <label style="margin:0;"><span>Período de pago</span><select${dis} onchange="window._nf.periodo=this.value; render()">${periodoOpts}</select></label>
       <label style="margin:0;"><span>Método de amortización</span><select${dis} onchange="window._nf.metodo=this.value; render()">${metodoOpts}</select></label>
     </div>
-    ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input autocomplete="off" id="nf_cuotas"${dis} type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._nf.cuotas=filtrarEntero(this.value); render()"></label>`}
+    ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input id="nf_cuotas"${dis} type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._nf.cuotas=filtrarEntero(this.value); render()"></label>`}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:4px;">
       <label style="margin:0;"><span>Fecha del préstamo</span><input id="nf_fecha"${dis} type="date" value="${f.fechaInicio}" oninput="window._nf.fechaInicio=this.value; render()"></label>
       <label style="margin:0;"><span>Fecha 1ª cuota</span><input id="nf_fecha1ra"${dis} type="date" value="${f.fechaPrimeraCuota||""}" oninput="window._nf.fechaPrimeraCuota=this.value; render()"></label>
@@ -5344,14 +5365,14 @@ function viewCalculadora(){
     <label><span>Cliente (opcional)</span><select id="calc_cliente" onchange="window._calc.clienteId=this.value; render()">${opts}</select></label>
     ${!f.clienteId ? `<label><span>O escribe un nombre temporal (opcional, solo para esta simulación)</span><input id="calc_nombreTemporal" type="text" value="${f.nombreTemporal||""}" placeholder="Ej. cliente nuevo, sin registrar todavía" oninput="window._calc.nombreTemporal=this.value; render()"></label>` : ""}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-      <label style="margin:0;"><span>Capital a financiar (${simboloMoneda()})</span><input autocomplete="off" id="calc_capital" type="text" inputmode="decimal" value="${f.capital}" oninput="window._calc.capital=filtrarDecimal(this.value); render()"></label>
-      <label style="margin:0;"><span>Tasa de interés (%)</span><input autocomplete="off" id="calc_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._calc.tasa=filtrarDecimal(this.value); render()"></label>
+      <label style="margin:0;"><span>Capital a financiar (${simboloMoneda()})</span><input id="calc_capital" type="text" inputmode="decimal" value="${f.capital}" oninput="window._calc.capital=filtrarDecimal(this.value); render()"></label>
+      <label style="margin:0;"><span>Tasa de interés (%)</span><input id="calc_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._calc.tasa=filtrarDecimal(this.value); render()"></label>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
       <label style="margin:0;"><span>Período de pago</span><select id="calc_periodo" onchange="window._calc.periodo=this.value; render()">${periodoOpts}</select></label>
       <label style="margin:0;"><span>Método de amortización</span><select id="calc_metodo" onchange="window._calc.metodo=this.value; render()">${metodoOpts}</select></label>
     </div>
-    ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input autocomplete="off" id="calc_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._calc.cuotas=filtrarEntero(this.value); render()"></label>`}
+    ${esIndef ? "" : `<label><span>Cantidad de cuotas</span><input id="calc_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._calc.cuotas=filtrarEntero(this.value); render()"></label>`}
     <label><span>Fecha del préstamo</span><input id="calc_fecha" type="date" value="${f.fechaInicio}" oninput="window._calc.fechaInicio=this.value; render()"></label>
     ${previewHtml}
     <button class="btn btn-gold" style="width:100%;margin-top:16px;" onclick="crearPrestamoDesdeCalculadora()">Crear este préstamo</button>
@@ -5515,11 +5536,11 @@ function viewRefinanciar(){
       <p style="color:#F3F0E8;font-size:12px;margin:2px 0 0;">capital pendiente a refinanciar</p>
     </div>
     ${clasificacionHtml || `<p class="hint nota-ayuda" style="margin-bottom:12px;">Completa la tasa, cuotas y método abajo para ver aquí la clasificación NIIF PYMES (sustancial o no) de este refinanciamiento.</p>`}
-    <label><span>Monto adicional a desembolsar (L, opcional)</span><input autocomplete="off" id="rf_adicional" type="text" inputmode="decimal" value="${f.adicional}" oninput="window._rf.adicional=filtrarDecimal(this.value); render()"></label>
-    <label><span>Tasa de interés por período (%)</span><input autocomplete="off" id="rf_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._rf.tasa=filtrarDecimal(this.value); render()"></label>
+    <label><span>Monto adicional a desembolsar (L, opcional)</span><input id="rf_adicional" type="text" inputmode="decimal" value="${f.adicional}" oninput="window._rf.adicional=filtrarDecimal(this.value); render()"></label>
+    <label><span>Tasa de interés por período (%)</span><input id="rf_tasa" type="text" inputmode="decimal" value="${f.tasa}" oninput="window._rf.tasa=filtrarDecimal(this.value); render()"></label>
     <label><span>Período de pago</span><select onchange="window._rf.periodo=this.value; render()">${periodoOpts}</select></label>
     <label><span>Método de amortización</span><select onchange="window._rf.metodo=this.value; render()">${metodoOpts}</select></label>
-    ${esIndef?"":`<label><span>Cantidad de cuotas</span><input autocomplete="off" id="rf_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._rf.cuotas=filtrarEntero(this.value); render()"></label>`}
+    ${esIndef?"":`<label><span>Cantidad de cuotas</span><input id="rf_cuotas" type="text" inputmode="numeric" value="${f.cuotas}" oninput="window._rf.cuotas=filtrarEntero(this.value); render()"></label>`}
     <label><span>Fecha del nuevo préstamo</span><input id="rf_fecha" type="date" value="${f.fechaInicio}" oninput="window._rf.fechaInicio=this.value; render()"></label>
     ${interesHtml}
     ${fechaHtml}
@@ -5846,7 +5867,7 @@ function viewDetallePrestamo(){
       <p class="hint nota-ayuda" style="margin:0 0 10px;">Cómo se calculó: ${pendiente.detalleMora.map(d=>`${textoMora(d)}`).join(" + ")}${pendiente.detalleMora.length>1?` → total ${money(moraCalc)}.${(state.config.moraModo!=="cuota" && (!state.config.moraBase||state.config.moraBase==="cuota")) ? ` La mora se calcula por separado para cada cuota vencida, cada una según sus propios días de atraso — por eso el ${nVenc}° vencimiento no acumula los mismos ${pendiente.diasAtr} días que la primera cuota vencida.` : ""}`:"."}</p>
       <label style="display:flex;align-items:center;gap:6px;margin-bottom:12px;"><input type="checkbox" id="incluirMora" ${(window._moraOff||{})[p.id]?"":"checked"} style="width:auto;" onchange="(window._moraOff=window._moraOff||{})['${p.id}']=!this.checked; render();"><span style="margin:0;font-size:13px;color:#6B7080;">Cobrar la mora junto con este pago</span></label>` : ""}
       <div class="flexrow">
-        <input autocomplete="off" type="text" inputmode="decimal" id="montoPago" value="${(moraCalc>0 && !(window._moraOff||{})[p.id]) ? round2(sugerido+moraCalc).toFixed(2) : ""}" placeholder="${sugerido.toFixed(2)}">
+        <input type="text" inputmode="decimal" id="montoPago" value="${(moraCalc>0 && !(window._moraOff||{})[p.id]) ? round2(sugerido+moraCalc).toFixed(2) : ""}" placeholder="${sugerido.toFixed(2)}">
         <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarPago('${p.id}')">Pagar</button>
       </div>
       <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#6B7080;">Fecha del pago</span><input type="date" id="fechaPago" value="${hoyISO()}" max="${hoyISO()}"></label>
@@ -5861,7 +5882,7 @@ function viewDetallePrestamo(){
       <p style="font-weight:600;margin:0 0 6px;">Solo abono a capital</p>
       <p class="hint nota-ayuda" style="margin:0 0 10px;">Baja el capital sin pagar la cuota. El interés de la cuota en curso se sigue calculando sobre el capital anterior; el nuevo capital cuenta desde la cuota siguiente.</p>
       <div class="flexrow">
-        <input autocomplete="off" type="text" inputmode="decimal" id="montoAbonoCapital" placeholder="Monto a capital">
+        <input type="text" inputmode="decimal" id="montoAbonoCapital" placeholder="Monto a capital">
         <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarAbonoCapital('${p.id}')">Abonar</button>
       </div>
       <label style="display:block;margin:10px 0 0;"><span style="font-size:12.5px;color:#6B7080;">Fecha del abono</span><input type="date" id="fechaAbonoCapital" value="${hoyISO()}" max="${hoyISO()}"></label>
@@ -5934,7 +5955,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "28.2";
+const JR_VERSION = "28.3";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -6165,7 +6186,7 @@ function cuentasCardHtml(){
       <summary><span class="cta-t">${jrEscapeHtml(String(c.banco||"").trim() || "Banco sin nombre")}<small class="cta-s">${resumenCuenta(c)}</small></span></summary>
       <div class="cuenta-fila">
         <input placeholder="Banco (ej. Atlántida)" value="${jrEscapeHtml(c.banco||"")}" oninput="editarCuenta(${i},'banco',this.value)">
-        <input autocomplete="off" placeholder="Número de cuenta" inputmode="numeric" value="${jrEscapeHtml(c.cuenta||"")}" oninput="editarCuenta(${i},'cuenta',this.value)">
+        <input placeholder="Número de cuenta" inputmode="numeric" value="${jrEscapeHtml(c.cuenta||"")}" oninput="editarCuenta(${i},'cuenta',this.value)">
         <input placeholder="A nombre de (opcional)" value="${jrEscapeHtml(c.titular||"")}" oninput="editarCuenta(${i},'titular',this.value)">
         <button class="btn btn-outline" onclick="quitarCuenta(${i})">Quitar esta cuenta</button>
       </div>
@@ -6625,26 +6646,24 @@ function generarEstadoCuentaPDF(p, cli, r){
   const estadoTxt = atraso>0 ? `Vencido (${atraso} día${atraso===1?"":"s"})` : r.estado;
   const totalCobradoLoan = (p.pagos||[]).reduce((s,pg)=>s+(Number(pg.monto)||0)+(Number(pg.mora)||0), 0)
     + (p.modificaciones||[]).reduce((s,m)=>s+(m.pagosPrevios||[]).reduce((s2,pg)=>s2+(Number(pg.monto)||0)+(Number(pg.mora)||0),0), 0);
+  let abonosResMonto = 0;
   const filasRes = (function(){
-    // Con aumentos de capital (refinanciamientos/modificaciones) se muestra de dónde sale el
-    // total prestado y cómo se llega al capital actual.
+    // Siempre el mismo orden: prestado inicial, aumentos, total prestado y abonos a capital (en 0
+    // si no hay), y a la derecha lo que queda pendiente hoy.
     const aum = (p.modificaciones||[]).reduce((s2,m)=>s2+(Number(m.adicional)||0),0);
-    let f1;
-    if(aum > 0.005){
-      const ini = capitalOriginalDesembolsado(p);
-      const abonos = round2(ini + aum - (Number(p.capital)||0));
-      f1 = [["Prestado inicial", money(ini)], ["Aumentos de capital", money(aum)], ["Total prestado (neto)", money(ini + aum)]];
-      if(abonos > 0.005) f1.push(["Abonos a capital", money(abonos)]);
-      f1.push(["Capital actual", money(p.capital)]);
-    } else {
-      f1 = [[(p.modificaciones&&p.modificaciones.length) ? "Capital actual" : "Capital prestado", money(p.capital)]];
-    }
-    return f1.concat([
+    const ini = capitalOriginalDesembolsado(p);
+    const ajustesAbonos = (p.ajustesCapital||[]).reduce(function(s2,x){ return s2 + (Number(x.monto)||0); }, 0);
+    abonosResMonto = Math.max(0, round2(ini + aum - (Number(p.capital)||0) + ajustesAbonos));
+    return [
+      ["Prestado inicial", money(ini)],
+      ["Aumentos de capital", money(aum)],
+      ["Total prestado (neto)", money(ini + aum)],
+      ["Abonos a capital", money(abonosResMonto)],
       ["Capital pendiente hoy", money(r.capitalPendiente||0)],
       ["Total cobrado a la fecha", money(totalCobradoLoan)],
       ["Estado", estadoTxt],
       ["Próxima fecha de pago", r.proximaFecha ? fmtDate(r.proximaFecha) : "—"]
-    ]);
+    ];
   })();
   const mitadRes = Math.ceil(filasRes.length/2);
   const bodyRes = [];
@@ -6652,7 +6671,7 @@ function generarEstadoCuentaPDF(p, cli, r){
     const a = filasRes[k], b = filasRes[k+mitadRes] || ["",""];
     bodyRes.push([a[0], a[1], b[0], b[1]]);
   }
-  const filaAbonosRes = filasRes.findIndex(function(x){ return x[0] === "Abonos a capital"; });
+  const filaAbonosRes = abonosResMonto > 0.005 ? filasRes.findIndex(function(x){ return x[0] === "Abonos a capital"; }) : -1;
   doc.autoTable({
     startY: y,
     // Alineado con las dos columnas del encabezado (Cliente a x=14, Préstamo a x=110):
@@ -7013,7 +7032,7 @@ function datosRecibo(c){
   const add = (k, l, v, rojo)=>{ if(reciboOpt(k) && v!==null && v!==undefined && v!=="") det.push({ l, v, rojo:!!rojo }); };
   add("formaPago","FORMA DE PAGO", pg.formaPago || state.config.reciboFormaPago || "Efectivo");
   add("cobrador","COBRADOR", (state.config.reciboCobrador||"").trim());
-  add("capital","CAPITAL", capital!==null ? money(capital) : null);
+  add("capital","CAPITAL", (capital!==null && Math.abs(capital) > 0.005) ? money(capital) : null);
   add("interes","INTERÉS", interes!==null && pg.tipo!=="abono_capital" ? money(interes) : null);
   add("abonoCapital","ABONO A CAPITAL", abonoCap>0.005 ? money(abonoCap) : null);
   add("descuento","DESCUENTO", money(Number(pg.descuento)||0));
@@ -7776,8 +7795,10 @@ function abrirAbonoCapital(){
   const c = document.getElementById("card-abono-capital");
   if(!c) return;
   const l = document.getElementById("card-liquidar"); if(l) l.style.display = "none";
+  c.classList.add("hoja-flotante");
   c.style.display = "block";
-  c.scrollIntoView({ behavior:"smooth", block:"center" });
+  const campo = document.getElementById("montoAbonoCapital");
+  if(campo) setTimeout(function(){ try{ campo.focus({preventScroll:true}); }catch(e){} }, 60);
 }
 // Abono a capital suelto (sin pagar la cuota): baja el saldo desde la cuota siguiente. Se guarda como
 // pago tipo "abono_capital" + ajuste en p.ajustesCapital, igual que el excedente de un cobro normal.
@@ -7811,8 +7832,9 @@ function registrarAbonoCapital(id){
 function abrirLiquidacion(){
   const c = document.getElementById("card-liquidar");
   if(!c) return;
+  const a = document.getElementById("card-abono-capital"); if(a) a.style.display = "none";
+  c.classList.add("hoja-flotante");
   c.style.display = "block";
-  c.scrollIntoView({ behavior:"smooth", block:"center" });
 }
 function mostrarVencidasLiquidacion(id, valor){
   const p = state.prestamos.find(x=>x.id===id);
@@ -8423,12 +8445,6 @@ async function licVerificar(clave){
   if(data === "inactiva") return { ok:false, motivo:"Esta licencia está desactivada." };
   if(data === "vencida") return { ok:false, motivo:"Esta licencia venció. Contacta al proveedor de la app para renovarla." };
   if(data === "otro_dispositivo") return { ok:false, motivo:"Esta licencia ya está en uso en otro dispositivo." };
-  if(data === "liberada"){
-    // El administrador liberó este dispositivo: se descarta su identificador para que, al escribir la clave otra vez,
-    // se registre como un dispositivo nuevo (y el teléfono anterior ya no pueda reclamarla solo).
-    try{ localStorage.removeItem("jrp_device_id"); }catch(e){}
-    return { ok:false, motivo:"Esta licencia fue liberada. Escribe la clave para activarla de nuevo en este dispositivo." };
-  }
   if(data === "producto_incorrecto") return { ok:false, motivo:"Esa clave no es para esta versión de la app." };
   return { ok:false, red:true, motivo:"No se pudo verificar la licencia. Intenta de nuevo." };
 }
@@ -8513,7 +8529,8 @@ async function licArrancar(){
   licPedirClave(r.motivo);
 }
 
-licArrancar();
+render();
+if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
 </script>
 <script type="text/plain" id="lib-jspdf">/** @license
  *
