@@ -1047,6 +1047,13 @@
 .bq-nota{margin:0 0 12px;font-size:12px;line-height:1.4;color:rgba(243,240,232,.7);}
 .bq-error{margin:10px 0 0;text-align:center;font-size:13px;color:#FFC2C2;}
 .bq-ok{max-width:none;font-size:15px;padding:12px 16px;}
+.seg-lista{margin:0 -2px;}
+.seg-fila{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;box-sizing:border-box;padding:13px 2px;background:none;border:none;border-top:1px solid rgba(128,128,128,.22);text-align:left;color:inherit;font:inherit;cursor:pointer;}
+.seg-txt b{display:block;font-size:14.5px;font-weight:600;}
+.seg-txt small{display:block;margin-top:2px;font-size:12.5px;opacity:.68;}
+.seg-chev{font-size:20px;opacity:.5;}
+.bq-inline{position:relative;margin-top:2px;}
+.bq-arriba .bq-logo-wrap{transform:scale(.62);margin:-22px 0 -14px;}
 </style>
 </head>
 <body>
@@ -2531,7 +2538,7 @@ async function usarHuella(){
 
 function modoClave(){ return /^\d+$/.test(String(state.config.pin||"")) ? "numeric" : "text"; }
 function bqTarjeta(inner){
-  return `<div class="bq-fondo" onclick="if(event.target===this) cerrarClaveFlotante()"><div class="bq-tarjeta">${inner}</div></div>`;
+  return `<div class="bq-tarjeta bq-inline">${inner}</div>`;
 }
 function renderBloqueo(){
   document.title = NOMBRE_MARCA;
@@ -2550,7 +2557,8 @@ function renderBloqueo(){
       <p class="bq-tit">¿Cómo quieres entrar?</p>
       ${window.__huellaSoportada ? `<button type="button" class="bq-op" onclick="bqCrearClave(true)">Huella o Face ID<small>Con una clave de respaldo</small></button>` : ""}
       <button type="button" class="bq-op" onclick="bqCrearClave(false)">Clave o contraseña<small>Números o letras</small></button>
-      <button type="button" class="bq-link" onclick="bqSinProteccion()">Entrar sin protección</button>`);
+      <button type="button" class="bq-link" onclick="bqSinProteccion()">Entrar sin protección</button>
+      <button type="button" class="bq-link" onclick="cerrarClaveFlotante()">Cancelar</button>`);
   } else if(modo === "crear"){
     tarjeta = bqTarjeta(`
       <p class="bq-tit">Crea tu clave</p>
@@ -2566,22 +2574,24 @@ function renderBloqueo(){
       <input id="claveInicio" type="password" inputmode="${modoClave()}" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;">
       ${error ? `<p class="bq-error">Clave incorrecta.</p>` : ""}
       ${tieneHuella ? `<button type="button" class="bq-link" onclick="entrarBloqueo()">Usar huella o Face ID</button>` : ""}
-      <button type="button" class="bq-link" onclick="olvideMiClave()">¿Olvidaste tu clave?</button>`);
+      <button type="button" class="bq-link" onclick="olvideMiClave()">¿Olvidaste tu clave?</button>
+      <button type="button" class="bq-link" onclick="cerrarClaveFlotante()">Cancelar</button>`);
   }
 
+  const arriba = !!tarjeta;
   document.getElementById("app").innerHTML = `
-    <div style="min-height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 24px 56px;box-sizing:border-box;background:linear-gradient(160deg, ${NAVY} 0%, #0F1A30 100%);">
+    <div class="${arriba ? "bq-arriba" : ""}" style="min-height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:${arriba ? "flex-start" : "center"};padding:${arriba ? "64px" : "24px"} 24px ${arriba ? "24px" : "56px"};box-sizing:border-box;background:linear-gradient(160deg, ${NAVY} 0%, #0F1A30 100%);">
       <div style="position:absolute;top:-60px;right:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle, rgba(201,151,62,.35) 0%, rgba(201,151,62,0) 70%);"></div>
       <div style="position:absolute;bottom:-80px;left:-60px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.08) 0%, rgba(255,255,255,0) 70%);"></div>
       <p class="jr-splash-tag" style="position:absolute;top:24px;left:24px;color:${GOLD};font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin:0;text-shadow:0 1px 3px rgba(0,0,0,.3);">${NOMBRE_MARCA}</p>
-      <div style="position:relative;width:120px;height:120px;display:flex;align-items:center;justify-content:center;margin:0 0 26px;">
+      <div class="bq-logo-wrap" style="position:relative;width:120px;height:120px;display:flex;align-items:center;justify-content:center;margin:0 0 26px;">
         <div class="jr-splash-ring" style="position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(201,151,62,.45);"></div>
         <div class="jr-splash-ring" style="position:absolute;inset:14px;border-radius:50%;border:1px solid rgba(255,255,255,.15);animation-delay:.4s;"></div>
         <div class="jr-splash-logo" style="position:relative;width:82px;height:82px;border-radius:24px;background:linear-gradient(150deg, #E3B564, ${GOLD} 45%, #A8752A);display:flex;align-items:center;justify-content:center;font-weight:800;color:${NAVY};font-size:32px;letter-spacing:-1px;text-shadow:0 1px 0 rgba(255,255,255,.25);box-shadow:0 18px 36px rgba(0,0,0,.4), inset 0 1.5px 0 rgba(255,255,255,.4), inset 0 -8px 16px rgba(0,0,0,.15);border:1px solid rgba(255,255,255,.2);">${SIGLAS_MARCA}</div>
       </div>
       <div class="bq-saludo"><b>${saludoBq.saludo}</b><span>${saludoBq.fecha}</span></div>
-      <button type="button" class="bq-entrar" onclick="entrarBloqueo()">Ingresar</button>
-      ${tienePin ? `<button type="button" class="bq-link bq-olvide" onclick="olvideMiClave()">¿Olvidaste tu clave?</button>` : ""}
+      ${arriba ? "" : `<button type="button" class="bq-entrar" onclick="entrarBloqueo()">Ingresar</button>`}
+      ${tienePin && !arriba ? `<button type="button" class="bq-link bq-olvide" onclick="olvideMiClave()">¿Olvidaste tu clave?</button>` : ""}
       ${tarjeta}
     </div>`;
   const inp = document.getElementById("claveInicio");
@@ -2717,17 +2727,64 @@ function generarClaveSync(){
     mostrarClaveGenerada("Clave de sincronización generada", nueva, "Cópiala y pégala también en el script, dentro de las comillas de la línea CLAVE_MANUAL, y publica una Nueva versión. Debe ser idéntica en ambos lados para que la nube funcione. Si no, la nube dejará de aceptar tus subidas y descargas.");
   });
 }
+function pedirClaveActual(cb){
+  if(!state.config.pin){ cb(); return; }
+  mostrarPrompt("Escribe tu clave actual:", function(v){
+    if(v === null) return;
+    if(String(v).trim() === String(state.config.pin)) cb();
+    else mostrarAlerta("Clave incorrecta.");
+  }, { tipo:"password", textoAceptar:"Continuar" });
+}
+function segAbrirForm(tipo){ pedirClaveActual(function(){ state._segForm = tipo; render(); }); }
+function segCerrarForm(){ state._segForm = null; render(); }
+function segHuella(){
+  if(state.config.huellaCredId){ pedirClaveActual(function(){ desactivarHuella(); }); }
+  else activarHuella();
+}
+function segPedirEnAjustes(){
+  pedirClaveActual(function(){ state.config.pedirClaveEnAjustes = !(state.config.pedirClaveEnAjustes!==false); save(); render(); });
+}
+function htmlSeguridad(){
+  const f = state._segForm;
+  const tienePin = !!state.config.pin;
+  const esPin = tienePin && /^\d+$/.test(String(state.config.pin));
+  if(f){
+    const pin = f === "pin";
+    return `<p style="font-weight:600;margin:0 0 12px;">${pin ? "Configurar PIN" : "Configurar contraseña"}</p>
+    <label style="margin-bottom:12px;"><span>${pin ? "PIN (4 a 8 números)" : "Contraseña (mínimo 6 caracteres)"}</span>
+      <input id="f_claveAcceso" type="${pin ? "tel" : "text"}" ${pin ? 'inputmode="numeric" maxlength="8"' : ""} autocomplete="off" placeholder="${pin ? "Ej. 1234" : "Letras y números"}" value="">
+    </label>
+    <label style="margin-bottom:12px;"><span>Palabra de recuperación${state.config.pinRecovery ? " (vacío = conservar)" : ""}</span>
+      <input id="f_codigoRecuperacion" type="text" autocomplete="off" placeholder="Por si olvidas la clave" value="">
+    </label>
+    <div class="flexrow"><button class="btn btn-outline" onclick="segCerrarForm()">Cancelar</button><button class="btn btn-gold" onclick="guardarClaveAcceso()">Guardar</button></div>`;
+  }
+  const huellaOk = !!window.__huellaSoportada;
+  const subHuella = !tienePin ? "Primero crea un PIN o contraseña" : !huellaOk ? "No disponible en este celular" : state.config.huellaCredId ? "Activada · toca para desactivar" : "Toca para activar";
+  const fila = function(titulo, sub, accion, extra, rojo){
+    return `<button type="button" class="seg-fila" onclick="${accion}"><span class="seg-txt"><b${rojo?' style="color:#B3261E;"':""}>${titulo}</b><small>${sub}</small></span>${extra||'<span class="seg-chev">›</span>'}</button>`;
+  };
+  return `<div class="seg-lista">
+      ${fila("PIN", tienePin && esPin ? "Activo · toca para cambiar" : "Solo números", "segAbrirForm('pin')")}
+      ${fila("Contraseña", tienePin && !esPin ? "Activa · toca para cambiar" : "Letras y números", "segAbrirForm('clave')")}
+      ${fila("Huella / Face ID", subHuella, (tienePin && huellaOk) ? "segHuella()" : "mostrarAlerta('" + (!tienePin ? "Primero crea un PIN o una contraseña: la huella es un atajo y la clave queda de respaldo." : "La huella necesita abrir la app desde una dirección https:// y tener huella o Face ID configurados en el celular.") + "')")}
+      ${tienePin ? fila("Pedir clave al entrar a Ajustes", state.config.pedirClaveEnAjustes!==false ? "Activado" : "Desactivado", "segPedirEnAjustes()") : ""}
+      ${tienePin ? fila("Quitar clave", "La app dejará de pedirla", "pedirClaveActual(quitarClaveAcceso)", "", true) : ""}
+    </div>`;
+}
 function guardarClaveAcceso(){
   const clave = (document.getElementById("f_claveAcceso").value||"").trim();
   const codigo = (document.getElementById("f_codigoRecuperacion").value||"").trim();
   if(!clave){ mostrarAlerta("Escribe una clave primero."); return; }
-  if(clave.length<4){ mostrarAlerta("La clave debe tener al menos 4 caracteres."); return; }
+  if(state._segForm === "pin" && !/^\d{4,8}$/.test(clave)){ mostrarAlerta("El PIN debe tener de 4 a 8 números."); return; }
+  if(state._segForm !== "pin" && clave.length<6){ mostrarAlerta("La contraseña debe tener al menos 6 caracteres."); return; }
   if(!codigo && !state.config.pinRecovery){ mostrarAlerta("Escribe también una palabra de recuperación: es lo único que te deja volver a entrar si olvidas la clave."); return; }
   if(codigo && codigo.length<4){ mostrarAlerta("La palabra de recuperación debe tener al menos 4 caracteres."); return; }
   const habia = !!state.config.pin;
   state.config.pin = clave;
   if(codigo) state.config.pinRecovery = codigo;
   state.config.seguridadElegida = true;
+  state._segForm = null;
   save(); render();
   mostrarAlerta(habia ? "Clave cambiada." : "Clave guardada. La app te la pedirá al abrirla.");
 }
@@ -4364,6 +4421,7 @@ function abrirAjustes(seccion){
   state._huellaAjustesYaIntentada = false;
   state._irSeccion = seccion || null;
   state._ajGrupo = null;
+  state._segForm = null;
   if(seccion && estiloAjustes() === "pantallas"){ const g = AJ_GRUPOS.filter(function(x){ return x.ids.indexOf(seccion) !== -1; })[0]; if(g) state._ajGrupo = g.k; }
   render();
 }
@@ -4556,36 +4614,7 @@ function viewAjustes(){
     </label>
   </div>
   <div class="row-card" style="display:block;" id="sec-clave">
-    <p style="font-weight:600;margin:0 0 4px;">Clave de acceso</p>
-    <p class="hint nota-ayuda" style="margin:0 0 12px;">Protege la app al abrirla. Puede ser un PIN de números o una contraseña con letras.</p>
-    <label style="margin-bottom:12px;"><span>${state.config.pin ? "Nueva clave" : "Clave"}</span>
-      <input id="f_claveAcceso" type="text" autocomplete="off" placeholder="Números o letras" value="">
-    </label>
-    <label style="margin-bottom:12px;"><span>Palabra de recuperación${state.config.pinRecovery ? " (opcional: vacío = conservar la actual)" : ""}</span>
-      <input id="f_codigoRecuperacion" type="text" autocomplete="off" placeholder="Por si olvidas la clave" value="">
-    </label>
-    <button class="btn btn-gold" onclick="guardarClaveAcceso()">${state.config.pin ? "Cambiar clave" : "Guardar clave"}</button>
-    ${state.config.pin ? `<button class="btn btn-danger" style="margin-top:10px;" onclick="quitarClaveAcceso()">Quitar clave</button>` : ""}
-    ${state.config.pin ? `
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #E5E1D8;">
-      <label style="display:flex;align-items:center;gap:10px;margin:0;cursor:pointer;">
-        <input type="checkbox" id="f_pedirClaveAjustes" ${state.config.pedirClaveEnAjustes!==false?"checked":""} onchange="state.config.pedirClaveEnAjustes=this.checked; save(); render();" style="width:18px;height:18px;flex:none;">
-        <span style="font-size:14px;">Pedir esta clave también al entrar a Ajustes</span>
-      </label>
-      <p class="hint nota-ayuda" style="margin:6px 0 0;">Si la desactivas, la clave se te sigue pidiendo al abrir la app, pero ya no al entrar aquí a Ajustes.</p>
-    </div>` : ""}
-    
-    <div style="margin-top:14px;padding-top:14px;border-top:1px solid #E5E1D8;">
-      <p style="font-size:13px;font-weight:600;margin:0 0 4px;">Huella / Face ID</p>
-      ${!state.config.pin
-        ? `<p class="hint nota-ayuda" style="margin:0;">Primero guarda una clave (arriba): la huella es un atajo y la clave queda de respaldo.</p>`
-        : window.__huellaSoportada
-          ? (state.config.huellaCredId
-              ? `<p class="hint" style="margin:0 0 10px;">Activada en este celular.</p><button class="btn btn-outline" onclick="desactivarHuella()">Desactivar huella</button>`
-              : `<p class="hint nota-ayuda" style="margin:0 0 10px;">Úsala como atajo para no escribir la clave cada vez que abres la app. La clave se sigue guardando y funciona siempre como respaldo.</p><button class="btn btn-outline" onclick="activarHuella()">Activar huella / Face ID</button>`)
-          : `<p class="hint nota-ayuda" style="margin:0;">No disponible ahora mismo en este celular/navegador. Para poder usarla, la app debe abrirse desde una dirección https:// (no como archivo descargado directamente) y el celular debe tener huella o Face ID configurados en sus ajustes.</p>`
-      }
-    </div>
+    ${htmlSeguridad()}
   </div>
   
   <div class="row-card" style="display:block;" id="sec-recibo">
@@ -6053,7 +6082,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "30.0";
+const JR_VERSION = "30.1";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
