@@ -995,6 +995,35 @@
 .hoja-flotante{position:fixed !important;top:8vh;left:12px;right:12px;max-width:520px;margin:0 auto !important;
   max-height:84vh;overflow-y:auto;z-index:9000;
   box-shadow:0 0 0 100vmax rgba(10,14,25,.58), 0 14px 40px rgba(0,0,0,.35);}
+
+/* ===== Inicio renovado: saludo, anillo, mini-gráfica, colores de estado y próximas cuotas ===== */
+.ini-saludo{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:0 4px;margin-bottom:-2px;}
+.ini-saludo b{font-size:15px;font-weight:700;color:var(--i-tx);letter-spacing:-.01em;}
+.ini-saludo span{font-size:11.5px;color:var(--i-mut);white-space:nowrap;}
+.ini-hero-top{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.ini-hero-top .ini-top{min-width:0;flex:1;}
+.ini-ring{position:relative;flex:none;width:62px;height:62px;}
+.ini-ring svg{width:100%;height:100%;transform:rotate(-90deg);display:block;}
+.ini-ring .pista{fill:none;stroke:rgba(243,240,232,.2);stroke-width:6;}
+.ini-ring .avance{fill:none;stroke:#C9973E;stroke-width:6;stroke-linecap:round;}
+.ini-ring[data-anim="1"] .avance{animation:iniAnillo .9s cubic-bezier(.2,.7,.2,1) both;}
+@keyframes iniAnillo{from{stroke-dashoffset:var(--c);}}
+.ini-ring b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#F3F0E8;letter-spacing:-.02em;}
+.ini-ring b small{font-size:9px;font-weight:600;margin-left:1px;opacity:.85;}
+.ini-spark{display:block;width:100%;height:26px;margin:12px 0 6px;overflow:visible;}
+.ini-spark .linea{fill:none;stroke:#C9973E;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;}
+.ini-spark .area{fill:rgba(201,151,62,.16);stroke:none;}
+.ini-spark .punto{fill:#C9973E;}
+.ini-spark-t{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:rgba(243,240,232,.6);margin:-2px 0 6px;}
+.ini-prog-t{margin-top:2px;}
+.ini-val,.ini-cob-m{font-variant-numeric:tabular-nums;}
+.ini-cob{transition:transform .12s ease, box-shadow .12s ease;}
+.ini-cob.venc.mal{background:rgba(176,57,47,.075);border-color:rgba(176,57,47,.28);}
+.ini-cob.sem.hay{background:rgba(201,151,62,.11);border-color:rgba(201,151,62,.38);}
+.ini-cob.venc.cero{background:rgba(0,121,106,.06);border-color:rgba(0,121,106,.22);}
+[data-theme="dark"] .ini-cob.venc.mal{background:rgba(240,144,138,.10);border-color:rgba(240,144,138,.30);}
+[data-theme="dark"] .ini-cob.sem.hay{background:rgba(201,151,62,.13);border-color:rgba(201,151,62,.38);}
+[data-theme="dark"] .ini-cob.venc.cero{background:rgba(128,203,196,.08);border-color:rgba(128,203,196,.22);}
 </style>
 </head>
 <body>
@@ -2808,6 +2837,7 @@ document.documentElement.setAttribute("data-inicio", state.config.estiloInicio =
     }
     aplicarTamanoLetra();
     ajustarInicioFijo();
+    animarMontosInicio();
     autoTextareasMensajes();
     ajustarReciboPantalla();
     if(document.fonts && document.fonts.ready) document.fonts.ready.then(ajustarReciboPantalla);
@@ -4047,6 +4077,52 @@ function volverDeReporte(){
   state._reporteDesdeInicio = false;
   render();
 }
+// ---- Inicio: saludo, cobrado por semana, próximas cuotas y animación de montos ----
+function inicioSaludo(){
+  const hr = new Date().getHours();
+  const saludo = hr < 12 ? "Buenos días" : (hr < 19 ? "Buenas tardes" : "Buenas noches");
+  let fecha = "";
+  try{ fecha = new Date(hoyISO() + "T12:00:00").toLocaleDateString("es-HN", { weekday:"long", day:"numeric", month:"long" }).replace(",", ""); fecha = fecha.charAt(0).toUpperCase() + fecha.slice(1); }catch(e){}
+  return { saludo: saludo, fecha: fecha };
+}
+// Cobrado (suma de pagos) en cada una de las últimas n semanas; la última es la semana en curso (7 días hasta hoy).
+function cobradoPorSemanas(n){
+  const hoy = new Date(hoyISO() + "T00:00:00");
+  const b = []; for(let i = 0; i < n; i++) b.push(0);
+  state.prestamos.forEach(function(p){
+    let todos = (p.pagos || []).slice();
+    (p.modificaciones || []).forEach(function(m){ todos = todos.concat(m.pagosPrevios || []); });
+    todos.forEach(function(pg){
+      if(!pg || !pg.fecha) return;
+      const d = Math.round((hoy - new Date(pg.fecha + "T00:00:00")) / 86400000);
+      if(d < 0 || d >= 7 * n) return;
+      b[n - 1 - Math.floor(d / 7)] += Number(pg.monto) || 0;
+    });
+  });
+  return b;
+}
+// Los montos "suben" desde cero la primera vez que se abre el Inicio (una sola vez por sesión).
+function animarMontosInicio(){
+  const home = document.querySelector("#app .v3-home");
+  if(!home || home.getAttribute("data-anim") !== "1") return;
+  home.setAttribute("data-anim", "0");
+  if(window._iniAnimada) return;
+  window._iniAnimada = true;
+  if(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const els = home.querySelectorAll("[data-monto]");
+  const t0 = performance.now(), dur = 750;
+  function pinta(el, v){
+    const txt = money(v);
+    el.textContent = el.getAttribute("data-solo") === "1" ? txt.replace(/^\S+\s*/, "") : txt;
+  }
+  function paso(ahora){
+    const k = Math.min(1, (ahora - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    els.forEach(function(el){ pinta(el, (Number(el.getAttribute("data-monto")) || 0) * e); });
+    if(k < 1) requestAnimationFrame(paso);
+    else els.forEach(function(el){ pinta(el, Number(el.getAttribute("data-monto")) || 0); });
+  }
+  requestAnimationFrame(paso);
+}
 function viewInicio(){
   if(state.vista==="reportePDF") return viewReportePDF();
   if(state.vista==="estadoResultados") return viewEstadoResultados();
@@ -4082,20 +4158,38 @@ function viewInicio(){
   let html = estadoSyncInicio();
   const cobCap = T.capital + T.enganches;
   const pctRec = prestado > 0.005 ? Math.min(100, cobCap / prestado * 100) : 0;
-  const cardCobrar = function(lbl, n, monto, cls, fn, txt){ return '<div class="ini-cob venc ' + cls + '" onclick="' + fn + '"><div class="ini-cob-t"><span class="ini-cob-l">' + lbl + '</span><span class="ini-cob-n">' + (n > 0 ? n + (n === 1 ? ' préstamo' : ' préstamos') + (n === 1 ? txt.replace(/s$/, '') : txt) : 'Ninguno atrasado') + '</span></div><b class="ini-cob-m">' + money(n > 0 ? monto : 0) + '</b><i>›</i></div>'; };
+  const cardCobrar = function(lbl, n, monto, cls, fn, txt){ return '<div class="ini-cob venc ' + cls + '" onclick="' + fn + '"><div class="ini-cob-t"><span class="ini-cob-l">' + lbl + '</span><span class="ini-cob-n">' + (n > 0 ? n + (n === 1 ? ' préstamo' : ' préstamos') + (n === 1 ? txt.replace(/s$/, '') : txt) : 'Ninguno atrasado') + '</span></div><b class="ini-cob-m" data-monto="' + (n > 0 ? monto : 0) + '">' + money(n > 0 ? monto : 0) + '</b><i>›</i></div>'; };
   const filaRep = function(txt, fn, extra){ return '<div class="ini-rep' + (extra ? ' ' + extra : '') + '" onclick="' + fn + '"><span>' + txt + '</span><i>›</i></div>'; };
-  html += `<div class="v3-home ini"><div class="ini-hero">
-    <div class="ini-top" onclick="irA('prestamos')">
-      <p class="ini-lbl">Capital actual prestado</p>
-      <p class="ini-val"><em>${simboloMoneda()}</em> ${money(capitalActual).replace(/^\S+\s*/,"")}</p>
+  const saludo = inicioSaludo();
+  const anim = !window._iniAnimada;
+  const semanas = cobradoPorSemanas(6);
+  const maxSem = Math.max.apply(null, semanas);
+  const RC = 2 * Math.PI * 26;
+  const spark = (function(){
+    if(!(maxSem > 0.005)) return "";
+    const pts = semanas.map(function(v, k){ return [ (k / (semanas.length - 1)) * 100, 22 - (v / maxSem) * 20 ]; });
+    const linea = pts.map(function(q){ return q[0].toFixed(1) + "," + q[1].toFixed(1); }).join(" ");
+    const ult = pts[pts.length - 1];
+    return '<svg class="ini-spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true"><polygon class="area" points="0,24 ' + linea + ' 100,24"/><polyline class="linea" points="' + linea + '"/></svg>'
+      + '<div class="ini-spark-t"><span>Cobrado por semana</span><span>6 semanas</span></div>';
+  })();
+  html += `<div class="v3-home ini" data-anim="${anim ? 1 : 0}">
+  <div class="ini-saludo"><b>${saludo.saludo}</b><span>${saludo.fecha}</span></div>
+  <div class="ini-hero">
+    <div class="ini-hero-top">
+      <div class="ini-top" onclick="irA('prestamos')">
+        <p class="ini-lbl">Capital actual prestado</p>
+        <p class="ini-val"><em>${simboloMoneda()}</em> <span data-monto="${capitalActual}" data-solo="1">${money(capitalActual).replace(/^\S+\s*/,"")}</span></p>
+      </div>
+      <div class="ini-ring" data-anim="${anim ? 1 : 0}" style="--c:${RC.toFixed(2)}" title="Capital recuperado"><svg viewBox="0 0 60 60"><circle class="pista" cx="30" cy="30" r="26"/><circle class="avance" cx="30" cy="30" r="26" stroke-dasharray="${RC.toFixed(2)}" stroke-dashoffset="${(RC * (1 - pctRec / 100)).toFixed(2)}"/></svg><b>${Math.round(pctRec)}<small>%</small></b></div>
     </div>
-    <div class="ini-prog"><i style="width:${pctRec > 0 ? Math.max(pctRec, 2).toFixed(1) : 0}%"></i></div>
-    <div class="ini-prog-t"><span>Capital recuperado <b>${pctRec.toFixed(1)}%</b></span><span>${money(cobCap)} de ${money(prestado)}</span></div>
+    ${spark}
+    <div class="ini-prog-t"><span>Recuperado <b>${money(cobCap)}</b></span><span>de ${money(prestado)}</span></div>
   </div>
   <div><p class="v3-sec ini-sec-flex">Para cobrar<span>${activos} ${activos === 1 ? "activo" : "activos"} · ${state.clientes.length} ${state.clientes.length === 1 ? "cliente" : "clientes"}</span></p>
     <div class="ini-cobrar">
       ${cardCobrar("Vencido", vencidos, montoVenc, vencidos > 0 ? "mal" : "cero", "verCartera()", " atrasados")}
-      <div class="ini-cob sem" onclick="verProximosAVencer()"><div><span class="ini-cob-l">Esta semana</span><b class="ini-cob-m">${money(montoSem)}</b><span class="ini-cob-n">${nSem > 0 ? nSem + (nSem === 1 ? " cuota" : " cuotas") : "Ninguna"}</span></div>
+      <div class="ini-cob sem${nSem > 0 ? " hay" : ""}" onclick="verProximosAVencer()"><div><span class="ini-cob-l">Esta semana</span><b class="ini-cob-m" data-monto="${montoSem}">${money(montoSem)}</b><span class="ini-cob-n">${nSem > 0 ? nSem + (nSem === 1 ? " cuota" : " cuotas") : "Ninguna"}</span></div>
         <div class="ini-bars">${semana.map(function(m, i){ const mx = Math.max.apply(null, semana) || 1; const hoyI = 6 - diasHastaDomingo(); const dia = ["L","M","M","J","V","S","D"][i]; return '<div class="' + (m > 0 ? "has " : "") + (i === hoyI ? "hoy " : "") + (i < hoyI ? "pasado" : "") + '"><i style="height:' + (m > 0 ? Math.max(14, m / mx * 100) : 8) + '%"></i><small>' + dia + '</small></div>'; }).join("")}</div></div>
     </div></div>
   <div class="v3-reps-wrap"><p class="v3-sec ini-sec-flex">Reportes<span class="ini-link" onclick="irEstadisticas()">Estadísticas ›</span></p>
@@ -4898,11 +4992,21 @@ function construirColaRecordatorios(tipo){
     }
     const link = linkWhatsapp(cli, mensaje);
     if(!link){ sinNumero++; return; }
+    // El monto que se muestra es el mismo que lleva el mensaje: en vencidos, el total adeudado
+    // (todas las cuotas vencidas más mora), no el valor de una sola cuota.
+    let montoMostrar = money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota), detalleCuotas = "";
+    if(tipo==="vencidos"){
+      const pv = calcularPendiente(p, r, true);
+      if((window._moraOff||{})[p.id]) pv.mora = 0;
+      montoMostrar = money(round2((pv.monto||0) + (pv.mora||0)));
+      const nv = pv.nVenc || 1;
+      detalleCuotas = ` · ${nv} cuota${nv===1?"":"s"} · ${diasAtraso(r.proximaFecha)} día${diasAtraso(r.proximaFecha)===1?"":"s"} de atraso`;
+    }
     items.push({
       prestamoId: p.id,
       nombre: cli ? cli.nombre : "Cliente eliminado",
       codigo: p.codigo,
-      cuota: money(r.cuotaActual ? r.cuotaActual.cuota : r.cuota),
+      cuota: montoMostrar + detalleCuotas,
       link
     });
   });
@@ -5847,7 +5951,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "28.4";
+const JR_VERSION = "28.5";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -8304,12 +8408,6 @@ async function licVerificar(clave){
   if(data === "inactiva") return { ok:false, motivo:"Esta licencia está desactivada." };
   if(data === "vencida") return { ok:false, motivo:"Esta licencia venció. Contacta al proveedor de la app para renovarla." };
   if(data === "otro_dispositivo") return { ok:false, motivo:"Esta licencia ya está en uso en otro dispositivo." };
-  if(data === "liberada"){
-    // El administrador liberó este dispositivo: se descarta su identificador para que, al escribir la clave otra vez,
-    // se registre como un dispositivo nuevo (y el teléfono anterior ya no pueda reclamarla solo).
-    try{ localStorage.removeItem("jrp_device_id"); }catch(e){}
-    return { ok:false, motivo:"Esta licencia fue liberada. Escribe la clave para activarla de nuevo en este dispositivo." };
-  }
   if(data === "producto_incorrecto") return { ok:false, motivo:"Esa clave no es para esta versión de la app." };
   return { ok:false, red:true, motivo:"No se pudo verificar la licencia. Intenta de nuevo." };
 }
@@ -8394,7 +8492,8 @@ async function licArrancar(){
   licPedirClave(r.motivo);
 }
 
-licArrancar();
+render();
+if(typeof autoSincronizarAlAbrir === "function") autoSincronizarAlAbrir();
 </script>
 <script type="text/plain" id="lib-jspdf">/** @license
  *
