@@ -1038,6 +1038,15 @@
 .bq-entrar:active{transform:scale(.97);}
 .bq-fondo{position:fixed;inset:0;z-index:9500;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(6,10,20,.66);}
 .bq-tarjeta{width:100%;max-width:300px;box-sizing:border-box;padding:22px 20px 16px;border-radius:20px;background:linear-gradient(160deg,#22345A 0%,#16223E 100%);border:1px solid rgba(201,151,62,.35);box-shadow:0 20px 50px rgba(0,0,0,.5);}
+.bq-tit{margin:0 0 14px;text-align:center;color:#C9973E;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;}
+.bq-op{display:block;width:100%;box-sizing:border-box;padding:13px 14px;margin:0 0 10px;border-radius:12px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#F3F0E8;font-size:15px;font-weight:700;text-align:left;cursor:pointer;}
+.bq-op small{display:block;margin-top:2px;font-size:12px;font-weight:400;color:rgba(243,240,232,.7);}
+.bq-link{display:block;width:100%;background:none;border:none;color:rgba(243,240,232,.72);text-decoration:underline;font-size:12.5px;margin-top:12px;cursor:pointer;}
+.bq-olvide{position:relative;width:auto;margin-top:18px;}
+.bq-campo{width:100%;box-sizing:border-box;padding:11px;margin:0 0 10px;border:1px solid rgba(255,255,255,.3);border-radius:12px;background:rgba(255,255,255,.08);color:#F3F0E8;font-size:16px;}
+.bq-nota{margin:0 0 12px;font-size:12px;line-height:1.4;color:rgba(243,240,232,.7);}
+.bq-error{margin:10px 0 0;text-align:center;font-size:13px;color:#FFC2C2;}
+.bq-ok{max-width:none;font-size:15px;padding:12px 16px;}
 </style>
 </head>
 <body>
@@ -2520,51 +2529,94 @@ async function usarHuella(){
   return false;
 }
 
+function modoClave(){ return /^\d+$/.test(String(state.config.pin||"")) ? "numeric" : "text"; }
+function bqTarjeta(inner){
+  return `<div class="bq-fondo" onclick="if(event.target===this) cerrarClaveFlotante()"><div class="bq-tarjeta">${inner}</div></div>`;
+}
 function renderBloqueo(){
   document.title = NOMBRE_MARCA;
   const error = state._errorClave;
   const tieneHuella = !!(state.config.huellaCredId && window.__huellaSoportada);
+  const tienePin = !!state.config.pin;
   const saludoBq = inicioSaludo();
+  const modo = state._bqModo || "";
 
-  // Pantalla de ingreso: logo, saludo y un solo botón "Ingresar". La huella (si está activada) o
-  // la clave en una tarjeta flotante se piden al tocarlo (ver entrarBloqueo).
+  // Pantalla de ingreso: siempre aparece al abrir. Orden: logo, saludo + fecha, botón "Ingresar" y,
+  // si hay clave, el enlace "¿Olvidaste tu clave?". Sin clave, "Ingresar" entra directo. Con huella se
+  // pide la huella; si no, la clave en una tarjeta flotante (ver entrarBloqueo).
+  let tarjeta = "";
+  if(modo === "elegir"){
+    tarjeta = bqTarjeta(`
+      <p class="bq-tit">¿Cómo quieres entrar?</p>
+      ${window.__huellaSoportada ? `<button type="button" class="bq-op" onclick="bqCrearClave(true)">Huella o Face ID<small>Con una clave de respaldo</small></button>` : ""}
+      <button type="button" class="bq-op" onclick="bqCrearClave(false)">Clave o contraseña<small>Números o letras</small></button>
+      <button type="button" class="bq-link" onclick="bqSinProteccion()">Entrar sin protección</button>`);
+  } else if(modo === "crear"){
+    tarjeta = bqTarjeta(`
+      <p class="bq-tit">Crea tu clave</p>
+      <input id="bqNueva" type="text" autocomplete="off" placeholder="Clave (números o letras)" class="input-clave-bloqueo bq-campo" onkeydown="if(event.key==='Enter') document.getElementById('bqRec').focus();">
+      <input id="bqRec" type="text" autocomplete="off" placeholder="Palabra de recuperación" class="input-clave-bloqueo bq-campo" onkeydown="if(event.key==='Enter') bqGuardarClave();">
+      <p class="bq-nota">La palabra de recuperación es lo único que te deja volver a entrar si olvidas la clave.</p>
+      ${error ? `<p class="bq-error">${state._bqMsg||""}</p>` : ""}
+      <button type="button" class="bq-entrar bq-ok" onclick="bqGuardarClave()">Guardar y entrar</button>
+      <button type="button" class="bq-link" onclick="state._bqModo='elegir'; state._errorClave=false; render();">Atrás</button>`);
+  } else if(state._claveAbierta && tienePin){
+    tarjeta = bqTarjeta(`
+      <p class="bq-tit">Ingresa tu clave</p>
+      <input id="claveInicio" type="password" inputmode="${modoClave()}" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;">
+      ${error ? `<p class="bq-error">Clave incorrecta.</p>` : ""}
+      ${tieneHuella ? `<button type="button" class="bq-link" onclick="entrarBloqueo()">Usar huella o Face ID</button>` : ""}
+      <button type="button" class="bq-link" onclick="olvideMiClave()">¿Olvidaste tu clave?</button>`);
+  }
+
   document.getElementById("app").innerHTML = `
-    <div style="min-height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;padding:48px 24px 24px;background:linear-gradient(160deg, ${NAVY} 0%, #0F1A30 100%);">
+    <div style="min-height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 24px 56px;box-sizing:border-box;background:linear-gradient(160deg, ${NAVY} 0%, #0F1A30 100%);">
       <div style="position:absolute;top:-60px;right:-60px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle, rgba(201,151,62,.35) 0%, rgba(201,151,62,0) 70%);"></div>
       <div style="position:absolute;bottom:-80px;left:-60px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle, rgba(255,255,255,.08) 0%, rgba(255,255,255,0) 70%);"></div>
       <p class="jr-splash-tag" style="position:absolute;top:24px;left:24px;color:${GOLD};font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin:0;text-shadow:0 1px 3px rgba(0,0,0,.3);">${NOMBRE_MARCA}</p>
-      <div style="position:relative;width:120px;height:120px;display:flex;align-items:center;justify-content:center;margin:28px 0 26px;">
+      <div style="position:relative;width:120px;height:120px;display:flex;align-items:center;justify-content:center;margin:0 0 26px;">
         <div class="jr-splash-ring" style="position:absolute;inset:0;border-radius:50%;border:1.5px solid rgba(201,151,62,.45);"></div>
         <div class="jr-splash-ring" style="position:absolute;inset:14px;border-radius:50%;border:1px solid rgba(255,255,255,.15);animation-delay:.4s;"></div>
         <div class="jr-splash-logo" style="position:relative;width:82px;height:82px;border-radius:24px;background:linear-gradient(150deg, #E3B564, ${GOLD} 45%, #A8752A);display:flex;align-items:center;justify-content:center;font-weight:800;color:${NAVY};font-size:32px;letter-spacing:-1px;text-shadow:0 1px 0 rgba(255,255,255,.25);box-shadow:0 18px 36px rgba(0,0,0,.4), inset 0 1.5px 0 rgba(255,255,255,.4), inset 0 -8px 16px rgba(0,0,0,.15);border:1px solid rgba(255,255,255,.2);">${SIGLAS_MARCA}</div>
       </div>
       <div class="bq-saludo"><b>${saludoBq.saludo}</b><span>${saludoBq.fecha}</span></div>
       <button type="button" class="bq-entrar" onclick="entrarBloqueo()">Ingresar</button>
-      ${state._claveAbierta ? `<div class="bq-fondo" onclick="if(event.target===this) cerrarClaveFlotante()"><div class="bq-tarjeta">
-        <input id="claveInicio" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;">
-        ${error ? `<p style="color:#FFC2C2;font-size:13px;margin:10px 0 0;text-align:center;">Clave incorrecta.</p>` : ""}
-        <button type="button" onclick="olvideMiClave()" style="display:block;width:100%;background:none;border:none;color:rgba(255,255,255,.7);text-decoration:underline;font-size:12.5px;margin-top:18px;cursor:pointer;">¿Olvidaste tu clave?</button>
-      </div></div>` : ""}
+      ${tienePin ? `<button type="button" class="bq-link bq-olvide" onclick="olvideMiClave()">¿Olvidaste tu clave?</button>` : ""}
+      ${tarjeta}
     </div>`;
   const inp = document.getElementById("claveInicio");
   if(inp){
-    // El foco (y con él, el teclado) se pide de una vez. En Android normalmente el teclado
-    // sí aparece solo; en iPhone, Safari a veces lo bloquea si no viene de un toque directo
-    // del usuario — es una restricción del propio sistema, no algo que el código controle
-    // del todo. El pequeño retraso ayuda a que funcione justo después de que la pantalla
-    // termina de dibujarse (si se llama antes de eso, en algunos celulares no hace efecto).
+    // El foco (y con él, el teclado) se pide de una vez; el pequeño retraso ayuda a que funcione
+    // justo después de que la pantalla termina de dibujarse.
     setTimeout(()=>{ inp.focus(); }, 60);
-    // Se verifica sola en cuanto se completan los mismos caracteres que tiene la clave guardada
-    // — así no hace falta tocar "Entrar" ni dar Enter, igual que al usar la huella.
+    // Se verifica sola al completar los mismos caracteres que tiene la clave guardada;
+    // con Enter también (útil en contraseñas con letras).
     inp.addEventListener("input", ()=>{
       const largoClave = String(state.config.pin||"").length;
       if(largoClave>0 && inp.value.length===largoClave) verificarClaveInicio();
     });
+    inp.addEventListener("keydown", (e)=>{ if(e.key==="Enter") verificarClaveInicio(); });
+  } else if(modo === "crear"){
+    const n = document.getElementById("bqNueva");
+    if(n) setTimeout(()=>{ n.focus(); }, 60);
   }
 }
-// Botón "Ingresar": con huella activada, primero se pide la huella; si no hay huella, o se cancela o
-// falla, se abre la clave en una tarjeta flotante en el centro.
+function desbloquearYEntrar(){
+  desbloqueado = true;
+  try{ sessionStorage.setItem(jrKey("jr_desbloqueado"), "1"); }catch(e){}
+  state._errorClave = false;
+  state._claveAbierta = false;
+  state._bqModo = "";
+  render();
+}
+// Botón "Ingresar": sin clave entra directo (la primera vez, antes pregunta cómo proteger la app);
+// con clave, pide la huella si está activada y, si no hay huella o falla, abre la clave flotante.
 async function entrarBloqueo(){
+  if(!state.config.pin){
+    if(!state.config.seguridadElegida){ state._bqModo = "elegir"; state._errorClave = false; render(); return; }
+    desbloquearYEntrar();
+    return;
+  }
   if(state.config.huellaCredId && window.__huellaSoportada){
     const ok = await usarHuella();
     if(ok) return;
@@ -2573,7 +2625,34 @@ async function entrarBloqueo(){
   state._errorClave = false;
   render();
 }
-function cerrarClaveFlotante(){ state._claveAbierta = false; state._errorClave = false; render(); }
+function bqSinProteccion(){
+  state.config.seguridadElegida = true;
+  save();
+  desbloquearYEntrar();
+}
+function bqCrearClave(conHuella){
+  state._bqHuella = !!conHuella;
+  state._bqModo = "crear";
+  state._errorClave = false;
+  render();
+}
+async function bqGuardarClave(){
+  const clave = (document.getElementById("bqNueva").value||"").trim();
+  const codigo = (document.getElementById("bqRec").value||"").trim();
+  let msg = "";
+  if(clave.length < 4) msg = "La clave debe tener al menos 4 caracteres.";
+  else if(codigo.length < 4) msg = "Escribe una palabra de recuperación (mínimo 4 caracteres).";
+  if(msg){ state._errorClave = true; state._bqMsg = msg; render(); return; }
+  state.config.pin = clave;
+  state.config.pinRecovery = codigo;
+  state.config.seguridadElegida = true;
+  save();
+  const quiereHuella = !!state._bqHuella;
+  state._bqHuella = false;
+  desbloquearYEntrar();
+  if(quiereHuella) await activarHuella();
+}
+function cerrarClaveFlotante(){ state._claveAbierta = false; state._bqModo = ""; state._errorClave = false; render(); }
 function olvideMiClave(){
   if(state.config.pinRecovery){
     mostrarPrompt(
@@ -2643,12 +2722,14 @@ function guardarClaveAcceso(){
   const codigo = (document.getElementById("f_codigoRecuperacion").value||"").trim();
   if(!clave){ mostrarAlerta("Escribe una clave primero."); return; }
   if(clave.length<4){ mostrarAlerta("La clave debe tener al menos 4 caracteres."); return; }
-  if(!codigo){ mostrarAlerta("Escribe también un código de recuperación — es lo único que te permitirá volver a entrar si algún día olvidas la clave."); return; }
-  if(codigo.length<4){ mostrarAlerta("El código de recuperación debe tener al menos 4 caracteres."); return; }
+  if(!codigo && !state.config.pinRecovery){ mostrarAlerta("Escribe también una palabra de recuperación: es lo único que te deja volver a entrar si olvidas la clave."); return; }
+  if(codigo && codigo.length<4){ mostrarAlerta("La palabra de recuperación debe tener al menos 4 caracteres."); return; }
+  const habia = !!state.config.pin;
   state.config.pin = clave;
-  state.config.pinRecovery = codigo;
+  if(codigo) state.config.pinRecovery = codigo;
+  state.config.seguridadElegida = true;
   save(); render();
-  mostrarAlerta("Clave de inicio configurada. La próxima vez que abras la app, te la pedirá.");
+  mostrarAlerta(habia ? "Clave cambiada." : "Clave guardada. La app te la pedirá al abrirla.");
 }
 function quitarClaveAcceso(){
   mostrarConfirmacion("¿Quitar la clave de acceso? La app ya no pedirá nada al abrirla ni al entrar a Ajustes.", function(ok){
@@ -2677,7 +2758,7 @@ function render(){
   document.documentElement.setAttribute("data-theme", state.config.temaOscuro ? "dark" : "light");
 document.documentElement.setAttribute("data-inicio", state.config.estiloInicio === "marino" ? "marino" : "verde");
   document.documentElement.setAttribute("data-ayudas", state.config.mostrarAyudas ? "on" : "off");
-  if(state.config.pin && !desbloqueado){
+  if(!desbloqueado){
     renderBloqueo();
     return;
   }
@@ -4196,7 +4277,7 @@ function viewInicio(){
       + '<div class="ini-spark-t"><span>Cobrado por semana</span><span>6 semanas</span></div>';
   })();
   html += `<div class="v3-home ini" data-anim="${anim ? 1 : 0}">
-  ${state.config.pin ? "" : `<div class="ini-saludo"><b>${saludo.saludo}</b><span>${saludo.fecha}</span></div>`}
+  ${`<div class="ini-saludo"><b>${saludo.saludo}</b><span>${saludo.fecha}</span></div>`}
   <div class="ini-hero">
     <div class="ini-hero-top">
       <div class="ini-top" onclick="irA('prestamos')">
@@ -4345,7 +4426,7 @@ function viewAjustesClave(){
       ${tieneHuella ? `<button type="button" class="btn btn-outline" style="width:100%;margin-bottom:16px;background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.3);color:#fff;" onclick="usarHuellaAjustes()">👆 Usar huella / Face ID</button>
       <div style="height:1px;background:rgba(255,255,255,.15);margin:0 0 16px;"></div>` : ""}
       <p style="text-align:center;margin:0 0 12px;color:${GOLD};font-size:15px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;">Ingrese clave</p>
-      <input id="claveAjustes" type="password" inputmode="numeric" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;" onkeydown="if(event.key==='Enter') verificarClaveAjustes();" oninput="const l=String(state.config.pin||'').length; if(l>0 && this.value.length===l) verificarClaveAjustes();">
+      <input id="claveAjustes" type="password" inputmode="${modoClave()}" placeholder="••••" class="input-clave-bloqueo" style="width:100%;text-align:center;font-size:20px;letter-spacing:7px;padding:11px;border:1px solid rgba(255,255,255,.3);border-radius:12px;box-sizing:border-box;background:rgba(255,255,255,.08);color:#fff;transition:border-color .15s, box-shadow .15s;" onkeydown="if(event.key==='Enter') verificarClaveAjustes();" oninput="const l=String(state.config.pin||'').length; if(l>0 && this.value.length===l) verificarClaveAjustes();">
       ${state._errorClaveAjustes ? `<p style="color:#FFC2C2;font-size:13px;margin:10px 0 0;text-align:center;">Clave incorrecta.</p>` : ""}
       <button type="button" onclick="olvideMiClave()" style="display:block;width:100%;background:none;border:none;color:rgba(255,255,255,.7);text-decoration:underline;font-size:12.5px;margin-top:18px;cursor:pointer;">¿Olvidaste tu clave?</button>
     </div>
@@ -4476,15 +4557,14 @@ function viewAjustes(){
   </div>
   <div class="row-card" style="display:block;" id="sec-clave">
     <p style="font-weight:600;margin:0 0 4px;">Clave de acceso</p>
-    <p class="hint nota-ayuda" style="margin:0 0 12px;">Esta misma clave protege la app al abrirla y también te la vuelve a pedir al entrar a Ajustes, por seguridad extra.</p>
-    <label style="margin-bottom:12px;"><span>Nueva clave</span>
-      <input id="f_claveAcceso" type="text" inputmode="numeric" placeholder="Ej. 1234" value="">
+    <p class="hint nota-ayuda" style="margin:0 0 12px;">Protege la app al abrirla. Puede ser un PIN de números o una contraseña con letras.</p>
+    <label style="margin-bottom:12px;"><span>${state.config.pin ? "Nueva clave" : "Clave"}</span>
+      <input id="f_claveAcceso" type="text" autocomplete="off" placeholder="Números o letras" value="">
     </label>
-    <label style="margin-bottom:6px;"><span>Código de recuperación (algo que solo tú sepas, por si olvidas la clave)</span>
-      <input id="f_codigoRecuperacion" type="text" placeholder="Ej. una palabra o frase que recuerdes" value="">
+    <label style="margin-bottom:12px;"><span>Palabra de recuperación${state.config.pinRecovery ? " (opcional: vacío = conservar la actual)" : ""}</span>
+      <input id="f_codigoRecuperacion" type="text" autocomplete="off" placeholder="Por si olvidas la clave" value="">
     </label>
-    <p class="hint nota-ayuda" style="margin:0 0 14px;">Si algún día olvidas la clave, la pantalla de acceso te pedirá este código en vez de dejarte entrar sin más — así nadie puede saltarse la clave con solo tocar un botón.</p>
-    <button class="btn btn-gold" onclick="guardarClaveAcceso()">Guardar</button>
+    <button class="btn btn-gold" onclick="guardarClaveAcceso()">${state.config.pin ? "Cambiar clave" : "Guardar clave"}</button>
     ${state.config.pin ? `<button class="btn btn-danger" style="margin-top:10px;" onclick="quitarClaveAcceso()">Quitar clave</button>` : ""}
     ${state.config.pin ? `
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid #E5E1D8;">
@@ -4498,7 +4578,7 @@ function viewAjustes(){
     <div style="margin-top:14px;padding-top:14px;border-top:1px solid #E5E1D8;">
       <p style="font-size:13px;font-weight:600;margin:0 0 4px;">Huella / Face ID</p>
       ${!state.config.pin
-        ? `<p class="hint nota-ayuda" style="margin:0;">Primero pon una clave de inicio (arriba) para poder activar la huella como atajo.</p>`
+        ? `<p class="hint nota-ayuda" style="margin:0;">Primero guarda una clave (arriba): la huella es un atajo y la clave queda de respaldo.</p>`
         : window.__huellaSoportada
           ? (state.config.huellaCredId
               ? `<p class="hint" style="margin:0 0 10px;">Activada en este celular.</p><button class="btn btn-outline" onclick="desactivarHuella()">Desactivar huella</button>`
@@ -5973,7 +6053,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "29.0";
+const JR_VERSION = "30.0";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
