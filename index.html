@@ -1054,6 +1054,21 @@
 .seg-chev{font-size:20px;opacity:.5;}
 .bq-inline{position:relative;margin-top:2px;}
 .bq-arriba .bq-logo-wrap{transform:scale(.62);margin:-22px 0 -14px;}
+  /* v31.0: grupos de la lista de préstamos y secciones de Pagos como menú desplegable */
+  .grp-det>summary, .pg-sec>summary{list-style:none;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .grp-det>summary::-webkit-details-marker, .pg-sec>summary::-webkit-details-marker{display:none;}
+  .grp-det>summary{justify-content:space-between;margin:0 !important;padding:2px 0;}
+  .grp-det>summary::before{order:-1;}
+  .grp-det>summary::after, .pg-sec>summary::after{content:"›";font-size:22px;line-height:1;color:#C9973E;transform:rotate(90deg);transition:transform .2s;flex:none;}
+  .grp-det>summary>span{flex:1;}
+  .grp-det[open]>summary::after, .pg-sec[open]>summary::after{transform:rotate(-90deg);}
+  .grp-det[open]>summary{margin-bottom:10px !important;}
+  .pg-sec{margin:0 0 8px;}
+  .pg-sec>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;font-size:13px;font-weight:600;color:#6B7080;}
+  .pg-sec[open]>summary{margin-bottom:4px;}
+  .pg-sec>summary b{color:#00796A;font-weight:700;white-space:nowrap;}
+  [data-theme="dark"] .pg-sec>summary{color:rgba(243,240,232,.72);}
+  [data-theme="dark"] .pg-sec>summary b{color:#80CBC4;}
 </style>
 </head>
 <body>
@@ -1310,7 +1325,7 @@ document.addEventListener("toggle", function(ev){
       if(x !== d && x.tagName === "DETAILS" && x.open) x.open = false;
     });
   }
-  const clave = `${state.tab}|${state.vista}|${state.seleccionId||""}`;
+  const clave = `${state.tab}|${state.vista}|${state.vista==="lista" ? "" : (state.seleccionId||"")}`;
   const todas = document.querySelectorAll("#app details");
   const abiertas = [];
   todas.forEach(function(x, i){ if(x.open) abiertas.push(x.getAttribute("data-k") || ("i"+i)); });
@@ -2053,6 +2068,20 @@ function prorrateoPrimeraCuota(p, interes1){
   if(dias <= 0 || dias >= D) return 0;
   return -round2((Number(interes1)||0) * (D - dias) / D);
 }
+// Abonos directos a capital (soloCapital): en las tablas se muestran como una línea aparte, justo
+// después de la cuota en la que caen. Devuelve la fila sin ese abono (para que la fila sume bien)
+// y la lista de líneas de abono con el saldo que queda después de cada uno.
+function abonosDirectosDeFila(p, f){
+  if(!f || f.n==null) return { fila:f, abonos:[] };
+  const lista = (p.ajustesCapital||[]).filter(function(a){ return a.soloCapital && a.despuesDeFila===f.n; })
+    .sort(function(a,b){ return String(a.fecha||"").localeCompare(String(b.fecha||"")); });
+  if(!lista.length) return { fila:f, abonos:[] };
+  const directo = Number(f.capitalDirecto)||0;
+  const fila = Object.assign({}, f, { abono: round2(Math.max(0,(Number(f.abono)||0)-directo)), saldo: round2((Number(f.saldo)||0)+directo) });
+  let s = fila.saldo;
+  const abonos = lista.map(function(a){ const m = Number(a.monto)||0; s = round2(Math.max(0, s-m)); return { fecha:a.fecha, monto:m, saldo:s }; });
+  return { fila, abonos };
+}
 function generarTablaDinamica(p){
   const t = generarTablaDinamicaBase(p);
   if(!t.length) return t;
@@ -2095,12 +2124,24 @@ function generarTablaDinamicaBase(p){
       desdeFila = aj.despuesDeFila;
     }
     const filas = [];
+    // El abono se muestra en la fila donde cae y el saldo mostrado baja desde ahí (antes quedaba
+    // en el capital original y el abono se restaba dos veces del saldo pendiente). Igual que en los
+    // demás métodos: lo que no es abono directo a capital forma parte de la cuota de esa fila.
+    let saldoMostrado = capitalOriginal, idxA = 0;
     for(let i=1;i<=nOriginal;i++){
       const esUltima = i===nOriginal;
+      const saldoIni = saldoMostrado;
+      let extra = 0, directo = 0;
+      while(idxA<ajustes.length && ajustes[idxA].despuesDeFila===i){
+        const m = Number(ajustes[idxA].monto)||0;
+        extra += m; if(ajustes[idxA].soloCapital) directo += m;
+        idxA++;
+      }
+      saldoMostrado = round2(Math.max(0, saldoMostrado-extra));
       const interes = esUltima ? round2(interesAcum + saldoSeg*tasa*(nOriginal-desdeFila)) : 0;
-      const abono = esUltima ? saldoSeg : 0;
-      const cuota = round2(interes+abono);
-      filas.push({n:i, fecha:fechaCuota(i), saldoInicial:capitalOriginal, cuota, interes, abono, saldo: esUltima?0:capitalOriginal});
+      const abono = round2((esUltima ? saldoSeg : 0) + extra);
+      const cuota = round2(interes+abono-directo);
+      filas.push({n:i, fecha:fechaCuota(i), saldoInicial:saldoIni, cuota, interes, abono, saldo: esUltima?0:saldoMostrado, capitalDirecto:directo});
     }
     return filas;
   }
@@ -2184,14 +2225,17 @@ function generarTablaDinamicaBase(p){
     // fila siguiente. El saldo de esta fila baja de inmediato con ese extra incluido.
     let abono = abonoProgramado;
     let huboAjuste = false;
+    let capitalDirecto = 0; // abonos directos a capital (se pagan aparte, no forman parte de la cuota)
     while(idxAj<ajustes.length && ajustes[idxAj].despuesDeFila===i){
+      const antes = abono;
       abono = round2(Math.min(saldoInicial, abono + (Number(ajustes[idxAj].monto)||0)));
+      if(ajustes[idxAj].soloCapital) capitalDirecto = round2(capitalDirecto + (abono - antes));
       huboAjuste = true;
       idxAj++;
     }
-    const cuota = round2(interes+abono);
+    const cuota = round2(interes+abono-capitalDirecto);
     const nuevoSaldo = round2(Math.max(0, saldoInicial-abono));
-    filas.push({n:i, fecha:fechaCuota(i), saldoInicial, cuota, interes, abono, saldo: nuevoSaldo});
+    filas.push({n:i, fecha:fechaCuota(i), saldoInicial, cuota, interes, abono, saldo: nuevoSaldo, capitalDirecto});
     saldo = nuevoSaldo;
     if(huboAjuste) recalcularVigente(i);
   }
@@ -2210,14 +2254,15 @@ function resumen(p, fechaRef){
   // avance del cronograma (que sí sigue usando el resto de pagos con normalidad).
   const pagosParaCronograma = pagos.filter(pg=>pg.tipo!=="enganche");
   // el capital/interés se acumula por separado de la mora: la mora no hace avanzar cuotas
-  const totalPagado = pagosParaCronograma.reduce((s,pg)=> s + (Number(pg.monto)||0), 0);
+  // Los abonos directos a capital (solo abono, sin pagar cuota) no cuentan como pago de cuotas.
+  const totalPagado = pagosParaCronograma.filter(pg=>!pg.soloCapital).reduce((s,pg)=> s + (Number(pg.monto)||0), 0);
   const moraTotal = pagosParaCronograma.reduce((s,pg)=> s + (Number(pg.mora)||0), 0);
 
   if(p.liquidadoAnticipado){
     // Cuotas realmente cobradas ANTES de liquidar (sin contar el pago de la liquidación) + la cuota
     // en curso, que es la que cierra la liquidación. Antes se marcaban TODAS las filas de la tabla
     // como pagadas (p. ej. "9 cuotas") y la cuota mostrada salía inflada por un abono a capital.
-    const totalSinLiq = pagosParaCronograma.filter(pg=>!pg.liquidacion).reduce((s,pg)=> s + (Number(pg.monto)||0), 0);
+    const totalSinLiq = pagosParaCronograma.filter(pg=>!pg.liquidacion && !pg.soloCapital).reduce((s,pg)=> s + (Number(pg.monto)||0), 0);
     let cumL = 0, completasL = 0;
     for(let i=0;i<tabla.length;i++){
       cumL += tabla[i].cuota;
@@ -2348,7 +2393,13 @@ function resumen(p, fechaRef){
   const saldoPendiente = Math.max(0, (acumulados[totalCuotas-1]||0) - totalPagado);
   // capital realmente pendiente (sin contar el interés de las cuotas que faltan), util para refinanciar
   const abonosAdelantados = (p.ajustesCapital||[]).filter(a=>a.despuesDeFila > cuotasCompletas).reduce((s,a)=>s+(Number(a.monto)||0),0);
-  const capitalPendiente = pagado ? 0 : Math.max(0, (cuotasCompletas>0 ? Math.max(0, tabla[cuotasCompletas-1].saldo||0) : capital) - abonosAdelantados);
+  // Igual que en la beta: si hay un abono parcial en la cuota en curso, la parte que pasa del
+  // interés de esa cuota ya es capital pagado. Se resta de lo abonado lo que ya está contado como
+  // abono a capital suelto (abonosAdelantados) para no descontarlo dos veces.
+  const interesCuotaActual = cuotaActual ? (cuotaActual.interes||0) : 0;
+  const abonosAdelantadosEnCuota = (p.ajustesCapital||[]).filter(a=>!a.soloCapital && a.despuesDeFila > cuotasCompletas).reduce((s,a)=>s+(Number(a.monto)||0),0);
+  const abonoParcialCapital = Math.max(0, abonadoEnCuotaActual - abonosAdelantadosEnCuota - interesCuotaActual);
+  const capitalPendiente = pagado ? 0 : Math.max(0, (cuotasCompletas>0 ? Math.max(0, tabla[cuotasCompletas-1].saldo||0) : capital) - abonosAdelantados - abonoParcialCapital);
 
   return { cuota: tabla[0]?tabla[0].cuota:0, saldoPendiente, capitalPendiente, estado: pagado?"Pagado":"Activo",
     proximaFecha: pagado?null:(cuotaActual?cuotaActual.fecha:null), tabla, pagosHechos: cuotasCompletas,
@@ -2839,7 +2890,7 @@ document.documentElement.setAttribute("data-inicio", state.config.estiloInicio =
   // mantiene el scroll donde estaba para no dar un salto molesto. Pero si se navegó a una
   // pantalla distinta (p. ej. se abrió un reporte desde Ajustes), debe iniciar arriba del
   // todo, no quedar con el scroll que traía la pantalla anterior.
-  const claveVista = `${state.tab}|${state.vista}|${state.seleccionId||""}`;
+  const claveVista = `${state.tab}|${state.vista}|${state.vista==="lista" ? "" : (state.seleccionId||"")}`;
   const mismaVista = window._claveVistaAnterior === claveVista;
   // Memoria de posición: al salir de una pantalla se guarda dónde ibas, para devolverte ahí
   // cuando regreses a la lista de esa misma sección (ej. Pagos → un recibo → Volver).
@@ -3404,11 +3455,14 @@ function desglosePagado(p){
   // quita; si no, el abono diluía la proporción de interés de la cuota que se paga después.
   const abonosPagados = (p.pagos||[]).filter(function(pg){ return pg.tipo==="abono_capital"; })
     .reduce(function(s,pg){ return s+(Number(pg.monto)||0); }, 0);
-  let restante = Math.max(0, (r.totalPagado || 0) - abonosPagados);
+  // Los abonos directos (soloCapital) no están dentro de totalPagado, así que no se le restan.
+  const abonosDirectos = (p.pagos||[]).filter(function(pg){ return pg.tipo==="abono_capital" && pg.soloCapital; })
+    .reduce(function(s,pg){ return s+(Number(pg.monto)||0); }, 0);
+  let restante = Math.max(0, (r.totalPagado || 0) - (abonosPagados - abonosDirectos));
   let interes = 0, capital = abonosPagados;
   for(const fila of r.tabla){
     if(restante<=0.005) break;
-    const extraFila = (p.ajustesCapital||[]).filter(function(a){ return a.despuesDeFila === fila.n; })
+    const extraFila = (p.ajustesCapital||[]).filter(function(a){ return a.despuesDeFila === fila.n && !a.soloCapital; })
       .reduce(function(s,a){ return s+(Number(a.monto)||0); }, 0);
     const cuotaNormal = Math.max(0, (Number(fila.cuota)||0) - extraFila);
     if(cuotaNormal <= 0.005) continue;
@@ -4886,9 +4940,9 @@ function viewPrestamos(){
   ];
   grupos.forEach(g=>{
     if(g.lista.length===0) return;
-    html += `<div class="panel-prox panel-lista"><p class="section-title dorado ${g.cls}">${g.label} (${g.lista.length})</p>`;
+    html += `<div class="panel-prox panel-lista"><details class="grp-det" data-k="grp-${g.cls}"><summary class="section-title dorado ${g.cls}"><span>${g.label} (${g.lista.length})</span></summary>`;
     g.lista.forEach(p=>{ html += filaPrestamo(p); });
-    html += `</div>`;
+    html += `</details></div>`;
   });
   return html;
 }
@@ -4904,6 +4958,7 @@ function cambiarPaginaAmortizacion(delta){ state.paginaAmortizacion = Math.max(0
 // Botón ‹ del encabezado en Préstamos: si se llegó desde Inicio (Vencido / Próximos 7 días), regresa a Inicio;
 // si se abrió un préstamo desde esa lista, regresa primero a la lista.
 function volverAtras(){
+  if(state.vista === "refinanciar"){ window._rf = null; state.vista = "detalle"; render(); return; }
   if(state.vista === "detalle" && state._detalleDesde === "estadisticas"){
     state._detalleDesde = null; state._irSeccion = null; state.tab = "inicio"; state.vista = "estadisticas"; render();
     const y = state._estScroll || 0;
@@ -5873,7 +5928,7 @@ function viewDetallePrestamo(){
   // Filas donde cayó un abono a capital extra (ajustesCapital), para resaltarlas en la
   // tabla: el número de fila coincide con "despuesDeFila" porque ahí es donde el motor
   // dinámico (generarTablaDinamica) suma ese abono extra al abono programado de esa fila.
-  const filasConAjuste = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
+  const filasConAjuste = new Set((p.ajustesCapital||[]).filter(a=>!a.soloCapital).map(a=>a.despuesDeFila));
   // Paginación fija de 10 filas por página (en vez de una caja con scroll interno): si hay
   // más de 10 cuotas, se navega con botones de página en vez de deslizar dentro de la tabla.
   const PORPAGINA_AMORT = 10;
@@ -5888,6 +5943,7 @@ function viewDetallePrestamo(){
   const filasPagina = filasParaTabla.slice(inicioPagina, inicioPagina + PORPAGINA_AMORT);
   let filasHtml = filasPagina.map((f,iRel)=>{
     const i = inicioPagina + iRel;
+    const _ad = abonosDirectosDeFila(p, f); f = _ad.fila;
     let estadoCelda;
     if(p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) estadoCelda = '<span style="color:#6B7080">Sin cuota</span>';
     else if(i < r.pagosHechos) estadoCelda = '<span style="color:#00796A">✓ Pagada</span>';
@@ -5915,7 +5971,14 @@ function viewDetallePrestamo(){
       <td style="padding:3px 5px;text-align:right;white-space:nowrap;${tieneAjuste?'color:#00796A;font-weight:700;':''}">${money(f.abono)}</td>
       <td style="padding:3px 5px;text-align:right;white-space:nowrap;">${money(f.saldo)}</td>
       <td style="padding:3px 5px;white-space:nowrap;">${estadoCelda}</td>
-    </tr>`;
+    </tr>` + _ad.abonos.map(function(a){ return `<tr class="fila-amort fila-ajuste">
+      <td style="padding:3px 5px;"></td>
+      <td style="padding:3px 5px;white-space:nowrap;">${fmtDateCompacto(a.fecha)}</td>
+      <td></td><td></td><td></td>
+      <td style="padding:3px 5px;text-align:right;white-space:nowrap;color:#00796A;font-weight:700;">${money(a.monto)}</td>
+      <td style="padding:3px 5px;text-align:right;white-space:nowrap;">${money(a.saldo)}</td>
+      <td style="padding:3px 5px;white-space:nowrap;color:#00796A;font-weight:700;">Abono a capital</td>
+    </tr>`; }).join("");
   }).join("");
   // Los totales siempre suman TODAS las cuotas (no solo la página que se ve ahora mismo).
   const totalCuota = filasParaTabla.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.cuota)||0),0);
@@ -5963,7 +6026,7 @@ function viewDetallePrestamo(){
       <p style="color:#F3F0E8;font-size:18px;font-weight:600;line-height:1.25;margin:0;">${p.codigo} · ${cli?cli.nombre:"—"}</p>
       <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px;margin-top:10px;">
         <div>
-          <p style="color:#F3F0E8;font-size:22px;font-weight:700;margin:0;">${money(r.saldoPendiente)}</p>
+          <p style="color:#F3F0E8;font-size:20px;font-weight:700;margin:0;">${money(r.saldoPendiente)}</p>
           <p class="dp-sub" style="color:#F3F0E8;font-size:12px;margin:2px 0 0;">Saldo pendiente</p>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;text-align:right;">
@@ -6082,7 +6145,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "30.1";
+const JR_VERSION = "32.0";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -6691,8 +6754,12 @@ function generarAmortizacionPDF(p, cli, r, mostrarTotales){
     doc.text("Préstamo de plazo indefinido: solo interés cada período, sin fecha de finalización fija.", 14, startY);
     startY += 5;
   }
-  const filasConAjustePDF = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
-  const filas = filasBase.map((f,i)=>{
+  const filasConAjustePDF = new Set((p.ajustesCapital||[]).filter(a=>!a.soloCapital).map(a=>a.despuesDeFila));
+  const itemsPDF = [];
+  filasBase.forEach(function(f0,i0){ const ad = abonosDirectosDeFila(p, f0); itemsPDF.push({ f:ad.fila, i:i0 }); ad.abonos.forEach(function(a){ itemsPDF.push({ abono:a }); }); });
+  const filas = itemsPDF.map((it)=>{
+    if(it.abono) return ["", fmtDateCompacto(it.abono.fecha), "", "", "", money(it.abono.monto), money(it.abono.saldo), "Abono a capital"];
+    const f = it.f, i = it.i;
     const tieneAjuste = filasConAjustePDF.has(f.n);
     const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (f.cubierta ? "Incluida en liquidación" : (p.liquidadoAnticipado && (f.liquidacion || i===r.pagosHechos) ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"))));
     return [f.liquidacion ? "Liq." : f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
@@ -6711,8 +6778,11 @@ function generarAmortizacionPDF(p, cli, r, mostrarTotales){
     columnStyles: { 3: { fontStyle: "bold" } },
     didParseCell: function(data){
       if(data.section==="body"){
-        const fila = filasBase[data.row.index];
-        if(fila && filasConAjustePDF.has(fila.n)){
+        const it = itemsPDF[data.row.index];
+        if(it && it.abono){
+          data.cell.styles.fillColor = [235,245,227];
+          if(data.column.index===5 || data.column.index===7){ data.cell.styles.textColor=[59,109,17]; data.cell.styles.fontStyle="bold"; }
+        } else if(it && filasConAjustePDF.has(it.f.n)){
           data.cell.styles.fillColor = [235,245,227];
           if(data.column.index===5){ data.cell.styles.textColor=[59,109,17]; data.cell.styles.fontStyle="bold"; }
         }
@@ -6886,14 +6956,18 @@ function generarEstadoCuentaPDF(p, cli, r){
         return visibles.length ? visibles : [r.tabla[0]];
       })()
     : r.tabla;
-  const filasConAjusteEC = new Set((p.ajustesCapital||[]).map(a=>a.despuesDeFila));
+  const filasConAjusteEC = new Set((p.ajustesCapital||[]).filter(a=>!a.soloCapital).map(a=>a.despuesDeFila));
+  const itemsEC = [];
+  filasEC.forEach(function(f0,i0){ const ad = abonosDirectosDeFila(p, f0); itemsEC.push({ f:ad.fila, i:i0 }); ad.abonos.forEach(function(a){ itemsEC.push({ abono:a }); }); });
   const totalCuotaEC = filasEC.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.cuota)||0),0);
   const totalInteresEC = filasEC.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.interes)||0),0);
   const totalAbonoEC = filasEC.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.abono)||0),0);
   doc.autoTable({
     startY: y,
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
-    body: filasEC.map((f,i)=>{
+    body: itemsEC.map((it)=>{
+      if(it.abono) return ["", fmtDateCompacto(it.abono.fecha), "", "", "", money(it.abono.monto), money(it.abono.saldo), "Abono a capital"];
+      const f = it.f, i = it.i;
       const tieneAjuste = filasConAjusteEC.has(f.n);
       const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (f.cubierta ? "Incluida en liquidación" : (p.liquidadoAnticipado && (f.liquidacion || i===r.pagosHechos) ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"))));
       return [f.liquidacion ? "Liq." : f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
@@ -7920,9 +7994,15 @@ function registrarAbonoCapital(id){
       if(!ok) return;
       const idAbono = uid();
       p.pagos = p.pagos || [];
-      p.pagos.push({ id:idAbono, ts:new Date().toISOString(), fecha, monto, mora:0, tipo:"abono_capital", interes:0, capital:monto, formaPago:forma });
+      // soloCapital: es un abono directo a capital, no paga cuotas. Se aplica DESPUÉS de las cuotas ya
+      // vencidas (su interés ya se generó sobre el capital anterior): solo baja el interés de ahí en adelante.
+      p.pagos.push({ id:idAbono, ts:new Date().toISOString(), fecha, monto, mora:0, tipo:"abono_capital", soloCapital:true, interes:0, capital:monto, formaPago:forma });
       p.ajustesCapital = p.ajustesCapital || [];
-      p.ajustesCapital.push({ despuesDeFila: (r.pagosHechos||0) + 1, monto, fecha, pagoId: idAbono });
+      // Sistema Americano: no hay cuotas que contar (todas valen 0), así que el período se cuenta por fecha:
+      // los períodos ya vencidos a la fecha del abono pagan interés sobre el capital anterior, y de ahí en adelante sobre el nuevo.
+      let filaAbono = (r.pagosHechos||0) + Math.max(1, cuotasVencidas(r));
+      if(p.metodo === METODOS[4]){ filaAbono = Math.min(r.tabla.length, Math.max(1, r.tabla.filter(function(f){ return f.fecha < fecha; }).length)); }
+      p.ajustesCapital.push({ despuesDeFila: filaAbono, monto, fecha, pagoId: idAbono, soloCapital:true });
       save(); render();
       const r2 = resumen(p);
       mostrarAlerta(`✅ Abono a capital registrado: ${money(monto)}.\n\nCapital pendiente: ${money(r2.capitalPendiente)}.`);
@@ -8160,8 +8240,8 @@ function viewPagos(){
         <div><p class="hint" style="margin:0 0 2px;white-space:nowrap;">Total cobrado</p><p style="font-size:13.5px;font-weight:700;margin:0;">${money(totalGeneral)}</p></div>${desgloseNeto?`<p class="hint" style="grid-column:1/-1;margin:0;font-size:11.5px;">${desgloseNeto}</p>`:""}
       </div>
       <div style="padding:12px 16px;">
-        ${vigentes.length ? `<p class="hint" style="margin:0 0 6px;">Pagos vigentes (${vigentes.length}) · ${money(totalVigente)}</p>${vigentes.map(pg=>filaVigente(p,pg,vigentes)).join("")}` : ""}
-        ${archivados.length ? `<p class="hint" style="margin:${vigentes.length?"10px":"0"} 0 6px;">De antes de modificar (${archivados.length})</p>${archivados.map(pg=>filaArchivada(p,pg,archivados)).join("")}` : ""}
+        ${vigentes.length ? `<details class="pg-sec" data-k="pgv-${p.id}"><summary><span>Pagos vigentes (${vigentes.length})</span><b>${money(totalVigente)}</b></summary>${vigentes.map(pg=>filaVigente(p,pg,vigentes)).join("")}</details>` : ""}
+        ${archivados.length ? `<details class="pg-sec" data-k="pga-${p.id}"><summary><span>De antes de modificar (${archivados.length})</span><b>${money(totalArchivado)}</b></summary>${archivados.map(pg=>filaArchivada(p,pg,archivados)).join("")}</details>` : ""}
       </div>
     </details>`;
   });
