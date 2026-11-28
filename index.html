@@ -1801,7 +1801,7 @@ function configNube(){
   return { tasaMoraDiaria: state.config.tasaMoraDiaria, moraModo: state.config.moraModo||"dia",
     moraBase: state.config.moraBase||"cuota", zonaHoraria: state.config.zonaHoraria||"", moneda: state.config.moneda||"HNL", simbolo: simboloMoneda(),
     reciboCampos: state.config.reciboCampos||{}, reciboCobrador: state.config.reciboCobrador||"", reciboFormaPago: state.config.reciboFormaPago||"Efectivo",
-    cuentasBancarias: state.config.cuentasBancarias||[], contarDiaInicio: state.config.contarDiaInicio===true };
+    cuentasBancarias: state.config.cuentasBancarias||[], abonoPorDias: state.config.abonoPorDias===true, contarDiaInicio: state.config.contarDiaInicio===true };
 }
 // Lista ya calculada por la app (misma lógica que se ve en pantalla) para que el aviso por
 // correo (Apps Script) NO tenga que recalcular nada: solo guarda, por cada préstamo activo,
@@ -1828,7 +1828,7 @@ function avisosNube(){
 function aplicarConfigNube(c){
   if(!c) return;
   if(c.tasaMoraDiaria!==undefined) state.config.tasaMoraDiaria = c.tasaMoraDiaria;
-  ["moraModo","moraBase","zonaHoraria","moneda","reciboCampos","reciboCobrador","reciboFormaPago","cuentasBancarias","contarDiaInicio"].forEach(k=>{ if(c[k]!==undefined) state.config[k] = c[k]; });
+  ["moraModo","moraBase","zonaHoraria","moneda","reciboCampos","reciboCobrador","reciboFormaPago","cuentasBancarias","contarDiaInicio","abonoPorDias"].forEach(k=>{ if(c[k]!==undefined) state.config[k] = c[k]; });
 }
 function textoMora(d){
   const t = state.config.tasaMoraDiaria;
@@ -2093,7 +2093,7 @@ function abonosDirectosDeFila(p, f, todos){
   if(!f || f.n==null) return { fila:f, antes:[], abonos:[] };
   const base = (p.ajustesCapital||[]).filter(a=>(todos || a.soloCapital) && a.despuesDeFila===f.n).sort((a,b)=>String(a.fecha||"").localeCompare(String(b.fecha||"")));
   if(!base.length) return { fila:f, antes:[], abonos:[] };
-  const lAntes = base.filter(a=>a.prorrata), lDesp = base.filter(a=>!a.prorrata);
+  const lAntes = base.filter(a=>a.prorrata && String(a.fecha||"") < String(f.fecha||"")), lDesp = base.filter(a=>!(a.prorrata && String(a.fecha||"") < String(f.fecha||"")));
   const suma = l=>l.reduce((t,a)=>t+(Number(a.monto)||0),0);
   const extraAntes = suma(lAntes), extraDesp = suma(lDesp);
   const directo = Number(f.capitalDirecto)||0;
@@ -4714,6 +4714,13 @@ function viewAjustes(){
         <option value="no" ${(state.config.contarDiaInicio!==true)?"selected":""}>Estándar bancario (el día del préstamo no cuenta)</option>
       </select>
     </label>
+    <label style="margin-bottom:0;margin-top:12px;"><span>Cómo se calcula el interés de un abono a capital</span>
+      <select id="f_abonoPorDias" onchange="state.config.abonoPorDias=(this.value==='dias'); save(); render();">
+        <option value="sig" ${(state.config.abonoPorDias!==true)?"selected":""}>Desde la cuota siguiente (simple)</option>
+        <option value="dias" ${(state.config.abonoPorDias===true)?"selected":""}>Por días (baja desde la fecha del abono)</option>
+      </select>
+    </label>
+    <p class="hint nota-ayuda" style="margin:6px 0 0;">Vale igual para "Solo abono a capital" y para lo que sobra al pagar una cuota. "Por días" baja el interés de la cuota en curso por los días que quedaban después del abono. Los abonos ya registrados no cambian.</p>
   </div>
   <div class="row-card" style="display:block;" id="sec-clave">
     ${htmlSeguridad()}
@@ -6033,7 +6040,7 @@ function viewDetallePrestamo(){
   const _adTot = filasParaTabla.filter(f=>!f.cubierta).map(f=>abonosDirectosDeFila(p, f, true));
   const totalCuota = _adTot.reduce((t,x)=>t+(Number(x.fila.cuota)||0),0);
   const totalInteres = _adTot.reduce((t,x)=>t+(Number(x.fila.interes)||0),0);
-  const totalAbono = _adTot.reduce((t,x)=>t+(Number(x.fila.abono)||0)+x.abonos.reduce((u,a)=>u+a.monto,0),0);
+  const totalAbono = _adTot.reduce((t,x)=>t+(Number(x.fila.abono)||0)+x.abonos.reduce((u,a)=>u+a.monto,0)+x.antes.reduce((u,a)=>u+a.monto,0),0);
   const filaTotales = `<tr class="fila-total-amort" style="font-weight:700;">
     <td colspan="3" style="padding:4px 5px;white-space:nowrap;">Total</td>
     <td style="padding:4px 5px;text-align:right;white-space:nowrap;">${money(totalCuota)}</td>
@@ -6120,7 +6127,7 @@ function viewDetallePrestamo(){
     </div>
     <div class="row-card" style="display:none;" id="card-abono-capital">
       <p style="font-weight:600;margin:0 0 6px;">Solo abono a capital</p>
-      <p class="hint nota-ayuda" style="margin:0 0 10px;">Baja el capital sin pagar la cuota. El interés se calcula día por día: el capital nuevo cuenta desde la fecha del abono. Solo para préstamos al día; con cuotas vencidas usa Registrar pago.</p>
+      <p class="hint nota-ayuda" style="margin:0 0 10px;">Baja el capital sin pagar la cuota. El interés se calcula según Ajustes (desde la cuota siguiente o por días). Solo para préstamos al día; con cuotas vencidas usa Registrar pago.</p>
       <div class="flexrow">
         <input type="text" inputmode="decimal" id="montoAbonoCapital" placeholder="Monto a capital">
         <button class="btn btn-gold" style="width:auto;padding:0 18px;" onclick="registrarAbonoCapital('${p.id}')">Abonar</button>
@@ -6194,7 +6201,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "35.0";
+const JR_VERSION = "36.0";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -6816,7 +6823,7 @@ function generarAmortizacionPDF(p, cli, r, mostrarTotales){
   const _adTotPDF = filasBase.filter(f=>!f.cubierta).map(f=>abonosDirectosDeFila(p, f, true));
   const totalCuota = _adTotPDF.reduce((t,x)=>t+(Number(x.fila.cuota)||0),0);
   const totalInteres = _adTotPDF.reduce((t,x)=>t+(Number(x.fila.interes)||0),0);
-  const totalAbono = _adTotPDF.reduce((t,x)=>t+(Number(x.fila.abono)||0)+x.abonos.reduce((u,a)=>u+a.monto,0),0);
+  const totalAbono = _adTotPDF.reduce((t,x)=>t+(Number(x.fila.abono)||0)+x.abonos.reduce((u,a)=>u+a.monto,0)+x.antes.reduce((u,a)=>u+a.monto,0),0);
   doc.autoTable({
     startY,
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Capital","Pendiente","Estado"]],
@@ -6999,12 +7006,13 @@ function generarEstadoCuentaPDF(p, cli, r){
         return visibles.length ? visibles : [r.tabla[0]];
       })()
     : r.tabla;
-  const filasConAjusteEC = new Set((p.ajustesCapital||[]).filter(a=>!a.soloCapital).map(a=>a.despuesDeFila));
+  const filasConAjusteEC = new Set();
   const itemsEC = [];
-  filasEC.forEach(function(f0,i0){ const ad = abonosDirectosDeFila(p, f0); ad.antes.forEach(function(a){ itemsEC.push({ abono:a }); }); itemsEC.push({ f:ad.fila, i:i0 }); ad.abonos.forEach(function(a){ itemsEC.push({ abono:a }); }); });
-  const totalCuotaEC = filasEC.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.cuota)||0),0);
-  const totalInteresEC = filasEC.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.interes)||0),0);
-  const totalAbonoEC = filasEC.filter(f=>!f.cubierta).reduce((s,f)=>s+(Number(f.abono)||0),0);
+  filasEC.forEach(function(f0,i0){ const ad = abonosDirectosDeFila(p, f0, true); ad.antes.forEach(function(a){ itemsEC.push({ abono:a }); }); itemsEC.push({ f:ad.fila, i:i0 }); ad.abonos.forEach(function(a){ itemsEC.push({ abono:a }); }); });
+  const _adTotEC = filasEC.filter(f=>!f.cubierta).map(f=>abonosDirectosDeFila(p, f, true));
+  const totalCuotaEC = _adTotEC.reduce((t,x)=>t+(Number(x.fila.cuota)||0),0);
+  const totalInteresEC = _adTotEC.reduce((t,x)=>t+(Number(x.fila.interes)||0),0);
+  const totalAbonoEC = _adTotEC.reduce((t,x)=>t+(Number(x.fila.abono)||0)+x.abonos.reduce((u,a)=>u+a.monto,0)+x.antes.reduce((u,a)=>u+a.monto,0),0);
   doc.autoTable({
     startY: y,
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
@@ -7989,7 +7997,7 @@ function registrarPago(id){
         // igual se está aplicando a esa cuota que se está pagando ahora mismo, así que la
         // marca nunca debe ser menor a 1, o si no, apunta a la fila "0" (que no existe, la
         // numeración empieza en 1) y el abono se queda sin aplicarse a ninguna fila.
-        p.ajustesCapital.push({ despuesDeFila: (r.pagosHechos||0) + Math.max(1, pendiente.nVenc), monto: excedente, fecha: fechaPago, pagoId: idAbono });
+        p.ajustesCapital.push({ despuesDeFila: (r.pagosHechos||0) + Math.max(1, pendiente.nVenc), monto: excedente, fecha: fechaPago, pagoId: idAbono, prorrata: state.config.abonoPorDias===true });
       }
     }
     save(); render();
@@ -8080,7 +8088,7 @@ function registrarAbonoCapital(id){
         // las cuotas ya pagadas por adelantado.
         let filaAbono = Math.min(rAb.tabla.length, rAb.tabla.filter(function(f){ return f.fecha < fecha; }).length + 1);
         if(fecha >= hoyISO()) filaAbono = Math.min(rAb.tabla.length, Math.max(filaAbono, (rAb.pagosHechos||0) + 1));
-        p.ajustesCapital.push({ despuesDeFila: filaAbono, monto:aCap, fecha, pagoId: idAbono, soloCapital:true, prorrata:true });
+        p.ajustesCapital.push({ despuesDeFila: filaAbono, monto:aCap, fecha, pagoId: idAbono, soloCapital:true, prorrata: state.config.abonoPorDias===true });
       }
       save(); render();
       const r2 = resumen(p);
