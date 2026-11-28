@@ -6001,6 +6001,7 @@ function viewDetallePrestamo(){
     const _ad = abonosDirectosDeFila(p, f, true); f = _ad.fila;
     let estadoCelda;
     if(p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) estadoCelda = '<span style="color:#6B7080">Sin cuota</span>';
+    else if(p.metodo===METODOS[4] && Number(f.cuota)===0) estadoCelda = '<span style="color:#6B7080">No aplica pago</span>';
     else if(i < r.pagosHechos) estadoCelda = '<span style="color:#00796A">✓ Pagada</span>';
     else if(f.cubierta) estadoCelda = '<span style="color:#00796A">✓ Incluida en liquidación</span>';
     else if(p.liquidadoAnticipado && (f.liquidacion || i === r.pagosHechos)) estadoCelda = '<span style="color:#00796A">✓ Liquidación</span>';
@@ -6031,14 +6032,14 @@ function viewDetallePrestamo(){
   function _filasAb(lista){ return lista.map(function(a){ return `<tr class="fila-amort fila-ajuste">
       <td style="padding:3px 5px;"></td>
       <td style="padding:3px 5px;white-space:nowrap;">${fmtDateCompacto(a.fecha)}</td>
-      <td></td><td></td><td></td>
+      <td></td><td style="padding:3px 5px;text-align:right;white-space:nowrap;color:#00796A;font-weight:700;">${money(a.monto)}</td><td></td>
       <td style="padding:3px 5px;text-align:right;white-space:nowrap;color:#00796A;font-weight:700;">${money(a.monto)}</td>
       <td style="padding:3px 5px;text-align:right;white-space:nowrap;">${money(a.saldo)}</td>
       <td style="padding:3px 5px;white-space:nowrap;color:#00796A;font-weight:700;">Abono a capital</td>
     </tr>`; }).join(""); }
   // Los totales siempre suman TODAS las cuotas (no solo la página que se ve ahora mismo).
   const _adTot = filasParaTabla.filter(f=>!f.cubierta).map(f=>abonosDirectosDeFila(p, f, true));
-  const totalCuota = _adTot.reduce((t,x)=>t+(Number(x.fila.cuota)||0),0);
+  const totalCuota = _adTot.reduce((t,x)=>t+(Number(x.fila.cuota)||0)+x.abonos.reduce((u,a)=>u+a.monto,0)+x.antes.reduce((u,a)=>u+a.monto,0),0);
   const totalInteres = _adTot.reduce((t,x)=>t+(Number(x.fila.interes)||0),0);
   const totalAbono = _adTot.reduce((t,x)=>t+(Number(x.fila.abono)||0)+x.abonos.reduce((u,a)=>u+a.monto,0)+x.antes.reduce((u,a)=>u+a.monto,0),0);
   const filaTotales = `<tr class="fila-total-amort" style="font-weight:700;">
@@ -6093,7 +6094,7 @@ function viewDetallePrestamo(){
     </div>
     <div class="grid2">
       <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Capital</p><p style="font-size:15px;font-weight:600;margin:0;">${money(p.capital)}</p></div>
-      <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Cuota</p><p style="font-size:15px;font-weight:600;margin:0;">${money(r.cuota)}</p></div>
+      <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Cuota</p><p style="font-size:15px;font-weight:600;margin:0;">${money(r.tabla[0] ? abonosDirectosDeFila(p, r.tabla[0], true).fila.cuota : r.cuota)}</p></div>
       <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Próxima fecha</p><p style="font-size:15px;font-weight:600;margin:0;">${r.proximaFecha?fmtDate(r.proximaFecha):"—"}</p></div>
       <div class="card" style="border:1px solid #e5e1d8;"><p class="lbl">Cuotas pagadas</p><p style="font-size:15px;font-weight:600;margin:0;">${r.pagosHechos}${p.metodo.includes("Indefinido")?"":" / "+(r.totalCuotasOriginal||r.tabla.length)}</p></div>
     </div>
@@ -6201,7 +6202,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "36.1";
+const JR_VERSION = "38.0";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -6814,14 +6815,14 @@ function generarAmortizacionPDF(p, cli, r, mostrarTotales){
   const itemsPDF = [];
   filasBase.forEach(function(f0,i0){ const ad = abonosDirectosDeFila(p, f0, true); ad.antes.forEach(function(a){ itemsPDF.push({ abono:a }); }); itemsPDF.push({ f:ad.fila, i:i0 }); ad.abonos.forEach(function(a){ itemsPDF.push({ abono:a }); }); });
   const filas = itemsPDF.map((it)=>{
-    if(it.abono) return ["", fmtDateCompacto(it.abono.fecha), "", "", "", money(it.abono.monto), money(it.abono.saldo), "Abono a capital"];
+    if(it.abono) return ["", fmtDateCompacto(it.abono.fecha), "", money(it.abono.monto), "", money(it.abono.monto), money(it.abono.saldo), "Abono a capital"];
     const f = it.f, i = it.i;
     const tieneAjuste = filasConAjustePDF.has(f.n);
-    const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (f.cubierta ? "Incluida en liquidación" : (p.liquidadoAnticipado && (f.liquidacion || i===r.pagosHechos) ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"))));
+    const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (p.metodo===METODOS[4] && Number(f.cuota)===0 ? "No aplica pago" : i < r.pagosHechos ? "Pagada" : (f.cubierta ? "Incluida en liquidación" : (p.liquidadoAnticipado && (f.liquidacion || i===r.pagosHechos) ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"))));
     return [f.liquidacion ? "Liq." : f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
   });
   const _adTotPDF = filasBase.filter(f=>!f.cubierta).map(f=>abonosDirectosDeFila(p, f, true));
-  const totalCuota = _adTotPDF.reduce((t,x)=>t+(Number(x.fila.cuota)||0),0);
+  const totalCuota = _adTotPDF.reduce((t,x)=>t+(Number(x.fila.cuota)||0)+x.abonos.reduce((u,a)=>u+a.monto,0)+x.antes.reduce((u,a)=>u+a.monto,0),0);
   const totalInteres = _adTotPDF.reduce((t,x)=>t+(Number(x.fila.interes)||0),0);
   const totalAbono = _adTotPDF.reduce((t,x)=>t+(Number(x.fila.abono)||0)+x.abonos.reduce((u,a)=>u+a.monto,0)+x.antes.reduce((u,a)=>u+a.monto,0),0);
   doc.autoTable({
@@ -7011,17 +7012,17 @@ function generarEstadoCuentaPDF(p, cli, r){
   const itemsEC = [];
   filasEC.forEach(function(f0,i0){ const ad = abonosDirectosDeFila(p, f0, true); ad.antes.forEach(function(a){ itemsEC.push({ abono:a }); }); itemsEC.push({ f:ad.fila, i:i0 }); ad.abonos.forEach(function(a){ itemsEC.push({ abono:a }); }); });
   const _adTotEC = filasEC.filter(f=>!f.cubierta).map(f=>abonosDirectosDeFila(p, f, true));
-  const totalCuotaEC = _adTotEC.reduce((t,x)=>t+(Number(x.fila.cuota)||0),0);
+  const totalCuotaEC = _adTotEC.reduce((t,x)=>t+(Number(x.fila.cuota)||0)+x.abonos.reduce((u,a)=>u+a.monto,0)+x.antes.reduce((u,a)=>u+a.monto,0),0);
   const totalInteresEC = _adTotEC.reduce((t,x)=>t+(Number(x.fila.interes)||0),0);
   const totalAbonoEC = _adTotEC.reduce((t,x)=>t+(Number(x.fila.abono)||0)+x.abonos.reduce((u,a)=>u+a.monto,0)+x.antes.reduce((u,a)=>u+a.monto,0),0);
   doc.autoTable({
     startY: y,
     head: [["N°","Fecha","Saldo ini.","Cuota","Interés","Abono","Pendiente","Estado"]],
     body: itemsEC.map((it)=>{
-      if(it.abono) return ["", fmtDateCompacto(it.abono.fecha), "", "", "", money(it.abono.monto), money(it.abono.saldo), "Abono a capital"];
+      if(it.abono) return ["", fmtDateCompacto(it.abono.fecha), "", money(it.abono.monto), "", money(it.abono.monto), money(it.abono.saldo), "Abono a capital"];
       const f = it.f, i = it.i;
       const tieneAjuste = filasConAjusteEC.has(f.n);
-      const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (i < r.pagosHechos ? "Pagada" : (f.cubierta ? "Incluida en liquidación" : (p.liquidadoAnticipado && (f.liquidacion || i===r.pagosHechos) ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"))));
+      const estado = (p.metodo===METODOS[5] && Number(f.cuota)===0 && Number(f.abono)===0) ? "Sin cuota" : (p.metodo===METODOS[4] && Number(f.cuota)===0 ? "No aplica pago" : i < r.pagosHechos ? "Pagada" : (f.cubierta ? "Incluida en liquidación" : (p.liquidadoAnticipado && (f.liquidacion || i===r.pagosHechos) ? "Liquidación" : (i===r.pagosHechos && r.abonadoEnCuotaActual>0 ? `Abono ${money(r.abonadoEnCuotaActual)}` : "Pendiente"))));
       return [f.liquidacion ? "Liq." : f.n, fmtDateCompacto(f.fecha), money(f.saldoInicial), money(f.cuota), money(f.interes), tieneAjuste?`${money(f.abono)} *`:money(f.abono), money(f.saldo), estado];
     }),
     foot: [["Total","","",money(totalCuotaEC),money(totalInteresEC),money(totalAbonoEC),"",""]],
@@ -8081,8 +8082,17 @@ function registrarAbonoCapital(id){
   const _fechaB = (_fEl0 && _fEl0.value) ? _fEl0.value : hoyISO();
   // Se cuentan las cuotas que ya estaban vencidas A LA FECHA del abono (un abono olvidado de días
   // anteriores se puede registrar aunque hoy el préstamo ya tenga atraso).
-  const vencALaFecha = r.tabla.slice(r.pagosHechos||0).filter(function(f){ return f.fecha < _fechaB; }).length;
-  if(p.metodo !== METODOS[4] && vencALaFecha>0 && pend.monto>0.01){
+  const vencALaFecha = r.tabla.slice(r.pagosHechos||0).filter(function(f){ return f.fecha <= _fechaB; }).length;
+  const _nAtr = r.tabla.slice(r.pagosHechos||0).filter(function(f){ return f.fecha < _fechaB; }).length;
+  if(p.metodo !== METODOS[4] && vencALaFecha>0 && (pend.monto<=0.01 || _nAtr===0)){
+    // Cuota que vence justo el día del abono y sigue sin pagarse (todavía no está vencida): primero se paga la cuota.
+    const _mP = round2((Number(r.faltaEnCuotaActual)||0) + r.tabla.slice((r.pagosHechos||0)+1, (r.pagosHechos||0)+vencALaFecha).reduce(function(t,f){ return t+(Number(f.cuota)||0); },0));
+    mostrarAlerta(_nAtr===0
+      ? `La cuota que vence el ${fmtDate(_fechaB)} (${money(_mP)}) todavía no está pagada.\n\nPrimero registra su pago en "Registrar pago"; después podrás cargar el abono.`
+      : `${vencALaFecha>1 ? "Hay "+vencALaFecha+" cuotas pendientes" : "Hay una cuota pendiente"} a la fecha del abono (${money(_mP)}).\n\nPrimero registra el pago de la cuota en "Registrar pago"; después podrás cargar el abono.`);
+    return;
+  }
+  if(p.metodo !== METODOS[4] && vencALaFecha>0 && pend.monto>0.01 && _nAtr>0){
     mostrarAlerta(`Este préstamo tiene ${pend.nVenc>1 ? pend.nVenc+" cuotas vencidas" : "una cuota vencida"} (${money(pend.monto)}${pend.mora>0 ? " + mora "+money(pend.mora) : ""}).\n\nPrimero ponlo al día en "Registrar pago": lo que sobre se aplica a capital.`);
     return;
   }
@@ -8126,7 +8136,7 @@ function registrarAbonoCapital(id){
         // préstamo hoy) y el interés de ese período se prorratea por días. Si es de hoy, nunca antes de
         // las cuotas ya pagadas por adelantado.
         let filaAbono = Math.min(rAb.tabla.length, rAb.tabla.filter(function(f){ return f.fecha < fecha; }).length + 1);
-        if(fecha >= hoyISO()) filaAbono = Math.min(rAb.tabla.length, Math.max(filaAbono, (rAb.pagosHechos||0) + 1));
+        if(fecha >= hoyISO() && !(filaAbono <= (rAb.pagosHechos||0) && rAb.tabla[filaAbono-1] && rAb.tabla[filaAbono-1].fecha === fecha)) filaAbono = Math.min(rAb.tabla.length, Math.max(filaAbono, (rAb.pagosHechos||0) + 1));
         p.ajustesCapital.push({ despuesDeFila: filaAbono, monto:aCap, fecha, pagoId: idAbono, soloCapital:true, prorrata: state.config.abonoPorDias===true });
       }
       save(); render();
