@@ -6201,7 +6201,7 @@ function cargarPDFLibs(cb){
   });
 }
 // ===== Versión de la app y aviso de "versión nueva" =====
-const JR_VERSION = "36.0";
+const JR_VERSION = "36.1";
 // La versión nueva NO se usa hasta que tocas "Actualizar": se le pide al sw.js que la active
 // y, cuando confirma, se recarga la app.
 function aplicarActualizacion(){
@@ -6837,11 +6837,11 @@ function generarAmortizacionPDF(p, cli, r, mostrarTotales){
       if(data.section==="body"){
         const it = itemsPDF[data.row.index];
         if(it && it.abono){
-          data.cell.styles.fillColor = [235,245,227];
-          if(data.column.index===5 || data.column.index===7){ data.cell.styles.textColor=[59,109,17]; data.cell.styles.fontStyle="bold"; }
+          data.cell.styles.fillColor = [229,241,239];
+          if(data.column.index===5 || data.column.index===7){ data.cell.styles.textColor=[0,121,106]; data.cell.styles.fontStyle="bold"; }
         } else if(it && filasConAjustePDF.has(it.f.n)){
-          data.cell.styles.fillColor = [235,245,227];
-          if(data.column.index===5){ data.cell.styles.textColor=[59,109,17]; data.cell.styles.fontStyle="bold"; }
+          data.cell.styles.fillColor = [229,241,239];
+          if(data.column.index===5){ data.cell.styles.textColor=[0,121,106]; data.cell.styles.fontStyle="bold"; }
         }
       }
     }
@@ -6983,12 +6983,13 @@ function generarEstadoCuentaPDF(p, cli, r){
   const pagosTodos = [...(p.pagos||[])];
   (p.modificaciones||[]).forEach(m=>{ (m.pagosPrevios||[]).forEach(pg=>pagosTodos.push(pg)); });
   pagosTodos.sort((a,b)=> (a.fecha||"").localeCompare(b.fecha||""));
+  const conceptosCuotasEC = conceptosPagosPorCuota(p, r);
   doc.setFontSize(11); doc.setFont("helvetica","bold"); doc.text("Historial de pagos", 14, y);
   doc.setFont("helvetica","normal"); y += 3;
   doc.autoTable({
     startY: y,
     head: [["Fecha","Concepto","Monto","Mora"]],
-    body: pagosTodos.length ? pagosTodos.map(pg=>[fmtDate(pg.fecha), conceptoPago(pg), money(pg.monto), pg.mora>0?money(pg.mora):"—"]) : [["—","Todavía no hay pagos registrados","",""]],
+    body: pagosTodos.length ? pagosTodos.map(pg=>[fmtDate(pg.fecha), (conceptosCuotasEC[pg.id] || conceptoPago(pg)), money(pg.monto), pg.mora>0?money(pg.mora):"—"]) : [["—","Todavía no hay pagos registrados","",""]],
     styles: { fontSize: 8.5, cellPadding: 1 },
     headStyles: { fillColor: [27,42,74] }
   });
@@ -7027,7 +7028,16 @@ function generarEstadoCuentaPDF(p, cli, r){
     styles: { fontSize: 8, cellPadding: 1 },
     headStyles: { fillColor: [27,42,74] },
     footStyles: { fillColor: [245,243,238], textColor: [20,20,20], fontStyle: "bold" },
-    columnStyles: { 3: { fontStyle: "bold" } }
+    columnStyles: { 3: { fontStyle: "bold" } },
+    didParseCell: function(data){
+      if(data.section==="body"){
+        const it = itemsEC[data.row.index];
+        if(it && it.abono){
+          data.cell.styles.fillColor = [229,241,239];
+          if(data.column.index===5 || data.column.index===7){ data.cell.styles.textColor=[0,121,106]; data.cell.styles.fontStyle="bold"; }
+        }
+      }
+    }
   });
   const finalY = doc.lastAutoTable.finalY;
   doc.setFontSize(7.5); doc.setTextColor(130);
@@ -7500,6 +7510,35 @@ function htmlAjustesRecibo(){
 }
 // Pago de interés que se registra al refinanciar (días corridos desde el último pago).
 function esPagoInteresRefi(pg){ return !!pg && (pg.refiInteres === true || pg.nota === "Interés acumulado al refinanciar"); }
+// Concepto de cada pago del préstamo para el estado de cuenta: "Cuota 3", "Cuotas 4–5", "Abono a cuota 6"
+// (pago parcial) o "Abono a capital". Se deduce de lo cobrado frente a lo que suma cada cuota de la tabla.
+function conceptosPagosPorCuota(p, r){
+  const out = {};
+  try{
+    if(!p || !r || p.liquidadoAnticipado || p.refinanciado || !(r.tabla||[]).length) return out;
+    const cum = []; let c = 0;
+    // Cuota de cada fila SIN el abono a capital que se cobró junto con ella (ese va en su propio renglón).
+    r.tabla.forEach(f=>{ c += Number(abonosDirectosDeFila(p, f, true).fila.cuota)||0; cum.push(round2(c)); });
+    const completas = tot => { let k = 0; while(k<cum.length && tot + 0.01 >= cum[k]) k++; return k; };
+    const lista = (p.pagos||[]).map((pg,i)=>({pg,i})).filter(x=>x.pg.tipo!=="enganche" && !x.pg.liquidacion && !esPagoInteresRefi(x.pg));
+    lista.sort((a,b)=> String(a.pg.fecha||"").localeCompare(String(b.pg.fecha||"")) || (a.i-b.i));
+    let acum = 0;
+    lista.forEach(x=>{
+      const pg = x.pg;
+      if(pg.soloCapital || pg.tipo === "abono_capital"){ out[pg.id] = "Abono a capital"; return; }
+      const antes = completas(acum);
+      acum = round2(acum + (Number(pg.monto)||0));
+      const despues = completas(acum);
+      let t;
+      if(pg.tipo === "abono_capital") t = "Abono a capital";
+      else if(despues > antes) t = (despues - antes === 1) ? ("Cuota " + despues) : ("Cuotas " + (antes+1) + "–" + despues);
+      else t = "Abono a cuota " + (antes+1);
+      if(pg.mora>0 && pg.tipo !== "abono_capital") t += " + mora";
+      out[pg.id] = t;
+    });
+  }catch(e){}
+  return out;
+}
 function conceptoPago(pg){
   if(esPagoInteresRefi(pg)) return "Interés acumulado al refinanciar";
   if(pg.liquidacion) return "Liquidación anticipada";
